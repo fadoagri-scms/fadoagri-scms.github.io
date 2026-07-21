@@ -71,15 +71,20 @@ const titles = {
     qc: 'QC',
     xuat_khau: 'Xuất khẩu'
   };
-  // Module (theo id section, không phải data-tab) mà mỗi role được thao tác.
-  const ROLE_MODULE_SECTIONS = {
-    admin: ['tab-raw', 'tab-ncc', 'tab-factory', 'tab-qc', 'tab-logistics', 'tab-docs', 'tab-feedback'],
-    san_xuat: ['tab-raw', 'tab-factory'],
-    ncc: ['tab-ncc'],
-    qc: ['tab-qc'],
-    xuat_khau: ['tab-logistics', 'tab-docs', 'tab-feedback']
+  // Module (theo id section, không phải data-tab) ứng với module_key trong
+  // bảng public.module_permissions — quyền ghi thật do RLS quyết định (xem
+  // supabase/2026-07-22_dynamic_permissions.sql), map này chỉ để UI biết ẩn/
+  // hiện nút cho khớp với những gì server sẽ cho phép.
+  const SECTION_MODULE_KEY = {
+    'tab-raw': 'vung_nguyen_lieu',
+    'tab-ncc': 'nha_cung_cap',
+    'tab-factory': 'xuong_ba_phi',
+    'tab-qc': 'danh_gia_chat_luong',
+    'tab-logistics': 'logistics',
+    'tab-docs': 'chung_tu',
+    'tab-feedback': 'feedback_kh'
   };
-  const ALL_MODULE_SECTIONS = ['tab-raw', 'tab-ncc', 'tab-factory', 'tab-qc', 'tab-logistics', 'tab-docs', 'tab-feedback'];
+  const ALL_MODULE_SECTIONS = Object.keys(SECTION_MODULE_KEY);
 
   const loginOverlay = document.getElementById('login-overlay');
   const loginForm = document.getElementById('form-login');
@@ -99,12 +104,28 @@ const titles = {
     if(loginOverlay) loginOverlay.classList.toggle('active', !visible);
   }
 
-  function applyRolePermissions(){
+  async function applyRolePermissions(){
     if(!currentUser) return;
-    const allowed = ROLE_MODULE_SECTIONS[currentUser.role] || [];
+    // levels['vung_nguyen_lieu'] = 'edit' | 'view' | 'none'
+    let levels = {};
+    if(currentUser.role === 'admin'){
+      Object.values(SECTION_MODULE_KEY).forEach(function(key){ levels[key] = 'edit'; });
+    } else {
+      try{
+        const { data, error } = await sb.from('module_permissions').select('module_key,access_level').eq('role', currentUser.role);
+        if(error) throw error;
+        (data || []).forEach(function(r){ levels[r.module_key] = r.access_level; });
+      } catch(err){
+        console.error('Không tải được ma trận phân quyền:', err);
+      }
+    }
     ALL_MODULE_SECTIONS.forEach(function(sectionId){
+      const level = levels[SECTION_MODULE_KEY[sectionId]] || 'none';
       const section = document.getElementById(sectionId);
-      if(section) section.classList.toggle('readonly-module', allowed.indexOf(sectionId) === -1);
+      if(section) section.classList.toggle('readonly-module', level !== 'edit');
+      const tabName = sectionId.replace(/^tab-/, '');
+      const navBtn = document.querySelector('.nav-item[data-tab="' + tabName + '"]');
+      if(navBtn) navBtn.style.display = level === 'none' ? 'none' : '';
     });
     if(navItemUsers) navItemUsers.style.display = currentUser.role === 'admin' ? '' : 'none';
     if(currentUserName) currentUserName.textContent = currentUser.full_name || currentUser.email || '—';
@@ -134,7 +155,7 @@ const titles = {
       return;
     }
     currentUser = { id: session.user.id, email: session.user.email, full_name: profile.full_name, role: profile.role };
-    applyRolePermissions();
+    await applyRolePermissions();
     setAppVisible(true);
   }
 
@@ -3487,7 +3508,7 @@ const titles = {
       tbody.textContent = '';
       const tr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 3;
+      td.colSpan = 4;
       td.style.textAlign = 'center';
       td.style.color = color || 'var(--ink-soft)';
       td.style.padding = '20px';
@@ -3504,6 +3525,17 @@ const titles = {
         if(error) throw error;
       } catch(err){
         alert('Không thể lưu: ' + err.message);
+      }
+    }
+
+    async function deleteAccount(u){
+      if(!confirm('Xóa tài khoản "' + (u.full_name || u.email) + '"? Người này sẽ mất quyền truy cập dashboard ngay lập tức.')) return;
+      try{
+        const { error } = await sb.from('profiles').delete().eq('id', u.id);
+        if(error) throw error;
+        await refreshUsers();
+      } catch(err){
+        alert('Không thể xóa: ' + err.message);
       }
     }
 
@@ -3543,6 +3575,16 @@ const titles = {
           roleSelect.addEventListener('change', function(){ saveField(u.id, 'role', roleSelect.value); });
           roleTd.appendChild(roleSelect);
           tr.appendChild(roleTd);
+
+          const actionTd = document.createElement('td');
+          const delBtn = document.createElement('button');
+          delBtn.type = 'button';
+          delBtn.title = 'Xóa tài khoản';
+          delBtn.style.cssText = 'background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:4px 8px;';
+          delBtn.innerHTML = '<i class="ti ti-trash"></i>';
+          delBtn.addEventListener('click', function(){ deleteAccount(u); });
+          actionTd.appendChild(delBtn);
+          tr.appendChild(actionTd);
 
           tbody.appendChild(tr);
         });
@@ -3600,4 +3642,120 @@ const titles = {
 
     showMessage('Đang tải dữ liệu...');
     refreshUsers();
+  })();
+
+  // ---- Ma trận phân quyền (chỉ Admin sửa) ----
+  // Đọc/ghi bảng public.module_permissions — RLS thật của từng bảng dữ liệu
+  // đọc trực tiếp từ đây qua hàm can_write() (xem
+  // supabase/2026-07-22_dynamic_permissions.sql), nên bấm đổi ở đây là đổi
+  // quyền thật ngay lập tức, không chỉ đổi giao diện.
+  (function(){
+    const tbody = document.getElementById('permissions-tbody');
+    if(!tbody || !sb) return;
+
+    const PERMISSION_MODULES = [
+      ['vung_nguyen_lieu', 'Vùng nguyên liệu'],
+      ['nha_cung_cap', 'Nhà cung cấp'],
+      ['xuong_ba_phi', 'Xưởng Ba Phi'],
+      ['danh_gia_chat_luong', 'Đánh giá chất lượng'],
+      ['logistics', 'Logistics'],
+      ['chung_tu', 'Chứng từ'],
+      ['feedback_kh', 'Feedback KH']
+    ];
+    const PERMISSION_ROLES = ['san_xuat', 'ncc', 'qc', 'xuat_khau'];
+
+    function showMessage(text, color){
+      tbody.textContent = '';
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 6;
+      td.style.textAlign = 'center';
+      td.style.color = color || 'var(--ink-soft)';
+      td.style.padding = '20px';
+      td.textContent = text;
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    }
+
+    function makeStaticCell(text){
+      const td = document.createElement('td');
+      td.textContent = text;
+      td.style.color = 'var(--ink-soft)';
+      return td;
+    }
+
+    // 3 trạng thái, bấm để chuyển vòng tròn edit -> view -> none -> edit.
+    const LEVEL_ORDER = ['edit', 'view', 'none'];
+    const LEVEL_STYLE = {
+      edit: { text: '✓', border: 'var(--green)', color: 'var(--green)', bg: 'var(--green-bg)' },
+      view: { text: 'Xem', border: 'var(--border)', color: 'var(--ink-soft)', bg: 'var(--surface-2)' },
+      none: { text: '—', border: 'var(--red)', color: 'var(--red)', bg: 'var(--red-bg)' }
+    };
+
+    function makeToggleCell(moduleKey, role, level){
+      const td = document.createElement('td');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      function paint(){
+        const s = LEVEL_STYLE[level];
+        btn.textContent = s.text;
+        btn.style.cssText = 'font-family:inherit;font-size:13px;font-weight:600;border-radius:8px;padding:5px 12px;cursor:pointer;' +
+          'border:1px solid ' + s.border + ';color:' + s.color + ';background:' + s.bg + ';';
+      }
+      paint();
+      btn.addEventListener('click', async function(){
+        const next = LEVEL_ORDER[(LEVEL_ORDER.indexOf(level) + 1) % LEVEL_ORDER.length];
+        btn.disabled = true;
+        try{
+          const { error } = await sb.from('module_permissions')
+            .upsert({ module_key: moduleKey, role: role, access_level: next }, { onConflict: 'module_key,role' });
+          if(error) throw error;
+          level = next;
+          paint();
+        } catch(err){
+          alert('Không thể lưu quyền: ' + err.message);
+        } finally {
+          btn.disabled = false;
+        }
+      });
+      td.appendChild(btn);
+      return td;
+    }
+
+    async function refreshPermissions(){
+      try{
+        const { data, error } = await sb.from('module_permissions').select('module_key,role,access_level');
+        if(error) throw error;
+        const map = {};
+        (data || []).forEach(function(r){ map[r.module_key + '|' + r.role] = r.access_level; });
+
+        tbody.textContent = '';
+        PERMISSION_MODULES.forEach(function(m){
+          const moduleKey = m[0], label = m[1];
+          const tr = document.createElement('tr');
+          const nameTd = document.createElement('td');
+          nameTd.textContent = label;
+          tr.appendChild(nameTd);
+          tr.appendChild(makeStaticCell('✓'));
+          PERMISSION_ROLES.forEach(function(role){
+            tr.appendChild(makeToggleCell(moduleKey, role, map[moduleKey + '|' + role] || 'view'));
+          });
+          tbody.appendChild(tr);
+        });
+
+        const accTr = document.createElement('tr');
+        const accNameTd = document.createElement('td');
+        accNameTd.textContent = 'Quản lý tài khoản';
+        accTr.appendChild(accNameTd);
+        accTr.appendChild(makeStaticCell('✓'));
+        for(let i = 0; i < PERMISSION_ROLES.length; i++){ accTr.appendChild(makeStaticCell('—')); }
+        tbody.appendChild(accTr);
+      } catch(err){
+        console.error('Không tải được ma trận phân quyền:', err);
+        showMessage('Không tải được dữ liệu — kiểm tra kết nối Supabase.', 'var(--red)');
+      }
+    }
+
+    showMessage('Đang tải dữ liệu...');
+    refreshPermissions();
   })();

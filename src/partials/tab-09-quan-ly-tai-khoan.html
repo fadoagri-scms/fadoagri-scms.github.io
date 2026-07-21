@@ -7,15 +7,16 @@
     <div class="card">
       <table>
         <thead>
-          <tr><th>Email</th><th>Họ tên</th><th>Vai trò</th></tr>
+          <tr><th>Email</th><th>Họ tên</th><th>Vai trò</th><th></th></tr>
         </thead>
         <tbody id="users-tbody">
-          <tr><td colspan="3" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+          <tr><td colspan="4" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
         </tbody>
       </table>
     </div>
 
     <div class="section-label">Ma trận phân quyền</div>
+    <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Bấm vào ô để đổi quyền theo vòng ✓ → Xem → — → ✓. Quyền thêm/sửa/xóa (✓) áp dụng thật ở Supabase RLS; trạng thái "—" chỉ ẩn tab khỏi sidebar, không khoá dữ liệu ở tầng server.</div>
     <div class="card">
       <table>
         <thead>
@@ -28,15 +29,8 @@
             <th>Xuất khẩu</th>
           </tr>
         </thead>
-        <tbody>
-          <tr><td>Vùng nguyên liệu</td><td>✓</td><td>✓</td><td>Xem</td><td>Xem</td><td>Xem</td></tr>
-          <tr><td>Nhà cung cấp</td><td>✓</td><td>Xem</td><td>✓</td><td>Xem</td><td>Xem</td></tr>
-          <tr><td>Xưởng Ba Phi</td><td>✓</td><td>✓</td><td>Xem</td><td>Xem</td><td>Xem</td></tr>
-          <tr><td>Đánh giá chất lượng</td><td>✓</td><td>Xem</td><td>Xem</td><td>✓</td><td>Xem</td></tr>
-          <tr><td>Logistics</td><td>✓</td><td>Xem</td><td>Xem</td><td>Xem</td><td>✓</td></tr>
-          <tr><td>Chứng từ</td><td>✓</td><td>Xem</td><td>Xem</td><td>Xem</td><td>✓</td></tr>
-          <tr><td>Feedback KH</td><td>✓</td><td>Xem</td><td>Xem</td><td>Xem</td><td>✓</td></tr>
-          <tr><td>Quản lý tài khoản</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+        <tbody id="permissions-tbody">
+          <tr><td colspan="6" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
         </tbody>
       </table>
       <div class="muted" style="font-size:11px;padding:12px 8px 4px;">✓ = thêm/sửa/xóa được · Xem = chỉ xem, không thao tác · — = không thấy module</div>
