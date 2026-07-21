@@ -1,0 +1,60 @@
+<section class="tab-content active" id="tab-overview">
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-top-row"><div class="label">Lô hàng đang xử lý</div><span class="icon-chip nic-blue"><i class="ti ti-package"></i></span></div>
+        <div class="value" id="kpi-active-batches">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-top-row"><div class="label">Container đang vận chuyển</div><span class="icon-chip nic-slate"><i class="ti ti-anchor"></i></span></div>
+        <div class="value" id="kpi-containers">—</div>
+      </div>
+      <div class="kpi-card kpi-donut">
+        <div class="label">Tỷ lệ đạt QC trung bình</div>
+        <div class="kpi-donut-row">
+          <div class="donut-chart" id="kpi-qc-donut"></div>
+          <div class="value" id="kpi-qc-rate">—</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-top-row"><div class="label">Điểm hài lòng KH</div><span class="icon-chip nic-amber"><i class="ti ti-mood-smile"></i></span></div>
+        <div class="value" id="kpi-satisfaction">—</div>
+      </div>
+    </div>
+
+    <div class="section-label">Cần xử lý ngay</div>
+    <div class="card">
+      <div id="alerts-list">
+        <div class="muted" style="padding:20px 0;">Đang tải dữ liệu...</div>
+      </div>
+    </div>
+
+    <div class="section-header-row">
+      <div class="section-label">Thống kê lô hàng theo thời gian</div>
+      <div class="chart-filter-row">
+        <select id="chart-month-select" aria-label="Chọn tháng"></select>
+        <select id="chart-year-select" aria-label="Chọn năm"></select>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="card chart-card">
+        <div class="chart-card-title">Lô hàng theo ngành hàng</div>
+        <div class="chart-container" id="chart-category"><div class="muted" style="padding:20px 0;">Đang tải dữ liệu...</div></div>
+      </div>
+      <div class="card chart-card">
+        <div class="chart-card-title">Xu hướng lô hàng theo tháng</div>
+        <div class="chart-container" id="chart-trend"><div class="muted" style="padding:20px 0;">Đang tải dữ liệu...</div></div>
+      </div>
+    </div>
+
+    <div class="section-label">Lô hàng gần đây</div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Lô hàng</th><th>Giai đoạn</th><th>Chứng từ</th><th>ETA / feedback</th></tr>
+        </thead>
+        <tbody id="overview-recent-tbody">
+          <tr><td colspan="4" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>

@@ -1,0 +1,92 @@
+<section class="tab-content" id="tab-logistics">
+    <div class="section-label" id="logistics-timeline-label">Hành trình lô nổi bật</div>
+    <div class="card" style="padding:20px 24px 26px;">
+      <div class="info-grid" id="logistics-timeline-info"></div>
+      <div class="timeline" id="logistics-timeline">
+        <div class="muted">Đang tải dữ liệu...</div>
+      </div>
+    </div>
+
+    <div class="section-header-row">
+      <div class="section-label">Tất cả lô đang vận chuyển</div>
+      <div class="chart-filter-row">
+        <select id="logistics-month-select" aria-label="Chọn tháng"></select>
+        <select id="logistics-year-select" aria-label="Chọn năm"></select>
+      </div>
+      <button class="btn-primary" id="btn-open-add-shipment" type="button"><i class="ti ti-plus"></i>Thêm lô vận chuyển</button>
+    </div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Lô hàng</th><th>PI/PO</th><th>Sản phẩm</th><th>Giai đoạn</th><th>Vị trí hiện tại</th><th>ETD</th><th>ETA</th><th>Thao tác</th></tr>
+        </thead>
+        <tbody id="shipment-tbody">
+          <tr><td colspan="8" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="modal-overlay" id="add-shipment-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="add-shipment-modal-title">Thêm lô vận chuyển</div>
+          <button class="modal-close" id="btn-close-add-shipment" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <form id="form-add-shipment">
+          <div class="form-group">
+            <label for="ship-batch">Lô hàng</label>
+            <select id="ship-batch" required>
+              <option value="" disabled selected>Chọn lô hàng...</option>
+            </select>
+            <div class="muted" style="font-size:11px;margin-top:4px;">Danh sách lô lấy từ module Đánh giá chất lượng.</div>
+          </div>
+          <div class="form-group">
+            <label for="ship-pi-po">PI/PO</label>
+            <input type="text" id="ship-pi-po" placeholder="VD: PI-0715">
+          </div>
+          <div class="form-group">
+            <label for="ship-product">Sản phẩm</label>
+            <input type="text" id="ship-product" placeholder="Tự động theo lô hàng" readonly>
+          </div>
+          <div class="form-group">
+            <label for="ship-stage">Giai đoạn</label>
+            <select id="ship-stage">
+              <option value="Kho nội địa">Kho nội địa</option>
+              <option value="Cảng đi">Cảng đi</option>
+              <option value="Trên biển">Trên biển</option>
+              <option value="Thông quan">Thông quan</option>
+              <option value="Cảng đến">Cảng đến</option>
+              <option value="Giao khách hàng">Giao khách hàng</option>
+              <option value="Khách đã nhận hàng">Khách đã nhận hàng</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="ship-location">Vị trí hiện tại</label>
+            <input type="text" id="ship-location" placeholder="VD: Cảng Cát Lái">
+          </div>
+          <div class="form-group">
+            <label for="ship-etd">ETD</label>
+            <input type="date" id="ship-etd">
+          </div>
+          <div class="form-group">
+            <label for="ship-eta">ETA</label>
+            <input type="date" id="ship-eta">
+          </div>
+          <div class="form-group">
+            <label for="ship-received-date">Ngày khách nhận hàng</label>
+            <input type="date" id="ship-received-date">
+            <div class="muted" style="font-size:11px;margin-top:4px;">Dùng để tính hạn 3 ngày khách phải gửi feedback (module Feedback KH).</div>
+          </div>
+          <div class="form-group">
+            <label class="radio-option" style="display:flex;align-items:center;gap:8px;">
+              <input type="checkbox" id="ship-featured" style="width:auto;">Hiển thị ở khối "Hành trình lô nổi bật" phía trên
+            </label>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-shipment">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-shipment">Thêm lô hàng</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>

@@ -1,0 +1,138 @@
+<section class="tab-content" id="tab-ncc">
+    <div class="section-header-row">
+      <div class="section-label">Đơn đặt hàng</div>
+      <div class="chart-filter-row">
+        <select id="po-month-select" aria-label="Chọn tháng"></select>
+        <select id="po-year-select" aria-label="Chọn năm"></select>
+      </div>
+      <button class="btn-primary" id="btn-open-add-po" type="button"><i class="ti ti-plus"></i>Thêm PO</button>
+    </div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Lô hàng</th><th>Số ĐĐH</th><th>NCC</th><th>Ngành hàng</th><th>Số lượng đặt (thùng)</th><th>Trạng thái</th><th>Thao tác</th></tr>
+        </thead>
+        <tbody id="po-tbody">
+          <tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section-header-row">
+      <div class="section-label">Danh sách nhà cung cấp</div>
+      <button class="btn-primary" id="btn-open-add-supplier" type="button"><i class="ti ti-plus"></i>Thêm nhà cung cấp</button>
+    </div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>NCC</th><th>Ngành hàng</th><th>Liên hệ</th><th>Đề xuất</th><th>Thao tác</th></tr>
+        </thead>
+        <tbody id="supplier-tbody">
+          <tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section-label">Đánh giá nhà cung cấp</div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>NCC</th><th>Tỷ lệ đạt QC</th><th>Giao đúng hẹn</th><th>Xếp hạng</th></tr>
+        </thead>
+        <tbody id="supplier-rating-tbody">
+          <tr><td colspan="4" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="modal-overlay" id="add-supplier-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="add-supplier-modal-title">Thêm nhà cung cấp</div>
+          <button class="modal-close" id="btn-close-add-supplier" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <form id="form-add-supplier">
+          <div class="form-group">
+            <label for="s-name">Tên NCC</label>
+            <input type="text" id="s-name" placeholder="VD: Thương lái Bến Tre" required>
+          </div>
+          <div class="form-group">
+            <label for="s-category">Ngành hàng</label>
+            <input type="text" id="s-category" placeholder="VD: Chanh, Thanh long, Chuối">
+          </div>
+          <div class="form-group">
+            <label for="s-contact">Liên hệ</label>
+            <input type="text" id="s-contact" placeholder="VD: 090x xxx xxx">
+          </div>
+          <div class="form-group">
+            <label for="s-suggestion">Đề xuất</label>
+            <input type="text" id="s-suggestion" placeholder="VD: Nên đặt thêm ~2 tấn cho lô sau">
+          </div>
+          <div class="form-group">
+            <label for="s-qc">Tỷ lệ đạt QC (%)</label>
+            <input type="text" id="s-qc" placeholder="VD: 92">
+          </div>
+          <div class="form-group">
+            <label for="s-ontime">Giao đúng hẹn (%)</label>
+            <input type="text" id="s-ontime" placeholder="VD: 95">
+          </div>
+          <div class="form-group">
+            <label for="s-ranking">Xếp hạng</label>
+            <select id="s-ranking">
+              <option value="">— Chưa đánh giá —</option>
+              <option value="Tốt">Tốt</option>
+              <option value="Cần theo dõi">Cần theo dõi</option>
+            </select>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-supplier">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-supplier">Thêm NCC</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="add-po-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="add-po-modal-title">Thêm PO</div>
+          <button class="modal-close" id="btn-close-add-po" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <form id="form-add-po">
+          <div class="form-group">
+            <label for="po-batch">Lô hàng</label>
+            <input type="text" id="po-batch" placeholder="VD: MHR - 03.26">
+          </div>
+          <div class="form-group">
+            <label for="po-code">Số ĐĐH</label>
+            <input type="text" id="po-code" placeholder="VD: 03.26" required>
+          </div>
+          <div class="form-group">
+            <label for="po-supplier">NCC</label>
+            <input type="text" id="po-supplier" placeholder="VD: Thương lái Bến Tre" required>
+          </div>
+          <div class="form-group">
+            <label for="po-category">Ngành hàng</label>
+            <input type="text" id="po-category" placeholder="VD: Chanh, Thanh long, Chuối">
+          </div>
+          <div class="form-group">
+            <label for="po-quantity">Số lượng đặt (thùng)</label>
+            <input type="text" id="po-quantity" placeholder="VD: 5000 thùng">
+          </div>
+          <div class="form-group">
+            <label for="po-status">Trạng thái</label>
+            <select id="po-status">
+              <option value="Chờ giao">Chờ giao</option>
+              <option value="Đã giao">Đã giao</option>
+              <option value="Đã QC đạt">Đã QC đạt</option>
+              <option value="Từ chối 1 phần">Từ chối 1 phần</option>
+            </select>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-po">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-po">Thêm PO</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>

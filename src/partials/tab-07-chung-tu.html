@@ -1,0 +1,73 @@
+<section class="tab-content" id="tab-docs">
+    <div class="section-header-row">
+      <div class="section-label">Checklist chứng từ theo lô hàng</div>
+      <div class="chart-filter-row">
+        <select id="doc-month-select" aria-label="Chọn tháng"></select>
+        <select id="doc-year-select" aria-label="Chọn năm"></select>
+      </div>
+    </div>
+    <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Danh sách lô hàng đồng bộ tự động từ module Đánh giá chất lượng. Bấm biểu tượng sửa để cập nhật checklist cho từng lô.</div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Lô hàng</th><th>Hợp đồng</th><th>C/O</th><th>Kiểm dịch</th><th>Vận đơn</th><th>Thao tác</th></tr>
+        </thead>
+        <tbody id="doc-tbody">
+          <tr><td colspan="6" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="section-label" id="doc-missing-label">Lô đang thiếu chứng từ trước khi thông quan</div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Lô hàng</th><th>Thiếu</th><th>Thị trường</th><th>Hạn cần bổ sung</th></tr>
+        </thead>
+        <tbody id="doc-missing-tbody">
+          <tr><td colspan="4" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="modal-overlay" id="add-doc-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="add-doc-modal-title">Cập nhật checklist chứng từ</div>
+          <button class="modal-close" id="btn-close-add-doc" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <form id="form-add-doc">
+          <div class="form-group">
+            <label>Lô hàng</label>
+            <div id="doc-batch-display" style="font-weight:600;padding:8px 0;"></div>
+            <input type="hidden" id="doc-batch">
+          </div>
+          <div class="form-group">
+            <label for="doc-market">Thị trường</label>
+            <input type="text" id="doc-market" placeholder="VD: Nhật Bản">
+          </div>
+          <div class="form-group">
+            <label for="doc-deadline">Hạn cần bổ sung (nếu còn thiếu)</label>
+            <input type="date" id="doc-deadline">
+          </div>
+          <div class="form-group">
+            <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <input type="checkbox" id="doc-contract" style="width:auto;">Hợp đồng
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <input type="checkbox" id="doc-co" style="width:auto;">C/O
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <input type="checkbox" id="doc-quarantine" style="width:auto;">Kiểm dịch
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;">
+              <input type="checkbox" id="doc-bol" style="width:auto;">Vận đơn
+            </label>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-doc">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-doc">Lưu thay đổi</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>

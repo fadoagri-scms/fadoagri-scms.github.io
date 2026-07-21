@@ -1,0 +1,85 @@
+<section class="tab-content" id="tab-raw">
+    <div class="three-col">
+      <div class="stat-block">
+        <div class="stat-title">Dừa thô thu mua tuần này</div>
+        <div class="stat-value" id="stat-raw-week">—</div>
+        <div class="muted" style="font-size:12px;" id="stat-raw-week-note">Đang tải dữ liệu...</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-title">Lô chờ kiểm đầu vào</div>
+        <div class="stat-value" id="stat-raw-pending">—</div>
+        <div class="muted" style="font-size:12px;">Tại kho tiếp nhận</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-title">Tỷ lệ đạt chuẩn đầu vào</div>
+        <div class="stat-value" id="stat-raw-pass">—</div>
+        <div class="muted" style="font-size:12px;">Kích cỡ, tuổi dừa, ngoại quan</div>
+      </div>
+    </div>
+
+    <div class="section-header-row">
+      <div class="section-label">Lô nguyên liệu gần đây</div>
+      <button class="btn-primary" id="btn-open-add-batch" type="button"><i class="ti ti-plus"></i>Thêm lô nguyên liệu</button>
+    </div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Lô hàng</th><th>NCC</th><th>Loại</th><th>Số lượng (trái)</th><th>Ngày nhập hàng</th><th>Trạng thái</th><th>Ghi chú</th><th>Thao tác</th></tr>
+        </thead>
+        <tbody id="raw-batch-tbody">
+          <tr><td colspan="8" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="modal-overlay" id="add-batch-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="add-batch-modal-title">Thêm lô nguyên liệu</div>
+          <button class="modal-close" id="btn-close-add-batch" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <form id="form-add-batch">
+          <div class="form-group">
+            <label for="f-batch">Lô hàng</label>
+            <input type="text" id="f-batch" placeholder="VD: Minh Nhân - 25.26" required>
+            <div class="muted" style="font-size:11px;margin-top:4px;">Định dạng: Tên khách hàng - Số đơn.Năm (2 số cuối)</div>
+          </div>
+          <div class="form-group">
+            <label for="f-ncc">NCC</label>
+            <input type="text" id="f-ncc" placeholder="VD: Thương lái Bến Tre" required>
+          </div>
+          <div class="form-group">
+            <label>Loại</label>
+            <div class="radio-row">
+              <label class="radio-option"><input type="radio" name="f-loai" value="Vườn" checked>Vườn</label>
+              <label class="radio-option"><input type="radio" name="f-loai" value="Lái">Lái</label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="f-soluong">Số lượng (trái)</label>
+            <input type="text" id="f-soluong" placeholder="VD: 2.400">
+          </div>
+          <div class="form-group">
+            <label for="f-ngay">Ngày nhập hàng</label>
+            <input type="date" id="f-ngay">
+          </div>
+          <div class="form-group">
+            <label for="f-trangthai">Trạng thái</label>
+            <select id="f-trangthai">
+              <option value="Chờ kiểm tra">Chờ kiểm tra</option>
+              <option value="Đạt chuẩn">Đạt chuẩn</option>
+              <option value="Từ chối một phần">Từ chối một phần</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="f-ghichu">Ghi chú</label>
+            <textarea id="f-ghichu" rows="2" placeholder="Ghi chú thêm (nếu có)"></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-batch">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-batch">Thêm lô hàng</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>

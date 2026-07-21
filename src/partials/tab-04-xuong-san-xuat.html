@@ -1,0 +1,205 @@
+<section class="tab-content" id="tab-factory">
+    <div class="subtab-bar">
+      <button class="subtab-item active" id="subtab-btn-production" data-subtab="production" type="button">Sản xuất</button>
+      <button class="subtab-item" id="subtab-btn-staff" data-subtab="staff" type="button">Nhân sự</button>
+      <button class="subtab-item" id="subtab-btn-inventory" data-subtab="inventory" type="button">Tồn kho</button>
+    </div>
+
+    <div class="subtab-panel active" id="subtab-production">
+      <div class="three-col">
+        <div class="stat-block">
+          <div class="stat-title">Lô đang chế biến</div>
+          <div class="stat-value" id="stat-factory-active">—</div>
+          <div class="muted" style="font-size:12px;">Tại xưởng dừa</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-title">Hao hụt gọt vỏ trung bình</div>
+          <div class="stat-value" id="stat-factory-loss">—</div>
+          <div class="muted" style="font-size:12px;">Kg dừa thô → kg thành phẩm</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-title">Thời gian xử lý trung bình</div>
+          <div class="stat-value" id="stat-factory-duration">—</div>
+          <div class="muted" style="font-size:12px;">Từ nhận thô đến đóng gói</div>
+        </div>
+      </div>
+
+      <div class="section-header-row">
+        <div class="section-label">Tiến độ sản xuất theo lô</div>
+        <div class="chart-filter-row">
+          <select id="factory-month-select" aria-label="Chọn tháng"></select>
+          <select id="factory-year-select" aria-label="Chọn năm"></select>
+        </div>
+      </div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>Lô hàng</th><th>NCC</th><th>Số lượng</th><th>Ngày nhập</th><th>Ngày sản xuất</th><th>Thành phẩm</th><th>Hao hụt</th><th>Bắt đầu</th><th>Kết thúc</th><th>Tổng SL thành phẩm</th><th>Thao tác</th></tr>
+          </thead>
+          <tbody id="factory-tbody">
+            <tr><td colspan="11" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subtab-panel" id="subtab-staff">
+      <div class="two-col">
+        <div class="stat-block">
+          <div class="stat-title">Đang làm việc</div>
+          <div class="stat-value" id="stat-staff-active">—</div>
+          <div class="muted" style="font-size:12px;">Nhân sự tại xưởng</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-title">Nghỉ phép / nghỉ việc</div>
+          <div class="stat-value" id="stat-staff-off">—</div>
+          <div class="muted" style="font-size:12px;">Cần sắp xếp thay ca</div>
+        </div>
+      </div>
+
+      <div class="section-header-row">
+        <div class="section-label">Danh sách nhân sự</div>
+        <button class="btn-primary" id="btn-open-add-staff" type="button"><i class="ti ti-plus"></i>Thêm nhân sự</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>Họ tên</th><th>Vai trò / Tổ</th><th>Ca làm</th><th>Trạng thái</th><th>Ghi chú</th><th>Thao tác</th></tr>
+          </thead>
+          <tbody id="staff-tbody">
+            <tr><td colspan="6" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subtab-panel" id="subtab-inventory">
+      <div class="two-col">
+        <div class="stat-block">
+          <div class="stat-title">Thành phẩm tồn kho</div>
+          <div class="stat-value" id="stat-inventory-remaining">—</div>
+          <div class="muted" style="font-size:12px;">Tổng còn lại, chưa xuất</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-title">Lô đang có hàng tồn</div>
+          <div class="stat-value" id="stat-inventory-lots">—</div>
+          <div class="muted" style="font-size:12px;">Chưa xuất hết</div>
+        </div>
+      </div>
+
+      <div class="section-header-row">
+        <div class="section-label">Tồn kho thành phẩm theo lô</div>
+      </div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>Lô hàng</th><th>Số lượng thành phẩm</th><th>Ngày xuất hàng</th><th>Số lượng xuất</th><th>Số lượng còn lại</th><th>Thao tác</th></tr>
+          </thead>
+          <tbody id="inventory-tbody">
+            <tr><td colspan="6" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="add-factory-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="add-factory-modal-title">Cập nhật sản xuất</div>
+          <button class="modal-close" id="btn-close-add-factory" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <div class="muted" id="factory-modal-batch-info" style="font-size:12.5px;margin-bottom:14px;"></div>
+        <form id="form-add-factory">
+          <div class="form-group">
+            <label for="fac-production-date">Ngày sản xuất</label>
+            <input type="date" id="fac-production-date">
+          </div>
+          <div class="form-group">
+            <label for="fac-finished-qty">Thành phẩm (trái)</label>
+            <input type="text" id="fac-finished-qty" placeholder="VD: 2.000">
+          </div>
+          <div class="form-group">
+            <label for="fac-start">Bắt đầu</label>
+            <input type="time" id="fac-start">
+          </div>
+          <div class="form-group">
+            <label for="fac-finish">Kết thúc</label>
+            <input type="time" id="fac-finish">
+            <div class="muted" style="font-size:11px;margin-top:4px;">Thời gian xử lý được tự tính từ Bắt đầu → Kết thúc.</div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-factory">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-factory">Lưu</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="add-staff-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="add-staff-modal-title">Thêm nhân sự</div>
+          <button class="modal-close" id="btn-close-add-staff" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <form id="form-add-staff">
+          <div class="form-group">
+            <label for="staff-name">Họ tên</label>
+            <input type="text" id="staff-name" placeholder="VD: Nguyễn Văn A" required>
+          </div>
+          <div class="form-group">
+            <label for="staff-role">Vai trò / Tổ</label>
+            <input type="text" id="staff-role" placeholder="VD: Tổ gọt vỏ, Tổ đóng gói, Quản lý ca...">
+          </div>
+          <div class="form-group">
+            <label for="staff-shift">Ca làm</label>
+            <select id="staff-shift">
+              <option value="Ca sáng">Ca sáng</option>
+              <option value="Ca chiều">Ca chiều</option>
+              <option value="Ca tối">Ca tối</option>
+              <option value="Hành chính">Hành chính</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="staff-status">Trạng thái</label>
+            <select id="staff-status">
+              <option value="Đang làm">Đang làm</option>
+              <option value="Nghỉ phép">Nghỉ phép</option>
+              <option value="Nghỉ việc">Nghỉ việc</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="staff-note">Ghi chú</label>
+            <textarea id="staff-note" rows="2" placeholder="Tùy chọn"></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-staff">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-staff">Thêm nhân sự</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="add-inventory-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="add-inventory-modal-title">Cập nhật xuất hàng</div>
+          <button class="modal-close" id="btn-close-add-inventory" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <div class="muted" id="inventory-modal-batch-info" style="font-size:12.5px;margin-bottom:14px;"></div>
+        <form id="form-add-inventory">
+          <div class="form-group">
+            <label for="inv-export-date">Ngày xuất hàng</label>
+            <input type="date" id="inv-export-date">
+          </div>
+          <div class="form-group">
+            <label for="inv-exported-qty">Số lượng xuất (trái)</label>
+            <input type="text" id="inv-exported-qty" placeholder="VD: 1.500">
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-inventory">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-inventory">Lưu</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>

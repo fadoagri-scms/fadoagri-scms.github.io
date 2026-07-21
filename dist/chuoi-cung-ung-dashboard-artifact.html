@@ -1,0 +1,589 @@
+<title>Chuỗi cung ứng xuất khẩu — Bảng điều khiển</title>
+<style>
+:root{
+    --bg:#F6F4EE;
+    --surface:#FFFFFF;
+    --surface-2:#FBFAF6;
+    --border:#E6E3D9;
+    --ink:#1E2620;
+    --ink-soft:#5B6158;
+    --ink-mute:#9B9B90;
+    --forest:#25422F;
+    --forest-deep:#152318;
+    --sage:#6E8F6B;
+    --amber:#9C6B1F;
+    --amber-bg:#F5E9D3;
+    --red:#9C2E2E;
+    --red-bg:#F5DEDE;
+    --green:#3B6D3B;
+    --green-bg:#DEEAD8;
+    --blue:#2E5C8A;
+    --blue-bg:#DCE6F0;
+    --radius:14px;
+    --radius-sm:9px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  .icon{display:inline-block;width:1em;height:1em;vertical-align:-.15em;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+  .icon.icon-filled{fill:currentColor;stroke:none;}
+
+  body{
+    font-family:'Inter',sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    display:flex;
+    min-height:100vh;
+  }
+  h1,h2,h3,.brand{font-family:'Manrope',sans-serif;}
+
+  .sidebar{
+    width:236px;
+    flex-shrink:0;
+    background:var(--forest-deep);
+    color:#EFEDE2;
+    padding:28px 18px;
+    display:flex;
+    flex-direction:column;
+  }
+  .brand{
+    font-size:15px;
+    font-weight:700;
+    letter-spacing:.2px;
+    color:#fff;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:0 8px 22px;
+  }
+  .brand .mark{
+    width:26px;height:26px;border-radius:8px;
+    background:var(--sage);
+    display:flex;align-items:center;justify-content:center;
+    font-size:14px;color:var(--forest-deep);
+  }
+  nav{display:flex;flex-direction:column;gap:2px;}
+  .nav-item{
+    display:flex;align-items:center;gap:11px;
+    padding:9px 12px;
+    border-radius:var(--radius-sm);
+    font-size:13px;font-weight:500;
+    color:#C9CFC3;
+    cursor:pointer;
+    border:none;background:none;text-align:left;width:100%;
+    transition:background .15s ease, color .15s ease;
+  }
+  .nav-item .icon{font-size:16px;text-align:center;color:#8FA089;}
+  .nav-icon{
+    width:26px;height:26px;border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+  }
+  .nav-icon .icon{font-size:14px;color:#fff;}
+  .nic-green{background:#3B6D3B;}
+  .nic-blue{background:#3A5E85;}
+  .nic-amber{background:#8A6423;}
+  .nic-red{background:#8A3B3B;}
+  .nic-slate{background:#4A5650;}
+  .nav-item.active .nav-icon{background:rgba(21,35,24,.22);}
+  .nav-item.active .nav-icon .icon{color:var(--forest-deep);}
+  .nav-item:hover{background:rgba(255,255,255,.06);color:#fff;}
+  .nav-item.active{background:var(--sage);color:var(--forest-deep);font-weight:600;}
+  .nav-item.active .icon{color:var(--forest-deep);}
+  .nav-badge{
+    margin-left:auto;font-size:10px;font-weight:700;
+    background:rgba(255,255,255,.14);color:#fff;
+    padding:2px 7px;border-radius:20px;
+  }
+  .nav-item.active .nav-badge{background:rgba(21,35,24,.18);color:var(--forest-deep);}
+  .sidebar-foot{
+    margin-top:auto;padding:14px 12px 4px;
+    font-size:11px;color:#7D8878;line-height:1.5;
+  }
+
+  .main{flex:1;min-width:0;padding:34px 40px 60px;}
+  .topbar{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-bottom:28px;
+  }
+  .topbar .page-title{font-size:23px;font-weight:700;color:var(--ink);}
+  .topbar .page-sub{font-size:13px;color:var(--ink-soft);margin-top:3px;}
+  .topbar-right{display:flex;align-items:center;gap:14px;}
+  .date-chip{
+    font-size:12.5px;color:var(--ink-soft);
+    background:var(--surface);border:1px solid var(--border);
+    padding:7px 13px;border-radius:20px;
+  }
+
+  .tab-content{display:none;}
+  .tab-content.active{display:block;animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+  .section-label{font-size:13.5px;font-weight:700;color:var(--ink);margin:30px 0 13px;text-transform:uppercase;letter-spacing:.04em;}
+  .section-label:first-child{margin-top:0;}
+
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  .kpi-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:18px 20px;
+  }
+  .kpi-card .label{font-size:12.5px;color:var(--ink-soft);}
+  .kpi-card .value{font-size:27px;font-weight:700;margin-top:6px;font-family:'Manrope',sans-serif;}
+  .value.warn{color:var(--amber);} .value.danger{color:var(--red);}
+
+  .module-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  .module-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:16px 18px;cursor:pointer;transition:border-color .15s ease, transform .15s ease;
+  }
+  .module-card:hover{border-color:var(--sage);transform:translateY(-1px);}
+  .module-card .top-row{display:flex;justify-content:space-between;align-items:flex-start;}
+  .module-card .top-row .icon{font-size:19px;color:var(--ink-mute);}
+  .module-card .top-row .stat{font-size:18px;font-weight:700;font-family:'Manrope',sans-serif;}
+  .module-card .name{font-size:13.5px;font-weight:600;margin-top:11px;}
+  .module-card .desc{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:6px 22px;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;font-weight:600;color:var(--ink-mute);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:13px 8px;}
+  th:last-child, td:last-child{text-align:right;}
+  td{padding:13px 8px;border-top:1px solid var(--border);}
+  tr.hoverable:hover td{background:var(--surface-2);}
+  .badge{font-size:11.5px;padding:4px 11px;border-radius:8px;font-weight:600;display:inline-block;}
+  .badge.amber{background:var(--amber-bg);color:var(--amber);}
+  .badge.blue{background:var(--blue-bg);color:var(--blue);}
+  .badge.green{background:var(--green-bg);color:var(--green);}
+  .badge.red{background:var(--red-bg);color:var(--red);}
+  .badge.gray{background:var(--surface-2);color:var(--ink-soft);border:1px solid var(--border);}
+  .icon-ok{color:var(--green);font-size:16px;}
+  .icon-warn{color:var(--red);font-size:16px;}
+  .muted{color:var(--ink-soft);}
+  .success{color:var(--green);font-weight:600;}
+  .warn-text{color:var(--amber);font-weight:600;}
+
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  .stat-block{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;}
+  .stat-block .stat-title{font-size:13px;font-weight:600;color:var(--ink-soft);}
+  .stat-block .stat-value{font-size:24px;font-weight:700;font-family:'Manrope',sans-serif;margin:8px 0 12px;}
+  .bar-bg{height:7px;border-radius:20px;background:var(--surface-2);overflow:hidden;}
+  .bar-fill{height:100%;border-radius:20px;background:var(--forest);}
+
+  .stars .icon{font-size:13px;color:#DCD9CC;}
+  .stars .icon.filled{color:var(--amber);}
+  .feedback-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:10px;}
+  .feedback-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .feedback-meta{font-size:12px;color:var(--ink-soft);}
+  .feedback-text{font-size:13.5px;margin-top:6px;}
+
+  .timeline{display:flex;align-items:center;margin:22px 4px 6px;}
+  .tl-step{flex:1;position:relative;text-align:center;}
+  .tl-dot{width:13px;height:13px;border-radius:50%;background:var(--surface-2);border:2px solid var(--border);margin:0 auto 8px;position:relative;z-index:2;}
+  .tl-step.done .tl-dot{background:var(--forest);border-color:var(--forest);}
+  .tl-step.current .tl-dot{background:var(--amber);border-color:var(--amber);}
+  .tl-line{position:absolute;top:6px;left:-50%;width:100%;height:2px;background:var(--border);z-index:1;}
+  .tl-step.done .tl-line{background:var(--forest);}
+  .tl-step:first-child .tl-line{display:none;}
+  .tl-label{font-size:11.5px;color:var(--ink-soft);}
+  .tl-step.done .tl-label, .tl-step.current .tl-label{color:var(--ink);font-weight:600;}
+
+  .checklist-icons .icon{font-size:16px;margin-right:10px;}
+
+  .progress-row{display:flex;align-items:center;gap:10px;}
+  .progress-row .bar-bg{flex:1;}
+  .progress-row .pct{font-size:12.5px;font-weight:600;width:36px;text-align:right;}
+
+  .module-header{display:flex;align-items:center;gap:14px;margin-bottom:22px;}
+  .module-icon{
+    width:52px;height:52px;border-radius:14px;
+    background:var(--green-bg);
+    display:flex;align-items:center;justify-content:center;
+    font-size:26px;color:var(--forest);
+    flex-shrink:0;
+  }
+  .module-header-title{font-size:17px;font-weight:700;color:var(--ink);}
+  .module-header-sub{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
+
+  @media (max-width: 1080px){
+    .kpi-grid{grid-template-columns:repeat(2,1fr);}
+    .module-grid{grid-template-columns:repeat(2,1fr);}
+    .two-col, .three-col{grid-template-columns:1fr;}
+  }
+</style>
+<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+<defs>
+<symbol id="icon-leaf" viewBox="0 0 24 24"><path d="M20 4c-9 0-16 6-16 15 0 .5 0 1 .1 1.4C13 20 20 13 20 4Z"/><path d="M5 20c3-6 8-11 13-13"/></symbol>
+<symbol id="icon-dashboard" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></symbol>
+<symbol id="icon-coconut" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 5v3"/><path d="M9 8l3-3 3 3"/></symbol>
+<symbol id="icon-truck" viewBox="0 0 24 24"><rect x="2" y="7" width="12" height="9" rx="1"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></symbol>
+<symbol id="icon-factory" viewBox="0 0 24 24"><path d="M3 20V10l5 3V10l5 3V8l6 4v8H3Z"/><path d="M7 20v-4M12 20v-4M17 20v-4"/></symbol>
+<symbol id="icon-clipboard" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M9 12l2 2 4-4"/></symbol>
+<symbol id="icon-route" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.2"/><circle cx="18" cy="18" r="2.2"/><path d="M6 8c0 6 4 4 6 6s2 4 6 4"/></symbol>
+<symbol id="icon-file" viewBox="0 0 24 24"><path d="M7 2h7l4 4v16H7Z"/><path d="M14 2v4h4"/><path d="M9.5 13h5M9.5 16.5h5"/></symbol>
+<symbol id="icon-message-star" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4Z"/><path d="M12 7.5l1 2 2.2.3-1.6 1.6.4 2.2-2-1-2 1 .4-2.2-1.6-1.6 2.2-.3Z"/></symbol>
+<symbol id="icon-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></symbol>
+<symbol id="icon-check" viewBox="0 0 24 24"><path d="M4 12l5 5 11-11"/></symbol>
+<symbol id="icon-alert" viewBox="0 0 24 24"><path d="M12 3.5l9.5 16.5H2.5Z"/><path d="M12 9.5v5"/><path d="M12 16.7v.1"/></symbol>
+<symbol id="icon-x" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></symbol>
+<symbol id="icon-star" viewBox="0 0 24 24"><path d="M12 2.5l2.9 6 6.6.7-4.9 4.5 1.3 6.5L12 16.9l-5.9 3.3 1.3-6.5-4.9-4.5 6.6-.7Z"/></symbol>
+</defs>
+</svg>
+
+
+<aside class="sidebar">
+  <div class="brand"><span class="mark"><svg class="icon"><use href="#icon-leaf"/></svg></span>Chuỗi cung ứng XK</div>
+  <nav>
+    <button class="nav-item active" data-tab="overview"><span class="nav-icon nic-slate"><svg class="icon"><use href="#icon-dashboard"/></svg></span>Tổng quan</button>
+    <button class="nav-item" data-tab="raw"><span class="nav-icon nic-green"><svg class="icon"><use href="#icon-coconut"/></svg></span>Vùng nguyên liệu</button>
+    <button class="nav-item" data-tab="ncc"><span class="nav-icon nic-blue"><svg class="icon"><use href="#icon-truck"/></svg></span>Nhà cung cấp<span class="nav-badge">14</span></button>
+    <button class="nav-item" data-tab="factory"><span class="nav-icon nic-amber"><svg class="icon"><use href="#icon-factory"/></svg></span>Xưởng sản xuất<span class="nav-badge">32</span></button>
+    <button class="nav-item" data-tab="qc"><span class="nav-icon nic-red"><svg class="icon"><use href="#icon-clipboard"/></svg></span>Đánh giá chất lượng</button>
+    <button class="nav-item" data-tab="logistics"><span class="nav-icon nic-blue"><svg class="icon"><use href="#icon-route"/></svg></span>Logistics<span class="nav-badge">23</span></button>
+    <button class="nav-item" data-tab="docs"><span class="nav-icon nic-slate"><svg class="icon"><use href="#icon-file"/></svg></span>Chứng từ<span class="nav-badge">3</span></button>
+    <button class="nav-item" data-tab="feedback"><span class="nav-icon nic-amber"><svg class="icon"><use href="#icon-message-star"/></svg></span>Feedback KH<span class="nav-badge">2</span></button>
+  </nav>
+  <div class="sidebar-foot">Dừa tươi cắt gọt · Chanh không hạt · Thanh long<br>Demo giao diện — dữ liệu minh họa</div>
+</aside>
+
+<main class="main">
+
+  <div class="topbar">
+    <div>
+      <div class="page-title" id="page-title">Tổng quan</div>
+      <div class="page-sub" id="page-sub">Toàn cảnh hoạt động chuỗi cung ứng hôm nay</div>
+    </div>
+    <div class="topbar-right">
+      <span class="date-chip"><svg class="icon" style="margin-right:6px;"><use href="#icon-calendar"/></svg>15/07/2026</span>
+    </div>
+  </div>
+
+  <section class="tab-content active" id="tab-overview">
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="label">Lô hàng đang xử lý</div><div class="value">186</div></div>
+      <div class="kpi-card"><div class="label">Container đang vận chuyển</div><div class="value">23</div></div>
+      <div class="kpi-card"><div class="label">Tỷ lệ đạt QC trung bình</div><div class="value">91%</div></div>
+      <div class="kpi-card"><div class="label">Điểm hài lòng KH</div><div class="value">4.5/5</div></div>
+    </div>
+
+    <div class="section-label">Module xuyên suốt</div>
+    <div class="module-grid">
+      <div class="module-card" onclick="goTab('raw')">
+        <div class="top-row"><svg class="icon"><use href="#icon-coconut"/></svg><span class="stat">9</span></div>
+        <div class="name">Vùng nguyên liệu</div><div class="desc">Lô chờ kiểm đầu vào</div>
+      </div>
+      <div class="module-card" onclick="goTab('ncc')">
+        <div class="top-row"><svg class="icon"><use href="#icon-truck"/></svg><span class="stat">14</span></div>
+        <div class="name">Nhà cung cấp</div><div class="desc">PO đang mở</div>
+      </div>
+      <div class="module-card" onclick="goTab('factory')">
+        <div class="top-row"><svg class="icon"><use href="#icon-factory"/></svg><span class="stat">32</span></div>
+        <div class="name">Xưởng sản xuất</div><div class="desc">Lô đang chế biến</div>
+      </div>
+      <div class="module-card" onclick="goTab('qc')">
+        <div class="top-row"><svg class="icon"><use href="#icon-clipboard"/></svg><span class="stat" style="color:var(--amber)">5</span></div>
+        <div class="name">Đánh giá chất lượng</div><div class="desc">QC lô xuất khẩu</div>
+      </div>
+      <div class="module-card" onclick="goTab('logistics')">
+        <div class="top-row"><svg class="icon"><use href="#icon-route"/></svg><span class="stat">23</span></div>
+        <div class="name">Logistics</div><div class="desc">Container đang đi</div>
+      </div>
+      <div class="module-card" onclick="goTab('docs')">
+        <div class="top-row"><svg class="icon"><use href="#icon-file"/></svg><span class="stat" style="color:var(--red)">3</span></div>
+        <div class="name">Chứng từ</div><div class="desc">Lô thiếu chứng từ</div>
+      </div>
+      <div class="module-card" onclick="goTab('feedback')">
+        <div class="top-row"><svg class="icon"><use href="#icon-message-star"/></svg><span class="stat" style="color:var(--red)">2</span></div>
+        <div class="name">Feedback KH</div><div class="desc">Chưa xử lý</div>
+      </div>
+    </div>
+
+    <div class="section-label">Lô hàng gần đây</div>
+    <div class="card">
+      <table>
+        <tr><th>Batch</th><th>Giai đoạn</th><th>Chứng từ</th><th>ETA / feedback</th></tr>
+        <tr class="hoverable"><td>DUA-0715</td><td><span class="badge amber">Trên biển</span></td><td><svg class="icon icon-ok"><use href="#icon-check"/></svg></td><td class="muted">ETA 22/07</td></tr>
+        <tr class="hoverable"><td>CHANH-0712</td><td><span class="badge blue">Thông quan</span></td><td><svg class="icon icon-warn"><use href="#icon-alert"/></svg></td><td class="muted">ETA 18/07</td></tr>
+        <tr class="hoverable"><td>TL-0701</td><td><span class="badge green">Đã giao</span></td><td><svg class="icon icon-ok"><use href="#icon-check"/></svg></td><td class="success">4/5 · đúng hẹn</td></tr>
+        <tr class="hoverable"><td>DUA-0714</td><td><span class="badge green">Đã giao</span></td><td><svg class="icon icon-ok"><use href="#icon-check"/></svg></td><td class="warn-text">3/5 · vỏ hơi thâm</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="tab-content" id="tab-raw">
+    <div class="three-col">
+      <div class="stat-block">
+        <div class="stat-title">Dừa thô thu mua tuần này</div>
+        <div class="stat-value">18.4 tấn</div>
+        <div class="muted" style="font-size:12px;">Từ 4 NCC ngoại bộ</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-title">Lô chờ kiểm đầu vào</div>
+        <div class="stat-value">9</div>
+        <div class="muted" style="font-size:12px;">Tại kho tiếp nhận</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-title">Tỷ lệ đạt chuẩn đầu vào</div>
+        <div class="stat-value">93%</div>
+        <div class="muted" style="font-size:12px;">Kích cỡ, tuổi dừa, ngoại quan</div>
+      </div>
+    </div>
+
+    <div class="section-label">Lô nguyên liệu gần đây</div>
+    <div class="card">
+      <table>
+        <tr><th>Batch NL</th><th>NCC</th><th>Khối lượng</th><th>Ngày thu hoạch</th><th>Trạng thái</th></tr>
+        <tr class="hoverable"><td>NL-0715</td><td>Thương lái Bến Tre</td><td>3.2 tấn</td><td>14/07/2026</td><td><span class="badge amber">Chờ kiểm</span></td></tr>
+        <tr class="hoverable"><td>NL-0714</td><td>Thương lái Trà Vinh</td><td>2.8 tấn</td><td>13/07/2026</td><td><span class="badge green">Đạt chuẩn</span></td></tr>
+        <tr class="hoverable"><td>NL-0713</td><td>Nông hộ Mỏ Cày</td><td>1.5 tấn</td><td>12/07/2026</td><td><span class="badge red">Từ chối 1 phần</span></td></tr>
+        <tr class="hoverable"><td>NL-0712</td><td>Thương lái Bến Tre</td><td>4.1 tấn</td><td>11/07/2026</td><td><span class="badge green">Đạt chuẩn</span></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="tab-content" id="tab-ncc">
+    <div class="section-label">Danh sách nhà cung cấp</div>
+    <div class="card">
+      <table>
+        <tr><th>NCC</th><th>Ngành hàng</th><th>Loại hình</th><th>PO đã giao</th><th>Liên hệ</th></tr>
+        <tr class="hoverable"><td>Xưởng sản xuất dừa</td><td>Dừa cắt gọt</td><td><span class="badge blue">Nội bộ</span></td><td>48</td><td class="muted">Nội bộ</td></tr>
+        <tr class="hoverable"><td>Thương lái Bến Tre</td><td>Dừa thô</td><td><span class="badge gray">Ngoại bộ</span></td><td>36</td><td class="muted">090x xxx 112</td></tr>
+        <tr class="hoverable"><td>HTX Chanh Long An</td><td>Chanh không hạt</td><td><span class="badge gray">Ngoại bộ</span></td><td>21</td><td class="muted">090x xxx 456</td></tr>
+        <tr class="hoverable"><td>Nông hộ Bình Thuận</td><td>Thanh long</td><td><span class="badge gray">Ngoại bộ</span></td><td>15</td><td class="muted">090x xxx 789</td></tr>
+      </table>
+    </div>
+
+    <div class="section-label">Đơn đặt hàng (PO) đang mở</div>
+    <div class="card">
+      <table>
+        <tr><th>PO</th><th>NCC</th><th>Ngành hàng</th><th>Loại hình</th><th>Trạng thái</th></tr>
+        <tr class="hoverable"><td>PO-0231</td><td>Thương lái Bến Tre</td><td>Dừa thô</td><td><span class="badge gray">Ngoại bộ</span></td><td><span class="badge amber">Chờ giao</span></td></tr>
+        <tr class="hoverable"><td>PO-0232</td><td>Xưởng sản xuất dừa</td><td>Dừa cắt gọt</td><td><span class="badge blue">Nội bộ</span></td><td><span class="badge green">Đã giao</span></td></tr>
+        <tr class="hoverable"><td>PO-0233</td><td>HTX Chanh Long An</td><td>Chanh không hạt</td><td><span class="badge gray">Ngoại bộ</span></td><td><span class="badge green">Đã QC đạt</span></td></tr>
+        <tr class="hoverable"><td>PO-0234</td><td>Nông hộ Bình Thuận</td><td>Thanh long</td><td><span class="badge gray">Ngoại bộ</span></td><td><span class="badge red">Từ chối 1 phần</span></td></tr>
+        <tr class="hoverable"><td>PO-0235</td><td>Thương lái Trà Vinh</td><td>Dừa thô</td><td><span class="badge gray">Ngoại bộ</span></td><td><span class="badge amber">Chờ giao</span></td></tr>
+      </table>
+    </div>
+
+    <div class="section-label">Đánh giá nhà cung cấp</div>
+    <div class="card">
+      <table>
+        <tr><th>NCC</th><th>Tỷ lệ đạt QC</th><th>Giao đúng hẹn</th><th>Xếp hạng</th></tr>
+        <tr class="hoverable"><td>Xưởng sản xuất dừa</td><td class="success">92%</td><td class="success">97%</td><td><span class="badge green">Tốt</span></td></tr>
+        <tr class="hoverable"><td>Thương lái Bến Tre</td><td class="success">95%</td><td class="success">94%</td><td><span class="badge green">Tốt</span></td></tr>
+        <tr class="hoverable"><td>HTX Chanh Long An</td><td class="success">96%</td><td class="success">98%</td><td><span class="badge green">Tốt</span></td></tr>
+        <tr class="hoverable"><td>Nông hộ Bình Thuận</td><td class="warn-text">81%</td><td class="warn-text">76%</td><td><span class="badge amber">Cần theo dõi</span></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="tab-content" id="tab-factory">
+    <div class="three-col">
+      <div class="stat-block">
+        <div class="stat-title">Lô đang chế biến</div>
+        <div class="stat-value">32</div>
+        <div class="muted" style="font-size:12px;">Tại xưởng dừa</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-title">Hao hụt gọt vỏ trung bình</div>
+        <div class="stat-value">38%</div>
+        <div class="muted" style="font-size:12px;">Kg dừa thô → kg thành phẩm</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-title">Thời gian xử lý trung bình</div>
+        <div class="stat-value">3.4 giờ</div>
+        <div class="muted" style="font-size:12px;">Từ nhận thô đến đóng gói</div>
+      </div>
+    </div>
+
+    <div class="section-label">Tiến độ sản xuất theo lô</div>
+    <div class="card">
+      <table>
+        <tr><th>Batch</th><th>Công đoạn hiện tại</th><th>Tiến độ</th><th>Bắt đầu</th><th>Dự kiến xong</th></tr>
+        <tr class="hoverable">
+          <td>DUA-0716</td><td>Gọt vỏ tạo hình</td>
+          <td style="width:160px;"><div class="progress-row"><div class="bar-bg"><div class="bar-fill" style="width:40%"></div></div><span class="pct">40%</span></div></td>
+          <td class="muted">09:10</td><td class="muted">13:00</td>
+        </tr>
+        <tr class="hoverable">
+          <td>DUA-0715B</td><td>Xử lý chống thâm</td>
+          <td style="width:160px;"><div class="progress-row"><div class="bar-bg"><div class="bar-fill" style="width:70%"></div></div><span class="pct">70%</span></div></td>
+          <td class="muted">08:20</td><td class="muted">11:30</td>
+        </tr>
+        <tr class="hoverable">
+          <td>DUA-0715A</td><td>Đóng gói</td>
+          <td style="width:160px;"><div class="progress-row"><div class="bar-bg"><div class="bar-fill" style="width:90%"></div></div><span class="pct">90%</span></div></td>
+          <td class="muted">07:45</td><td class="muted">10:15</td>
+        </tr>
+        <tr class="hoverable">
+          <td>DUA-0714</td><td>Đã nhập kho lạnh</td>
+          <td style="width:160px;"><div class="progress-row"><div class="bar-bg"><div class="bar-fill" style="width:100%;background:var(--green)"></div></div><span class="pct">100%</span></div></td>
+          <td class="muted">Hôm qua</td><td class="muted">Hoàn tất</td>
+        </tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="tab-content" id="tab-qc">
+    <div class="three-col">
+      <div class="stat-block">
+        <div class="stat-title">Lô đã kiểm hôm nay</div>
+        <div class="stat-value">14</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-title">Tỷ lệ đạt</div>
+        <div class="stat-value">91%</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-title">Chờ QC xác nhận</div>
+        <div class="stat-value" style="color:var(--amber)">5</div>
+      </div>
+    </div>
+
+    <div class="section-label">Kết quả kiểm tra gần đây</div>
+    <div class="card">
+      <table>
+        <tr><th>Batch</th><th>Loại kiểm</th><th>Kết quả</th><th>Người kiểm</th><th>Ghi chú</th></tr>
+        <tr class="hoverable"><td>NL-0715</td><td>Đầu vào</td><td><span class="badge amber">Chờ xác nhận</span></td><td>Hạnh</td><td class="muted">Đang đo Brix</td></tr>
+        <tr class="hoverable"><td>DUA-0715A</td><td>Thành phẩm</td><td><span class="badge green">Đạt</span></td><td>Tuấn</td><td class="muted">Không nứt, đúng size</td></tr>
+        <tr class="hoverable"><td>NL-0713</td><td>Đầu vào</td><td><span class="badge red">Không đạt 1 phần</span></td><td>Hạnh</td><td class="warn-text">Dừa quá già</td></tr>
+        <tr class="hoverable"><td>CHANH-0712</td><td>Thành phẩm</td><td><span class="badge green">Đạt</span></td><td>Minh</td><td class="muted">Đúng size, không sâu</td></tr>
+        <tr class="hoverable"><td>TL-0708</td><td>Thành phẩm</td><td><span class="badge amber">Đạt có điều kiện</span></td><td>Minh</td><td class="warn-text">Một số trái hơi mềm</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="tab-content" id="tab-logistics">
+    <div class="section-label">Hành trình lô DUA-0715</div>
+    <div class="card" style="padding:20px 24px 26px;">
+      <div class="timeline">
+        <div class="tl-step done"><div class="tl-line"></div><div class="tl-dot"></div><div class="tl-label">Kho nội địa</div></div>
+        <div class="tl-step done"><div class="tl-line"></div><div class="tl-dot"></div><div class="tl-label">Cảng đi</div></div>
+        <div class="tl-step current"><div class="tl-line"></div><div class="tl-dot"></div><div class="tl-label">Trên biển</div></div>
+        <div class="tl-step"><div class="tl-line"></div><div class="tl-dot"></div><div class="tl-label">Cảng đến</div></div>
+        <div class="tl-step"><div class="tl-line"></div><div class="tl-dot"></div><div class="tl-label">Giao khách hàng</div></div>
+      </div>
+    </div>
+
+    <div class="section-label">Tất cả lô đang vận chuyển</div>
+    <div class="card">
+      <table>
+        <tr><th>Batch</th><th>Ngành hàng</th><th>Giai đoạn</th><th>Vị trí hiện tại</th><th>ETA</th></tr>
+        <tr class="hoverable"><td>DUA-0715</td><td>Dừa</td><td><span class="badge amber">Trên biển</span></td><td class="muted">Ngoài khơi Đài Loan</td><td>22/07</td></tr>
+        <tr class="hoverable"><td>CHANH-0712</td><td>Chanh</td><td><span class="badge blue">Thông quan</span></td><td class="muted">Cảng Cát Lái</td><td>18/07</td></tr>
+        <tr class="hoverable"><td>TL-0708</td><td>Thanh long</td><td><span class="badge amber">Trên biển</span></td><td class="muted">Biển Đông</td><td>20/07</td></tr>
+        <tr class="hoverable"><td>DUA-0708</td><td>Dừa</td><td><span class="badge gray">Kho nội địa</span></td><td class="muted">Kho lạnh Bến Tre</td><td>25/07</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="tab-content" id="tab-docs">
+    <div class="section-label">Checklist chứng từ theo lô hàng</div>
+    <div class="card">
+      <table>
+        <tr><th>Batch</th><th>Hợp đồng</th><th>C/O</th><th>Kiểm dịch</th><th>Vận đơn</th></tr>
+        <tr class="hoverable">
+          <td>DUA-0715</td>
+          <td class="checklist-icons"><svg class="icon icon-ok"><use href="#icon-check"/></svg></td>
+          <td class="checklist-icons"><svg class="icon icon-ok"><use href="#icon-check"/></svg></td>
+          <td class="checklist-icons"><svg class="icon icon-warn"><use href="#icon-x"/></svg></td>
+          <td class="checklist-icons"><svg class="icon icon-ok"><use href="#icon-check"/></svg></td>
+        </tr>
+        <tr class="hoverable">
+          <td>CHANH-0712</td>
+          <td class="checklist-icons"><svg class="icon icon-ok"><use href="#icon-check"/></svg></td>
+          <td class="checklist-icons"><svg class="icon icon-warn"><use href="#icon-x"/></svg></td>
+          <td class="checklist-icons"><svg class="icon icon-ok"><use href="#icon-check"/></svg></td>
+          <td class="checklist-icons"><svg class="icon icon-ok"><use href="#icon-check"/></svg></td>
+        </tr>
+        <tr class="hoverable">
+          <td>TL-0701</td>
+          <td class="checklist-icons"><svg class="icon icon-ok"><use href="#icon-check"/></svg></td>
+          <td class="checklist-icons"><svg class="icon icon-ok"><use href="#icon-check"/></svg></td>
+          <td class="checklist-icons"><svg class="icon icon-ok"><use href="#icon-check"/></svg></td>
+          <td class="checklist-icons"><svg class="icon icon-ok"><use href="#icon-check"/></svg></td>
+        </tr>
+        <tr class="hoverable">
+          <td>DUA-0714</td>
+          <td class="checklist-icons"><svg class="icon icon-ok"><use href="#icon-check"/></svg></td>
+          <td class="checklist-icons"><svg class="icon icon-ok"><use href="#icon-check"/></svg></td>
+          <td class="checklist-icons"><svg class="icon icon-ok"><use href="#icon-check"/></svg></td>
+          <td class="checklist-icons"><svg class="icon icon-warn"><use href="#icon-x"/></svg></td>
+        </tr>
+      </table>
+    </div>
+    <div class="section-label">3 lô đang thiếu chứng từ trước khi thông quan</div>
+    <div class="card">
+      <table>
+        <tr><th>Batch</th><th>Thiếu</th><th>Thị trường</th><th>Hạn cần bổ sung</th></tr>
+        <tr class="hoverable"><td>DUA-0715</td><td class="warn-text">Kiểm dịch thực vật</td><td>Nhật Bản</td><td>19/07/2026</td></tr>
+        <tr class="hoverable"><td>CHANH-0712</td><td class="warn-text">C/O</td><td>Hàn Quốc</td><td>17/07/2026</td></tr>
+        <tr class="hoverable"><td>DUA-0714</td><td class="warn-text">Vận đơn gốc</td><td>EU</td><td>16/07/2026</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="tab-content" id="tab-feedback">
+    <div class="section-label">Feedback gần đây</div>
+
+    <div class="feedback-card">
+      <div class="feedback-top">
+        <div><strong>DUA-0714</strong> <span class="feedback-meta">· Nhật Bản</span></div>
+        <div class="stars"><svg class="icon icon-filled filled"><use href="#icon-star"/></svg><svg class="icon icon-filled filled"><use href="#icon-star"/></svg><svg class="icon icon-filled filled"><use href="#icon-star"/></svg><svg class="icon icon-filled"><use href="#icon-star"/></svg><svg class="icon icon-filled"><use href="#icon-star"/></svg></div>
+      </div>
+      <div class="feedback-text">Vỏ hơi thâm khi tới nơi, có thể do thời gian nhập kho lạnh sau đóng gói bị chậm.</div>
+      <div style="margin-top:10px;"><span class="badge red">Chưa xử lý</span></div>
+    </div>
+
+    <div class="feedback-card">
+      <div class="feedback-top">
+        <div><strong>CHANH-0709</strong> <span class="feedback-meta">· Hàn Quốc</span></div>
+        <div class="stars"><svg class="icon icon-filled filled"><use href="#icon-star"/></svg><svg class="icon icon-filled filled"><use href="#icon-star"/></svg><svg class="icon icon-filled filled"><use href="#icon-star"/></svg><svg class="icon icon-filled filled"><use href="#icon-star"/></svg><svg class="icon icon-filled filled"><use href="#icon-star"/></svg></div>
+      </div>
+      <div class="feedback-text">Đúng size, trái tươi, đóng gói chắc chắn.</div>
+      <div style="margin-top:10px;"><span class="badge green">Đã xử lý</span></div>
+    </div>
+
+    <div class="feedback-card">
+      <div class="feedback-top">
+        <div><strong>TL-0701</strong> <span class="feedback-meta">· EU</span></div>
+        <div class="stars"><svg class="icon icon-filled filled"><use href="#icon-star"/></svg><svg class="icon icon-filled filled"><use href="#icon-star"/></svg><svg class="icon icon-filled filled"><use href="#icon-star"/></svg><svg class="icon icon-filled filled"><use href="#icon-star"/></svg><svg class="icon icon-filled"><use href="#icon-star"/></svg></div>
+      </div>
+      <div class="feedback-text">Giao đúng hẹn, chất lượng ổn định so với lô trước.</div>
+      <div style="margin-top:10px;"><span class="badge green">Đã xử lý</span></div>
+    </div>
+
+    <div class="feedback-card">
+      <div class="feedback-top">
+        <div><strong>TL-0698</strong> <span class="feedback-meta">· EU</span></div>
+        <div class="stars"><svg class="icon icon-filled filled"><use href="#icon-star"/></svg><svg class="icon icon-filled filled"><use href="#icon-star"/></svg><svg class="icon icon-filled"><use href="#icon-star"/></svg><svg class="icon icon-filled"><use href="#icon-star"/></svg><svg class="icon icon-filled"><use href="#icon-star"/></svg></div>
+      </div>
+      <div class="feedback-text">Một số trái bị mềm, nghi do nhiệt độ kho lạnh dao động giữa hành trình.</div>
+      <div style="margin-top:10px;"><span class="badge red">Chưa xử lý</span></div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+const titles = {
+    overview:  ["Tổng quan", "Toàn cảnh hoạt động chuỗi cung ứng hôm nay"],
+    raw:       ["Vùng nguyên liệu", "Thu mua và kiểm tra dừa thô đầu vào"],
+    ncc:       ["Nhà cung cấp", "Quản lý nhà cung cấp, tra cứu đơn đặt hàng và đánh giá"],
+    factory:   ["Xưởng sản xuất", "Tiến độ và thời gian xử lý theo lô hàng"],
+    qc:        ["Đánh giá chất lượng", "Kiểm tra chất lượng lô hàng xuất khẩu: dừa, chanh, thanh long"],
+    logistics: ["Logistics", "Theo dõi hành trình và vị trí lô hàng"],
+    docs:      ["Chứng từ", "Checklist chứng từ theo từng lô hàng"],
+    feedback:  ["Feedback khách hàng", "Ghi nhận và xử lý phản hồi theo lô hàng"]
+  };
+
+  function goTab(tab){
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.toggle('active', el.id === 'tab-' + tab));
+    document.getElementById('page-title').textContent = titles[tab][0];
+    document.getElementById('page-sub').textContent = titles[tab][1];
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+
+  document.querySelectorAll('.nav-item').forEach(btn=>{
+    btn.addEventListener('click', ()=> goTab(btn.dataset.tab));
+  });
+</script>
+

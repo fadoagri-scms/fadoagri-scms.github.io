@@ -1,0 +1,109 @@
+<section class="tab-content" id="tab-qc">
+    <div class="three-col">
+      <div class="stat-block">
+        <div class="stat-title">Lô đã kiểm hôm nay</div>
+        <div class="stat-value" id="stat-qc-today">—</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-title">Tỷ lệ đạt</div>
+        <div class="stat-value" id="stat-qc-pass">—</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-title">Chờ QC xác nhận</div>
+        <div class="stat-value" id="stat-qc-pending" style="color:var(--amber)">—</div>
+      </div>
+    </div>
+
+    <div class="section-header-row">
+      <div class="section-label">Tổng hợp lô hàng</div>
+      <div class="chart-filter-row">
+        <select id="qc-month-select" aria-label="Chọn tháng"></select>
+        <select id="qc-year-select" aria-label="Chọn năm"></select>
+      </div>
+      <button class="btn-primary" id="btn-new-qc-batch" type="button"><i class="ti ti-plus"></i>Nhập lô hàng mới</button>
+    </div>
+    <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Gộp thông tin từ Nhà cung cấp, Xưởng Ba Phi và kết quả kiểm QC theo từng lô hàng. Bấm biểu tượng mắt để xem chi tiết và ghi nhận kiểm QC.</div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Lô hàng</th><th>NCC</th><th>Ngành hàng</th><th>Hình thức</th><th>Số lượng thực tế</th><th>QC sản phẩm</th><th>Đánh giá chất lượng</th><th>Thao tác</th></tr>
+        </thead>
+        <tbody id="qc-summary-tbody">
+          <tr><td colspan="8" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="modal-overlay" id="qc-batch-overlay">
+      <div class="modal modal-lg">
+        <div class="modal-header">
+          <div class="modal-title" id="qc-batch-modal-title">Lô hàng</div>
+          <button class="modal-close" id="btn-close-qc-batch" type="button" aria-label="Đóng">&times;</button>
+        </div>
+
+        <div class="info-grid" id="qc-batch-info-grid"></div>
+
+        <div id="qc-po-breakdown-section" style="display:none;">
+          <div class="section-header-row" style="margin-top:0;">
+            <div class="section-label" style="margin:0;">Chi tiết đơn hàng ghép (cont ghép)</div>
+          </div>
+          <div class="card" style="margin-bottom:20px;">
+            <table>
+              <thead>
+                <tr><th>Số ĐĐH</th><th>NCC</th><th>Ngành hàng</th><th>Số lượng</th><th>Trạng thái</th></tr>
+              </thead>
+              <tbody id="qc-po-breakdown-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="section-header-row" style="margin-top:0;">
+          <div class="section-label" style="margin:0;">Lịch sử kiểm QC</div>
+        </div>
+        <div class="card" style="margin-bottom:20px;">
+          <table>
+            <thead>
+              <tr><th>Loại kiểm</th><th>Kết quả</th><th>Người kiểm</th><th>Ghi chú</th><th>Thao tác</th></tr>
+            </thead>
+            <tbody id="qc-tbody">
+              <tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:20px;">Chưa có kết quả kiểm nào.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="section-label" style="margin-top:0;">Thêm / sửa kết quả kiểm</div>
+        <form id="form-add-qc">
+          <div class="form-group">
+            <label for="qc-category">Ngành hàng</label>
+            <select id="qc-category">
+              <option value="Dừa">Dừa</option>
+              <option value="Chanh">Chanh</option>
+              <option value="Thanh long">Thanh long</option>
+              <option value="Khác">Khác</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="qc-result">Kết quả</label>
+            <select id="qc-result">
+              <option value="Chờ xác nhận">Chờ xác nhận</option>
+              <option value="Đạt">Đạt</option>
+              <option value="Đạt có điều kiện">Đạt có điều kiện</option>
+              <option value="Không đạt 1 phần">Không đạt 1 phần</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="qc-inspector">Người kiểm</label>
+            <input type="text" id="qc-inspector" placeholder="VD: Hạnh">
+          </div>
+          <div class="form-group">
+            <label for="qc-note">Ghi chú</label>
+            <textarea id="qc-note" rows="2" placeholder="Ghi chú thêm (nếu có)"></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-qc">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-qc">Thêm kết quả</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>

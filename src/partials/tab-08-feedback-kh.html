@@ -1,0 +1,73 @@
+<section class="tab-content" id="tab-feedback">
+    <div class="section-label" id="feedback-pending-label">Lô hàng cần feedback</div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Lô hàng</th><th>Ngày nhận hàng</th><th>Hạn phản hồi</th><th>Trạng thái</th></tr>
+        </thead>
+        <tbody id="feedback-pending-tbody">
+          <tr><td colspan="4" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section-header-row">
+      <div class="section-label">Feedback gần đây</div>
+      <div class="chart-filter-row">
+        <select id="feedback-month-select" aria-label="Chọn tháng"></select>
+        <select id="feedback-year-select" aria-label="Chọn năm"></select>
+      </div>
+      <button class="btn-primary" id="btn-open-add-feedback" type="button"><i class="ti ti-plus"></i>Thêm feedback</button>
+    </div>
+
+    <div id="feedback-list">
+      <div class="muted">Đang tải dữ liệu...</div>
+    </div>
+
+    <div class="modal-overlay" id="add-feedback-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="add-feedback-modal-title">Thêm feedback</div>
+          <button class="modal-close" id="btn-close-add-feedback" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <form id="form-add-feedback">
+          <div class="form-group">
+            <label for="fb-batch">Lô hàng</label>
+            <select id="fb-batch" required>
+              <option value="" disabled selected>Chọn lô hàng...</option>
+            </select>
+            <div class="muted" id="fb-batch-info" style="font-size:11px;margin-top:4px;">Danh sách lấy từ Logistics (lô đã ở trạng thái "Khách đã nhận hàng").</div>
+          </div>
+          <div class="form-group">
+            <label for="fb-market">Thị trường</label>
+            <input type="text" id="fb-market" placeholder="VD: Nhật Bản">
+          </div>
+          <div class="form-group">
+            <label for="fb-rating">Số sao</label>
+            <select id="fb-rating">
+              <option value="5">5 sao</option>
+              <option value="4">4 sao</option>
+              <option value="3">3 sao</option>
+              <option value="2">2 sao</option>
+              <option value="1">1 sao</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="fb-text">Nội dung feedback</label>
+            <textarea id="fb-text" rows="3" placeholder="Nội dung phản hồi từ khách hàng"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Trạng thái</label>
+            <div class="radio-row">
+              <label class="radio-option"><input type="radio" name="fb-status" value="Chưa xử lý" checked>Chưa xử lý</label>
+              <label class="radio-option"><input type="radio" name="fb-status" value="Đã xử lý">Đã xử lý</label>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-feedback">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-feedback">Thêm feedback</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>

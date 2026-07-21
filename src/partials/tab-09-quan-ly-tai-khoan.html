@@ -1,0 +1,82 @@
+<section class="tab-content" id="tab-users">
+    <div class="section-header-row">
+      <div class="section-label">Quản lý tài khoản</div>
+      <button class="btn-primary" id="btn-open-add-account" type="button"><i class="ti ti-plus"></i>Thêm tài khoản</button>
+    </div>
+    <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Tạo tài khoản mới ngay tại đây, hoặc tạo trong Supabase Dashboard → Authentication → Users rồi gán vai trò bên dưới.</div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Email</th><th>Họ tên</th><th>Vai trò</th></tr>
+        </thead>
+        <tbody id="users-tbody">
+          <tr><td colspan="3" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section-label">Ma trận phân quyền</div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>Admin</th>
+            <th>Quản lý sản xuất</th>
+            <th>Quản lý NCC</th>
+            <th>QC</th>
+            <th>Xuất khẩu</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Vùng nguyên liệu</td><td>✓</td><td>✓</td><td>Xem</td><td>Xem</td><td>Xem</td></tr>
+          <tr><td>Nhà cung cấp</td><td>✓</td><td>Xem</td><td>✓</td><td>Xem</td><td>Xem</td></tr>
+          <tr><td>Xưởng Ba Phi</td><td>✓</td><td>✓</td><td>Xem</td><td>Xem</td><td>Xem</td></tr>
+          <tr><td>Đánh giá chất lượng</td><td>✓</td><td>Xem</td><td>Xem</td><td>✓</td><td>Xem</td></tr>
+          <tr><td>Logistics</td><td>✓</td><td>Xem</td><td>Xem</td><td>Xem</td><td>✓</td></tr>
+          <tr><td>Chứng từ</td><td>✓</td><td>Xem</td><td>Xem</td><td>Xem</td><td>✓</td></tr>
+          <tr><td>Feedback KH</td><td>✓</td><td>Xem</td><td>Xem</td><td>Xem</td><td>✓</td></tr>
+          <tr><td>Quản lý tài khoản</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+        </tbody>
+      </table>
+      <div class="muted" style="font-size:11px;padding:12px 8px 4px;">✓ = thêm/sửa/xóa được · Xem = chỉ xem, không thao tác · — = không thấy module</div>
+    </div>
+
+    <div class="modal-overlay" id="add-account-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="add-account-modal-title">Thêm tài khoản</div>
+          <button class="modal-close" id="btn-close-add-account" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <form id="form-add-account">
+          <div class="form-group">
+            <label for="acc-email">Email</label>
+            <input type="email" id="acc-email" placeholder="nhanvien@fadogroup.com.au" required>
+          </div>
+          <div class="form-group">
+            <label for="acc-password">Mật khẩu tạm</label>
+            <input type="text" id="acc-password" placeholder="Ít nhất 6 ký tự" minlength="6" required>
+          </div>
+          <div class="form-group">
+            <label for="acc-name">Họ tên</label>
+            <input type="text" id="acc-name" placeholder="VD: Nguyễn Văn A">
+          </div>
+          <div class="form-group">
+            <label for="acc-role">Vai trò</label>
+            <select id="acc-role">
+              <option value="admin">Admin</option>
+              <option value="san_xuat">Quản lý sản xuất</option>
+              <option value="ncc">Quản lý NCC</option>
+              <option value="qc">QC</option>
+              <option value="xuat_khau" selected>Xuất khẩu</option>
+            </select>
+          </div>
+          <div id="add-account-error" style="font-size:12.5px;color:var(--red);min-height:16px;"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-account">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-account">Thêm tài khoản</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
