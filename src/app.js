@@ -3641,12 +3641,18 @@ const titles = {
           const newUser = data && data.user;
           if(!newUser) throw new Error('Không tạo được tài khoản — kiểm tra lại email/mật khẩu.');
 
-          const { error: profileError } = await sb.from('profiles').insert({
-            id: newUser.id,
-            email: email,
-            full_name: fullName || null,
-            role: role
-          });
+          // auth.users vừa tạo xong đôi khi cần vài trăm ms mới "nhìn thấy
+          // được" từ phía database (độ trễ giữa Supabase Auth và Postgres) —
+          // insert vào profiles ngay có thể bị lỗi "foreign key constraint"
+          // dù tài khoản đã tạo thành công. Thử lại vài lần trước khi báo lỗi.
+          const payload = { id: newUser.id, email: email, full_name: fullName || null, role: role };
+          let profileError = null;
+          for(let attempt = 0; attempt < 4; attempt++){
+            if(attempt > 0) await new Promise(function(r){ setTimeout(r, attempt * 500); });
+            const res = await sb.from('profiles').insert(payload);
+            profileError = res.error;
+            if(!profileError || profileError.code !== '23503') break;
+          }
           if(profileError) throw profileError;
 
           await refreshUsers();
