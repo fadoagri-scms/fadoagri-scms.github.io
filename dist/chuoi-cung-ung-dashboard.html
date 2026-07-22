@@ -1375,6 +1375,41 @@
         </form>
       </div>
     </div>
+
+    <div class="modal-overlay" id="edit-account-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">Sửa tài khoản</div>
+          <button class="modal-close" id="btn-close-edit-account" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <form id="form-edit-account">
+          <div class="form-group">
+            <label for="edit-acc-name">Họ tên</label>
+            <input type="text" id="edit-acc-name" placeholder="VD: Nguyễn Văn A">
+          </div>
+          <div class="form-group">
+            <label for="edit-acc-email">Email</label>
+            <input type="text" id="edit-acc-email" placeholder="Chưa có email">
+            <div class="muted" style="font-size:11px;margin-top:5px;">Chỉ là nhãn hiển thị — không đổi được email đăng nhập thật. Muốn đổi email đăng nhập, vào Supabase Dashboard → Authentication → Users.</div>
+          </div>
+          <div class="form-group">
+            <label for="edit-acc-role">Vai trò</label>
+            <select id="edit-acc-role">
+              <option value="admin">Admin</option>
+              <option value="san_xuat">Quản lý sản xuất</option>
+              <option value="ncc">Quản lý NCC</option>
+              <option value="qc">QC</option>
+              <option value="xuat_khau">Xuất khẩu</option>
+            </select>
+          </div>
+          <div id="edit-account-error" style="font-size:12.5px;color:var(--red);min-height:16px;"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-edit-account">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-edit-account">Lưu thay đổi</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </section>
 
 </main>
@@ -4879,6 +4914,14 @@ const titles = {
     const submitBtn = document.getElementById('btn-submit-add-account');
     const accError = document.getElementById('add-account-error');
 
+    const editOverlay = document.getElementById('edit-account-overlay');
+    const editCloseBtn = document.getElementById('btn-close-edit-account');
+    const editCancelBtn = document.getElementById('btn-cancel-edit-account');
+    const editForm = document.getElementById('form-edit-account');
+    const editSubmitBtn = document.getElementById('btn-submit-edit-account');
+    const editError = document.getElementById('edit-account-error');
+    let editingAccount = null;
+
     const ROLE_OPTIONS = [
       ['admin', 'Admin'],
       ['san_xuat', 'Quản lý sản xuất'],
@@ -4898,17 +4941,6 @@ const titles = {
       td.textContent = text;
       tr.appendChild(td);
       tbody.appendChild(tr);
-    }
-
-    async function saveField(id, field, value){
-      try{
-        const payload = {};
-        payload[field] = value;
-        const { error } = await sb.from('profiles').update(payload).eq('id', id);
-        if(error) throw error;
-      } catch(err){
-        alert('Không thể lưu: ' + err.message);
-      }
     }
 
     async function deleteAccount(u){
@@ -4948,42 +4980,31 @@ const titles = {
           const tr = document.createElement('tr');
 
           const nameTd = document.createElement('td');
-          const nameInput = document.createElement('input');
-          nameInput.type = 'text';
-          nameInput.value = u.full_name || '';
-          nameInput.placeholder = 'Chưa đặt tên';
-          nameInput.style.cssText = 'width:100%;font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;';
-          nameInput.addEventListener('change', function(){ saveField(u.id, 'full_name', nameInput.value.trim() || null); });
-          nameTd.appendChild(nameInput);
+          nameTd.textContent = u.full_name || '—';
+          if(!u.full_name) nameTd.className = 'muted';
           tr.appendChild(nameTd);
 
           const emailTd = document.createElement('td');
-          const emailInput = document.createElement('input');
-          emailInput.type = 'text';
-          emailInput.value = u.email || '';
-          emailInput.placeholder = 'Chưa có email';
-          emailInput.title = 'Đây chỉ là nhãn hiển thị — KHÔNG đổi được email đăng nhập thật. Muốn đổi email đăng nhập, vào Supabase Dashboard → Authentication → Users.';
-          emailInput.style.cssText = 'width:100%;font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;';
-          emailInput.addEventListener('change', function(){ saveField(u.id, 'email', emailInput.value.trim() || null); });
-          emailTd.appendChild(emailInput);
+          emailTd.textContent = u.email || '—';
           tr.appendChild(emailTd);
 
           const roleTd = document.createElement('td');
-          const roleSelect = document.createElement('select');
-          roleSelect.style.cssText = 'font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;cursor:pointer;';
-          ROLE_OPTIONS.forEach(function(o){
-            const opt = document.createElement('option');
-            opt.value = o[0];
-            opt.textContent = o[1];
-            if(u.role === o[0]) opt.selected = true;
-            roleSelect.appendChild(opt);
-          });
-          roleSelect.addEventListener('change', function(){ saveField(u.id, 'role', roleSelect.value); });
-          roleTd.appendChild(roleSelect);
+          const roleOpt = ROLE_OPTIONS.find(function(o){ return o[0] === u.role; });
+          roleTd.textContent = roleOpt ? roleOpt[1] : u.role;
           tr.appendChild(roleTd);
 
           const actionTd = document.createElement('td');
+          actionTd.className = 'row-actions';
           actionTd.style.whiteSpace = 'nowrap';
+
+          const editBtn = document.createElement('button');
+          editBtn.type = 'button';
+          editBtn.className = 'row-edit-btn';
+          editBtn.title = 'Sửa tài khoản';
+          editBtn.setAttribute('aria-label', 'Sửa');
+          editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
+          editBtn.addEventListener('click', function(){ openEditModal(u); });
+          actionTd.appendChild(editBtn);
 
           const resetBtn = document.createElement('button');
           resetBtn.type = 'button';
@@ -5053,6 +5074,54 @@ const titles = {
         } finally {
           submitBtn.disabled = false;
           submitBtn.textContent = originalLabel;
+        }
+      });
+    }
+
+    function openEditModal(u){
+      editingAccount = u;
+      if(editError) editError.textContent = '';
+      document.getElementById('edit-acc-name').value = u.full_name || '';
+      document.getElementById('edit-acc-email').value = u.email || '';
+      document.getElementById('edit-acc-role').value = u.role;
+      if(editOverlay) editOverlay.classList.add('active');
+    }
+    function closeEditModal(){
+      if(editOverlay) editOverlay.classList.remove('active');
+      if(editForm) editForm.reset();
+      editingAccount = null;
+    }
+
+    if(editCloseBtn) editCloseBtn.addEventListener('click', closeEditModal);
+    if(editCancelBtn) editCancelBtn.addEventListener('click', closeEditModal);
+    if(editOverlay) editOverlay.addEventListener('click', function(e){ if(e.target === editOverlay) closeEditModal(); });
+
+    if(editForm){
+      editForm.addEventListener('submit', async function(e){
+        e.preventDefault();
+        if(!editingAccount) return;
+        if(editError) editError.textContent = '';
+        const fullName = fieldVal('edit-acc-name');
+        const email = fieldVal('edit-acc-email');
+        const role = fieldVal('edit-acc-role');
+
+        const originalLabel = editSubmitBtn.textContent;
+        editSubmitBtn.disabled = true;
+        editSubmitBtn.textContent = 'Đang lưu...';
+        try{
+          const { error } = await sb.from('profiles').update({
+            full_name: fullName || null,
+            email: email || null,
+            role: role
+          }).eq('id', editingAccount.id);
+          if(error) throw error;
+          await refreshUsers();
+          closeEditModal();
+        } catch(err){
+          if(editError) editError.textContent = err.message || 'Không thể lưu.';
+        } finally {
+          editSubmitBtn.disabled = false;
+          editSubmitBtn.textContent = originalLabel;
         }
       });
     }

@@ -73,4 +73,39 @@
         </form>
       </div>
     </div>
+
+    <div class="modal-overlay" id="edit-account-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">Sửa tài khoản</div>
+          <button class="modal-close" id="btn-close-edit-account" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <form id="form-edit-account">
+          <div class="form-group">
+            <label for="edit-acc-name">Họ tên</label>
+            <input type="text" id="edit-acc-name" placeholder="VD: Nguyễn Văn A">
+          </div>
+          <div class="form-group">
+            <label for="edit-acc-email">Email</label>
+            <input type="text" id="edit-acc-email" placeholder="Chưa có email">
+            <div class="muted" style="font-size:11px;margin-top:5px;">Chỉ là nhãn hiển thị — không đổi được email đăng nhập thật. Muốn đổi email đăng nhập, vào Supabase Dashboard → Authentication → Users.</div>
+          </div>
+          <div class="form-group">
+            <label for="edit-acc-role">Vai trò</label>
+            <select id="edit-acc-role">
+              <option value="admin">Admin</option>
+              <option value="san_xuat">Quản lý sản xuất</option>
+              <option value="ncc">Quản lý NCC</option>
+              <option value="qc">QC</option>
+              <option value="xuat_khau">Xuất khẩu</option>
+            </select>
+          </div>
+          <div id="edit-account-error" style="font-size:12.5px;color:var(--red);min-height:16px;"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-edit-account">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-edit-account">Lưu thay đổi</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </section>
