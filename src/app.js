@@ -3564,6 +3564,16 @@ const titles = {
         data.forEach(function(u){
           const tr = document.createElement('tr');
 
+          const nameTd = document.createElement('td');
+          const nameInput = document.createElement('input');
+          nameInput.type = 'text';
+          nameInput.value = u.full_name || '';
+          nameInput.placeholder = 'Chưa đặt tên';
+          nameInput.style.cssText = 'width:100%;font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;';
+          nameInput.addEventListener('change', function(){ saveField(u.id, 'full_name', nameInput.value.trim() || null); });
+          nameTd.appendChild(nameInput);
+          tr.appendChild(nameTd);
+
           const emailTd = document.createElement('td');
           const emailInput = document.createElement('input');
           emailInput.type = 'text';
@@ -3574,16 +3584,6 @@ const titles = {
           emailInput.addEventListener('change', function(){ saveField(u.id, 'email', emailInput.value.trim() || null); });
           emailTd.appendChild(emailInput);
           tr.appendChild(emailTd);
-
-          const nameTd = document.createElement('td');
-          const nameInput = document.createElement('input');
-          nameInput.type = 'text';
-          nameInput.value = u.full_name || '';
-          nameInput.placeholder = 'Chưa đặt tên';
-          nameInput.style.cssText = 'width:100%;font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;';
-          nameInput.addEventListener('change', function(){ saveField(u.id, 'full_name', nameInput.value.trim() || null); });
-          nameTd.appendChild(nameInput);
-          tr.appendChild(nameTd);
 
           const roleTd = document.createElement('td');
           const roleSelect = document.createElement('select');
