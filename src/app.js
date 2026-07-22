@@ -116,7 +116,7 @@ const titles = {
         if(error) throw error;
         (data || []).forEach(function(r){ levels[r.module_key] = r.access_level; });
       } catch(err){
-        console.error('Không tải được ma trận phân quyền:', err);
+        console.error('Không tải được ma trận phân quyền:', err && (err.message || JSON.stringify(err)));
       }
     }
     ALL_MODULE_SECTIONS.forEach(function(sectionId){
@@ -3751,7 +3751,7 @@ const titles = {
         for(let i = 0; i < PERMISSION_ROLES.length; i++){ accTr.appendChild(makeStaticCell('—')); }
         tbody.appendChild(accTr);
       } catch(err){
-        console.error('Không tải được ma trận phân quyền:', err);
+        console.error('Không tải được ma trận phân quyền:', err && (err.message || JSON.stringify(err)));
         showMessage('Không tải được dữ liệu — kiểm tra kết nối Supabase.', 'var(--red)');
       }
     }
