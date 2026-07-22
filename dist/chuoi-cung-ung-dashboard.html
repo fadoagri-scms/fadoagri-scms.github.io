@@ -78,6 +78,14 @@
     font-family:'Manrope',sans-serif;letter-spacing:.02em;
     box-shadow:0 4px 10px -2px rgba(108,99,255,.55);
   }
+  /* Logo thật FADO Agri (chữ nâu/xanh + lá vàng) — giữ đúng tỉ lệ ngang như
+     ảnh gốc, không ép vào khung vuông. Cần nền sáng để đủ tương phản trên
+     sidebar tối, nhưng chỉ ôm sát nội dung (không to như 1 icon vuông). */
+  .brand .mark.mark-logo{
+    width:auto;height:26px;padding:5px 8px;border-radius:7px;
+    background:#fff;box-shadow:var(--shadow-sm);
+  }
+  .brand .mark.mark-logo svg{display:block;width:auto;height:100%;}
   .brand-title{font-size:14.5px;font-weight:800;letter-spacing:.3px;color:#fff;font-family:'Manrope',sans-serif;}
   .brand-sub{font-size:8.5px;font-weight:700;letter-spacing:.06em;color:#8FCFCA;margin-top:3px;}
   nav{display:flex;flex-direction:column;gap:3px;}
@@ -394,7 +402,19 @@
 
 <aside class="sidebar gated">
   <div class="brand">
-      <span class="mark">FA</span>
+      <span class="mark mark-logo">
+        <svg viewBox="0 0 140 30" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="FADO Agri">
+          <defs>
+            <linearGradient id="fadoLeaf" x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#F7D77B"/>
+              <stop offset="100%" stop-color="#F3B23D"/>
+            </linearGradient>
+          </defs>
+          <text x="4" y="22" font-family="Manrope, sans-serif" font-size="20" font-weight="500" letter-spacing="2.5" fill="#6E5B49">FADO</text>
+          <text x="72" y="21" font-family="Manrope, sans-serif" font-size="18" font-weight="600" fill="#2F7D32">Agri</text>
+          <path d="M120 20 L132 20 A12 12 0 0 0 120 8 Z" fill="url(#fadoLeaf)"/>
+        </svg>
+      </span>
       <div class="brand-text">
         <div class="brand-title">FADO AGRI</div>
         <div class="brand-sub">Supply Chain Management System</div>
@@ -4902,6 +4922,22 @@ const titles = {
       }
     }
 
+    // Không thể tự đặt mật khẩu thay người khác từ client (cần service_role)
+    // — cách an toàn duy nhất là gửi email đặt lại mật khẩu để họ tự đặt.
+    // Cần dự án đã cấu hình gửi email (SMTP) hoạt động đúng thì email mới
+    // thực sự tới nơi.
+    async function sendPasswordReset(u){
+      if(!u.email){ alert('Tài khoản này chưa có email.'); return; }
+      if(!confirm('Gửi email đặt lại mật khẩu tới ' + u.email + '?')) return;
+      try{
+        const { error } = await sb.auth.resetPasswordForEmail(u.email);
+        if(error) throw error;
+        alert('Đã gửi email đặt lại mật khẩu tới ' + u.email + ' (nếu không thấy, kiểm tra thư mục spam, hoặc Supabase chưa cấu hình gửi email).');
+      } catch(err){
+        alert('Không thể gửi email: ' + err.message);
+      }
+    }
+
     async function refreshUsers(){
       try{
         const { data, error } = await sb.from('profiles').select('*').order('email');
@@ -4912,7 +4948,14 @@ const titles = {
           const tr = document.createElement('tr');
 
           const emailTd = document.createElement('td');
-          emailTd.textContent = u.email || '—';
+          const emailInput = document.createElement('input');
+          emailInput.type = 'text';
+          emailInput.value = u.email || '';
+          emailInput.placeholder = 'Chưa có email';
+          emailInput.title = 'Đây chỉ là nhãn hiển thị — KHÔNG đổi được email đăng nhập thật. Muốn đổi email đăng nhập, vào Supabase Dashboard → Authentication → Users.';
+          emailInput.style.cssText = 'width:100%;font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;';
+          emailInput.addEventListener('change', function(){ saveField(u.id, 'email', emailInput.value.trim() || null); });
+          emailTd.appendChild(emailInput);
           tr.appendChild(emailTd);
 
           const nameTd = document.createElement('td');
@@ -4940,6 +4983,16 @@ const titles = {
           tr.appendChild(roleTd);
 
           const actionTd = document.createElement('td');
+          actionTd.style.whiteSpace = 'nowrap';
+
+          const resetBtn = document.createElement('button');
+          resetBtn.type = 'button';
+          resetBtn.title = 'Gửi email đặt lại mật khẩu cho tài khoản này';
+          resetBtn.style.cssText = 'background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:16px;padding:4px 8px;';
+          resetBtn.innerHTML = '<i class="ti ti-key"></i>';
+          resetBtn.addEventListener('click', function(){ sendPasswordReset(u); });
+          actionTd.appendChild(resetBtn);
+
           const delBtn = document.createElement('button');
           delBtn.type = 'button';
           delBtn.title = 'Xóa tài khoản';
@@ -4947,6 +5000,7 @@ const titles = {
           delBtn.innerHTML = '<i class="ti ti-trash"></i>';
           delBtn.addEventListener('click', function(){ deleteAccount(u); });
           actionTd.appendChild(delBtn);
+
           tr.appendChild(actionTd);
 
           tbody.appendChild(tr);

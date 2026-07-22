@@ -68,6 +68,14 @@
     font-family:'Manrope',sans-serif;letter-spacing:.02em;
     box-shadow:0 4px 10px -2px rgba(108,99,255,.55);
   }
+  /* Logo thật FADO Agri (chữ nâu/xanh + lá vàng) — giữ đúng tỉ lệ ngang như
+     ảnh gốc, không ép vào khung vuông. Cần nền sáng để đủ tương phản trên
+     sidebar tối, nhưng chỉ ôm sát nội dung (không to như 1 icon vuông). */
+  .brand .mark.mark-logo{
+    width:auto;height:26px;padding:5px 8px;border-radius:7px;
+    background:#fff;box-shadow:var(--shadow-sm);
+  }
+  .brand .mark.mark-logo svg{display:block;width:auto;height:100%;}
   .brand-title{font-size:14.5px;font-weight:800;letter-spacing:.3px;color:#fff;font-family:'Manrope',sans-serif;}
   .brand-sub{font-size:8.5px;font-weight:700;letter-spacing:.06em;color:#8FCFCA;margin-top:3px;}
   nav{display:flex;flex-direction:column;gap:3px;}

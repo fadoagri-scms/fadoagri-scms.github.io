@@ -3539,6 +3539,22 @@ const titles = {
       }
     }
 
+    // Không thể tự đặt mật khẩu thay người khác từ client (cần service_role)
+    // — cách an toàn duy nhất là gửi email đặt lại mật khẩu để họ tự đặt.
+    // Cần dự án đã cấu hình gửi email (SMTP) hoạt động đúng thì email mới
+    // thực sự tới nơi.
+    async function sendPasswordReset(u){
+      if(!u.email){ alert('Tài khoản này chưa có email.'); return; }
+      if(!confirm('Gửi email đặt lại mật khẩu tới ' + u.email + '?')) return;
+      try{
+        const { error } = await sb.auth.resetPasswordForEmail(u.email);
+        if(error) throw error;
+        alert('Đã gửi email đặt lại mật khẩu tới ' + u.email + ' (nếu không thấy, kiểm tra thư mục spam, hoặc Supabase chưa cấu hình gửi email).');
+      } catch(err){
+        alert('Không thể gửi email: ' + err.message);
+      }
+    }
+
     async function refreshUsers(){
       try{
         const { data, error } = await sb.from('profiles').select('*').order('email');
@@ -3549,7 +3565,14 @@ const titles = {
           const tr = document.createElement('tr');
 
           const emailTd = document.createElement('td');
-          emailTd.textContent = u.email || '—';
+          const emailInput = document.createElement('input');
+          emailInput.type = 'text';
+          emailInput.value = u.email || '';
+          emailInput.placeholder = 'Chưa có email';
+          emailInput.title = 'Đây chỉ là nhãn hiển thị — KHÔNG đổi được email đăng nhập thật. Muốn đổi email đăng nhập, vào Supabase Dashboard → Authentication → Users.';
+          emailInput.style.cssText = 'width:100%;font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;';
+          emailInput.addEventListener('change', function(){ saveField(u.id, 'email', emailInput.value.trim() || null); });
+          emailTd.appendChild(emailInput);
           tr.appendChild(emailTd);
 
           const nameTd = document.createElement('td');
@@ -3577,6 +3600,16 @@ const titles = {
           tr.appendChild(roleTd);
 
           const actionTd = document.createElement('td');
+          actionTd.style.whiteSpace = 'nowrap';
+
+          const resetBtn = document.createElement('button');
+          resetBtn.type = 'button';
+          resetBtn.title = 'Gửi email đặt lại mật khẩu cho tài khoản này';
+          resetBtn.style.cssText = 'background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:16px;padding:4px 8px;';
+          resetBtn.innerHTML = '<i class="ti ti-key"></i>';
+          resetBtn.addEventListener('click', function(){ sendPasswordReset(u); });
+          actionTd.appendChild(resetBtn);
+
           const delBtn = document.createElement('button');
           delBtn.type = 'button';
           delBtn.title = 'Xóa tài khoản';
@@ -3584,6 +3617,7 @@ const titles = {
           delBtn.innerHTML = '<i class="ti ti-trash"></i>';
           delBtn.addEventListener('click', function(){ deleteAccount(u); });
           actionTd.appendChild(delBtn);
+
           tr.appendChild(actionTd);
 
           tbody.appendChild(tr);
