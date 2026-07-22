@@ -1326,7 +1326,7 @@ const titles = {
       infoGrid.textContent = '';
       const items = [
         ['NCC', displayNcc(b)],
-        ['Ngành hàng', b.category || '—'],
+        ['Sản phẩm', b.category || '—'],
         ['Số lượng', displayQuantity(b)],
         ['Ngày nhập gần nhất', b.ngayNhap ? fmtDate(b.ngayNhap) : '—']
       ];
@@ -1345,7 +1345,7 @@ const titles = {
         item.appendChild(label);
         item.appendChild(value);
         infoGrid.appendChild(item);
-        if(pair[0] === 'Ngành hàng') infoGrid.appendChild(buildSaleTypeItem(b));
+        if(pair[0] === 'Sản phẩm') infoGrid.appendChild(buildSaleTypeItem(b));
       });
     }
 

@@ -476,7 +476,7 @@
     </div>
     <div class="two-col">
       <div class="card chart-card">
-        <div class="chart-card-title">Lô hàng theo ngành hàng</div>
+        <div class="chart-card-title">Lô hàng theo sản phẩm</div>
         <div class="chart-container" id="chart-category"><div class="muted" style="padding:20px 0;">Đang tải dữ liệu...</div></div>
       </div>
       <div class="card chart-card">
@@ -596,7 +596,7 @@
     <div class="card">
       <table>
         <thead>
-          <tr><th>Lô hàng</th><th>Số ĐĐH</th><th>NCC</th><th>Ngành hàng</th><th>Số lượng đặt (thùng)</th><th>Trạng thái</th><th>Thao tác</th></tr>
+          <tr><th>Lô hàng</th><th>Số ĐĐH</th><th>NCC</th><th>Sản phẩm</th><th>Số lượng đặt (thùng)</th><th>Trạng thái</th><th>Thao tác</th></tr>
         </thead>
         <tbody id="po-tbody">
           <tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
@@ -611,7 +611,7 @@
     <div class="card">
       <table>
         <thead>
-          <tr><th>NCC</th><th>Ngành hàng</th><th>Liên hệ</th><th>Đề xuất</th><th>Thao tác</th></tr>
+          <tr><th>NCC</th><th>Sản phẩm</th><th>Liên hệ</th><th>Đề xuất</th><th>Thao tác</th></tr>
         </thead>
         <tbody id="supplier-tbody">
           <tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
@@ -643,7 +643,7 @@
             <input type="text" id="s-name" placeholder="VD: Thương lái Bến Tre" required>
           </div>
           <div class="form-group">
-            <label for="s-category">Ngành hàng</label>
+            <label for="s-category">Sản phẩm</label>
             <input type="text" id="s-category" placeholder="VD: Chanh, Thanh long, Chuối">
           </div>
           <div class="form-group">
@@ -698,7 +698,7 @@
             <input type="text" id="po-supplier" placeholder="VD: Thương lái Bến Tre" required>
           </div>
           <div class="form-group">
-            <label for="po-category">Ngành hàng</label>
+            <label for="po-category">Sản phẩm</label>
             <input type="text" id="po-category" placeholder="VD: Chanh, Thanh long, Chuối">
           </div>
           <div class="form-group">
@@ -957,7 +957,7 @@
     <div class="card">
       <table>
         <thead>
-          <tr><th>Lô hàng</th><th>NCC</th><th>Ngành hàng</th><th>Hình thức</th><th>Số lượng thực tế</th><th>QC sản phẩm</th><th>Đánh giá chất lượng</th><th>Thao tác</th></tr>
+          <tr><th>Lô hàng</th><th>NCC</th><th>Sản phẩm</th><th>Hình thức</th><th>Số lượng thực tế</th><th>QC sản phẩm</th><th>Đánh giá chất lượng</th><th>Thao tác</th></tr>
         </thead>
         <tbody id="qc-summary-tbody">
           <tr><td colspan="8" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
@@ -981,7 +981,7 @@
           <div class="card" style="margin-bottom:20px;">
             <table>
               <thead>
-                <tr><th>Số ĐĐH</th><th>NCC</th><th>Ngành hàng</th><th>Số lượng</th><th>Trạng thái</th></tr>
+                <tr><th>Số ĐĐH</th><th>NCC</th><th>Sản phẩm</th><th>Số lượng</th><th>Trạng thái</th></tr>
               </thead>
               <tbody id="qc-po-breakdown-tbody"></tbody>
             </table>
@@ -1005,7 +1005,7 @@
         <div class="section-label" style="margin-top:0;">Thêm / sửa kết quả kiểm</div>
         <form id="form-add-qc">
           <div class="form-group">
-            <label for="qc-category">Ngành hàng</label>
+            <label for="qc-category">Sản phẩm</label>
             <select id="qc-category">
               <option value="Dừa">Dừa</option>
               <option value="Chanh">Chanh</option>
@@ -2689,7 +2689,7 @@ const titles = {
       infoGrid.textContent = '';
       const items = [
         ['NCC', displayNcc(b)],
-        ['Ngành hàng', b.category || '—'],
+        ['Sản phẩm', b.category || '—'],
         ['Số lượng', displayQuantity(b)],
         ['Ngày nhập gần nhất', b.ngayNhap ? fmtDate(b.ngayNhap) : '—']
       ];
@@ -2708,7 +2708,7 @@ const titles = {
         item.appendChild(label);
         item.appendChild(value);
         infoGrid.appendChild(item);
-        if(pair[0] === 'Ngành hàng') infoGrid.appendChild(buildSaleTypeItem(b));
+        if(pair[0] === 'Sản phẩm') infoGrid.appendChild(buildSaleTypeItem(b));
       });
     }
 
