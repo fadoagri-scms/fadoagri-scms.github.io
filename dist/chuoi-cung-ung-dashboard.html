@@ -5058,6 +5058,14 @@ const titles = {
           if(error) throw error;
           const newUser = data && data.user;
           if(!newUser) throw new Error('Không tạo được tài khoản — kiểm tra lại email/mật khẩu.');
+          // Email đã tồn tại sẵn trong auth.users (VD: lần tạo trước bị lỗi
+          // giữa chừng) → Supabase trả về "user" giả (identities rỗng) thay
+          // vì báo lỗi rõ ràng, để tránh lộ email nào đã đăng ký hay chưa.
+          // Phải tự bắt trường hợp này, nếu không insert profiles bên dưới sẽ
+          // luôn báo "foreign key constraint" dù thử lại bao nhiêu lần.
+          if(Array.isArray(newUser.identities) && newUser.identities.length === 0){
+            throw new Error('Email này đã có tài khoản đăng nhập từ trước (có thể do lần tạo trước bị lỗi giữa chừng). Đổi sang email khác, hoặc vào Supabase Dashboard lấy UID của email này rồi tự gán vai trò trực tiếp vào bảng profiles.');
+          }
 
           // auth.users vừa tạo xong đôi khi cần vài trăm ms mới "nhìn thấy
           // được" từ phía database (độ trễ giữa Supabase Auth và Postgres) —
