@@ -78,14 +78,12 @@
     font-family:'Manrope',sans-serif;letter-spacing:.02em;
     box-shadow:0 4px 10px -2px rgba(108,99,255,.55);
   }
-  /* Logo thật FADO Agri (chữ nâu/xanh + lá vàng) — giữ đúng tỉ lệ ngang như
-     ảnh gốc, không ép vào khung vuông. Cần nền sáng để đủ tương phản trên
-     sidebar tối, nhưng chỉ ôm sát nội dung (không to như 1 icon vuông). */
+  /* Logo thật FADO Agri (file ảnh) — khung vuông đồng bộ kích thước với các
+     icon khác trong sidebar. Nền trắng khớp với nền trắng sẵn có của ảnh. */
   .brand .mark.mark-logo{
-    width:auto;height:26px;padding:5px 8px;border-radius:7px;
-    background:#fff;box-shadow:var(--shadow-sm);
+    background:#fff;box-shadow:var(--shadow-sm);padding:4px;
   }
-  .brand .mark.mark-logo svg{display:block;width:auto;height:100%;}
+  .brand .mark.mark-logo img{display:block;width:100%;height:100%;object-fit:contain;border-radius:8px;}
   .brand-title{font-size:14.5px;font-weight:800;letter-spacing:.3px;color:#fff;font-family:'Manrope',sans-serif;}
   .brand-sub{font-size:8.5px;font-weight:700;letter-spacing:.06em;color:#8FCFCA;margin-top:3px;}
   nav{display:flex;flex-direction:column;gap:3px;}
@@ -403,17 +401,7 @@
 <aside class="sidebar gated">
   <div class="brand">
       <span class="mark mark-logo">
-        <svg viewBox="0 0 140 30" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="FADO Agri">
-          <defs>
-            <linearGradient id="fadoLeaf" x1="0%" y1="100%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#F7D77B"/>
-              <stop offset="100%" stop-color="#F3B23D"/>
-            </linearGradient>
-          </defs>
-          <text x="4" y="22" font-family="Manrope, sans-serif" font-size="20" font-weight="500" letter-spacing="2.5" fill="#6E5B49">FADO</text>
-          <text x="72" y="21" font-family="Manrope, sans-serif" font-size="18" font-weight="600" fill="#2F7D32">Agri</text>
-          <path d="M120 20 L132 20 A12 12 0 0 0 120 8 Z" fill="url(#fadoLeaf)"/>
-        </svg>
+        <img src="assets/logo-fadoagri.png.jpg" alt="FADO Agri">
       </span>
       <div class="brand-text">
         <div class="brand-title">FADO AGRI</div>
