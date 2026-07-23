@@ -1029,6 +1029,8 @@ const titles = {
     const infoGrid = document.getElementById('qc-batch-info-grid');
     const historyTbody = document.getElementById('qc-tbody');
     const categorySelect = document.getElementById('qc-category');
+    const chungLoaiGroup = document.getElementById('qc-chungloai-group');
+    const chungLoaiSelect = document.getElementById('qc-chungloai');
     const submitBtn = document.getElementById('btn-submit-add-qc');
     const poBreakdownSection = document.getElementById('qc-po-breakdown-section');
     const poBreakdownTbody = document.getElementById('qc-po-breakdown-tbody');
@@ -1085,7 +1087,8 @@ const titles = {
             batch: batchCode, nccSet: new Set(), categorySet: new Set(), category: null,
             isDua: false, totalQty: 0, totalQtyText: null,
             ngayNhap: null, hasFactory: false, finishedQty: null, exportedQty: null,
-            hasSourceInfo: false, poEntries: [], saleType: null, periodDate: null
+            hasSourceInfo: false, poEntries: [], saleType: null, periodDate: null,
+            varietyMap: {}, duaVarieties: []
           };
         }
         return map[batchCode];
@@ -1099,6 +1102,8 @@ const titles = {
         b.hasSourceInfo = true;
         const qty = parseQty(r.soluong);
         if(qty) b.totalQty += qty;
+        const variety = (r.chung_loai || '').trim() || 'Chưa phân loại';
+        b.varietyMap[variety] = (b.varietyMap[variety] || 0) + (qty || 0);
         if(r.ngay_nhap && (!b.ngayNhap || r.ngay_nhap > b.ngayNhap)) b.ngayNhap = r.ngay_nhap;
         updatePeriod(b, r.ngay_nhap);
         const fb = getFb(r);
@@ -1154,6 +1159,9 @@ const titles = {
         // chung set để tránh lẫn NCC thô (thương lái giao dừa) với NCC hàng hoá.
         b.ncc = b.nccSet.size > 1 ? 'Nhiều NCC' : (b.nccSet.size === 1 ? Array.from(b.nccSet)[0] : null);
         b.category = b.categorySet.size ? Array.from(b.categorySet).join(' + ') : null;
+        b.duaVarieties = Object.keys(b.varietyMap)
+          .sort(function(x, y){ return x.localeCompare(y, 'vi'); })
+          .map(function(name){ return { name: name, qty: b.varietyMap[name] }; });
       });
 
       return map;
@@ -1198,12 +1206,24 @@ const titles = {
       return parts.length ? parts.join(' + ') : '—';
     }
 
-    function latestCheck(batchCode, type){
-      return allQcRows.find(function(q){ return q.batch_code === batchCode && q.check_type === type; }) || null;
+    // chungLoai bỏ qua (undefined) = không lọc theo chủng loại, giữ đúng hành
+    // vi cũ (gộp chung cả lô) — chỉ truyền chungLoai khi thật sự cần tách
+    // riêng kết quả kiểm theo từng chủng loại dừa trong 1 lô (xem perLineQc
+    // trong renderSummary).
+    function latestCheck(batchCode, type, chungLoai){
+      return allQcRows.find(function(q){
+        if(q.batch_code !== batchCode || q.check_type !== type) return false;
+        if(chungLoai === undefined) return true;
+        return (q.chung_loai || null) === (chungLoai || null);
+      }) || null;
     }
 
-    function overallStatus(batchCode){
-      const checks = allQcRows.filter(function(q){ return q.batch_code === batchCode; });
+    function overallStatus(batchCode, chungLoai){
+      const checks = allQcRows.filter(function(q){
+        if(q.batch_code !== batchCode) return false;
+        if(chungLoai === undefined) return true;
+        return (q.chung_loai || null) === (chungLoai || null);
+      });
       if(!checks.length) return { text: 'Chưa kiểm', cls: 'gray' };
       if(checks.some(function(q){ return q.result === 'Không đạt 1 phần'; })) return { text: 'Không đạt 1 phần', cls: 'red' };
       if(checks.some(function(q){ return !q.result || q.result === 'Chờ xác nhận'; })) return { text: 'Chờ xác nhận', cls: 'amber' };
@@ -1229,11 +1249,27 @@ const titles = {
     function buildLines(b){
       const lines = [];
       if(b.isDua){
-        lines.push({
-          ncc: 'Xưởng Ba Phi',
-          category: 'Dừa',
-          qty: b.exportedQty != null ? fmtQty(b.exportedQty) : '—'
-        });
+        // Lô Dừa thuần (không ghép PO) có từ 2 chủng loại trở lên → tách mỗi
+        // chủng loại thành 1 dòng riêng để QC kiểm/đánh giá độc lập, thay vì
+        // gộp chung 1 kết quả cho cả lô như trước (không phản ánh đúng thực
+        // tế mỗi chủng loại có thể đạt/không đạt khác nhau).
+        if(b.duaVarieties.length > 1 && !b.poEntries.length){
+          b.duaVarieties.forEach(function(v){
+            const named = v.name !== 'Chưa phân loại';
+            lines.push({
+              ncc: 'Xưởng Ba Phi',
+              category: named ? v.name : 'Dừa (chưa phân loại)',
+              chungLoai: named ? v.name : null,
+              qty: v.qty ? fmtQty(v.qty) : '—'
+            });
+          });
+        } else {
+          lines.push({
+            ncc: 'Xưởng Ba Phi',
+            category: 'Dừa',
+            qty: b.exportedQty != null ? fmtQty(b.exportedQty) : '—'
+          });
+        }
       }
       b.poEntries.forEach(function(p){
         lines.push({
@@ -1276,8 +1312,12 @@ const titles = {
       batches.forEach(function(b){
         const lines = buildLines(b);
         const rowspan = lines.length;
-        const outCheck = latestCheck(b.batch, 'Thành phẩm');
-        const st = overallStatus(b.batch);
+        // Chỉ tách QC/Đánh giá riêng theo từng dòng khi buildLines() đã tách
+        // theo chủng loại (lô Dừa thuần, nhiều chủng loại, không ghép PO) —
+        // các lô khác vẫn gộp 1 kết quả chung cho cả lô như trước.
+        const perLineQc = b.isDua && b.duaVarieties.length > 1 && !b.poEntries.length;
+        const outCheck = perLineQc ? null : latestCheck(b.batch, 'Thành phẩm');
+        const st = perLineQc ? null : overallStatus(b.batch);
 
         lines.forEach(function(line, idx){
           const tr = document.createElement('tr');
@@ -1317,7 +1357,19 @@ const titles = {
           qtyTd.style.textAlign = 'left';
           tr.appendChild(qtyTd);
 
-          if(idx === 0){
+          if(perLineQc){
+            const lineOutCheck = latestCheck(b.batch, 'Thành phẩm', line.chungLoai);
+            const outTd = document.createElement('td');
+            outTd.style.textAlign = 'left';
+            outTd.appendChild(lineOutCheck ? badge(lineOutCheck.result || '—', resultBadgeClass(lineOutCheck.result)) : badge('Chưa kiểm', 'gray'));
+            tr.appendChild(outTd);
+
+            const lineStatus = overallStatus(b.batch, line.chungLoai);
+            const statusTd = document.createElement('td');
+            statusTd.style.textAlign = 'left';
+            statusTd.appendChild(badge(lineStatus.text, lineStatus.cls));
+            tr.appendChild(statusTd);
+          } else if(idx === 0){
             const outTd = document.createElement('td');
             outTd.rowSpan = rowspan;
             outTd.appendChild(outCheck ? badge(outCheck.result || '—', resultBadgeClass(outCheck.result)) : badge('Chưa kiểm', 'gray'));
@@ -1327,7 +1379,9 @@ const titles = {
             statusTd.rowSpan = rowspan;
             statusTd.appendChild(badge(st.text, st.cls));
             tr.appendChild(statusTd);
+          }
 
+          if(idx === 0){
             const actionsTd = document.createElement('td');
             actionsTd.rowSpan = rowspan;
             actionsTd.className = 'row-actions';
@@ -1385,6 +1439,9 @@ const titles = {
         ['Ngày nhập gần nhất', b.ngayNhap ? fmtDate(b.ngayNhap) : '—']
       ];
       if(b.isDua){
+        if(b.duaVarieties.length > 1){
+          items.push(['Chủng loại', b.duaVarieties.map(function(v){ return v.name + ' (' + fmtQty(v.qty) + ')'; }).join(', ')]);
+        }
         items.push(['Sản xuất (Xưởng Ba Phi)', displayProduction(b)]);
         items.push(['Đã xuất kho (thực tế)', b.exportedQty != null ? fmtQty(b.exportedQty) : 'Chưa xuất']);
       }
@@ -1459,7 +1516,7 @@ const titles = {
       if(!checks.length){
         const tr = document.createElement('tr');
         const td = document.createElement('td');
-        td.colSpan = 5;
+        td.colSpan = 6;
         td.style.textAlign = 'center';
         td.style.color = 'var(--ink-soft)';
         td.style.padding = '20px';
@@ -1473,6 +1530,7 @@ const titles = {
         tr.className = 'hoverable';
         tr.dataset.id = d.id;
         tr.dataset.category = d.category || 'Dừa';
+        tr.dataset.chungLoai = d.chung_loai || '';
         tr.dataset.type = d.check_type || '';
         tr.dataset.result = d.result || '';
         tr.dataset.inspector = d.inspector || '';
@@ -1481,6 +1539,11 @@ const titles = {
         const typeTd = document.createElement('td');
         typeTd.textContent = d.check_type || '—';
         tr.appendChild(typeTd);
+
+        const varietyTd = document.createElement('td');
+        varietyTd.className = 'muted';
+        varietyTd.textContent = d.chung_loai || '—';
+        tr.appendChild(varietyTd);
 
         const resultTd = document.createElement('td');
         resultTd.appendChild(badge(d.result || '—', resultBadgeClass(d.result)));
@@ -1530,6 +1593,39 @@ const titles = {
     }
 
     const KNOWN_QC_CATEGORIES = ['Dừa', 'Chanh', 'Thanh long', 'Khác'];
+
+    // Chủng loại chỉ áp dụng cho hàng Dừa — ẩn hẳn field đi khi kiểm hàng
+    // khác (Chanh/Thanh long/Khác) để form không rối.
+    function updateChungLoaiVisibility(){
+      if(chungLoaiGroup) chungLoaiGroup.style.display = categorySelect.value === 'Dừa' ? '' : 'none';
+    }
+    // Options lấy từ đúng các chủng loại thực tế đã nhập ở Vùng nguyên liệu
+    // cho lô này (batchSummaries[...].duaVarieties), không phải danh sách
+    // chung chung — đảm bảo QC chỉ chọn được chủng loại có thật trong lô.
+    function populateChungLoaiOptions(batchCode, selected){
+      if(!chungLoaiSelect) return;
+      const b = batchCode && batchSummaries[batchCode];
+      const varieties = (b && b.duaVarieties || []).filter(function(v){ return v.name !== 'Chưa phân loại'; });
+      chungLoaiSelect.innerHTML = '';
+      const blankOpt = document.createElement('option');
+      blankOpt.value = '';
+      blankOpt.textContent = varieties.length ? '— Chọn chủng loại —' : '— Không tách theo chủng loại —';
+      chungLoaiSelect.appendChild(blankOpt);
+      varieties.forEach(function(v){
+        const opt = document.createElement('option');
+        opt.value = v.name;
+        opt.textContent = v.name;
+        chungLoaiSelect.appendChild(opt);
+      });
+      chungLoaiSelect.value = selected && varieties.some(function(v){ return v.name === selected; }) ? selected : '';
+    }
+    if(categorySelect){
+      categorySelect.addEventListener('change', function(){
+        updateChungLoaiVisibility();
+        populateChungLoaiOptions(currentBatch, '');
+      });
+    }
+
     function resetForm(){
       editingQcId = null;
       form.reset();
@@ -1540,6 +1636,8 @@ const titles = {
       if(b && b.category && KNOWN_QC_CATEGORIES.indexOf(b.category) !== -1){
         categorySelect.value = b.category;
       }
+      populateChungLoaiOptions(currentBatch, '');
+      updateChungLoaiVisibility();
       submitBtn.textContent = 'Thêm kết quả';
     }
 
@@ -1588,6 +1686,8 @@ const titles = {
         const tr = editBtnEl.closest('tr');
         editingQcId = tr.dataset.id;
         categorySelect.value = tr.dataset.category || 'Dừa';
+        populateChungLoaiOptions(currentBatch, tr.dataset.chungLoai || '');
+        updateChungLoaiVisibility();
         document.getElementById('qc-result').value = tr.dataset.result || 'Chờ xác nhận';
         document.getElementById('qc-inspector').value = tr.dataset.inspector || '';
         document.getElementById('qc-note').value = tr.dataset.note || '';
@@ -1662,9 +1762,23 @@ const titles = {
     form.addEventListener('submit', async function(e){
       e.preventDefault();
       if(!currentBatch) return;
+      const category = fieldVal('qc-category') || 'Dừa';
+      const chungLoai = category === 'Dừa' ? (fieldVal('qc-chungloai') || null) : null;
+
+      // Lô Dừa nhiều chủng loại mà không chọn chủng loại thì kết quả sẽ
+      // không gắn được vào dòng nào ở bảng tổng hợp (mỗi dòng lọc theo đúng
+      // chủng loại) — chặn sớm để tránh nhập nhầm rồi không thấy kết quả đâu.
+      const b = batchSummaries[currentBatch];
+      const needsVariety = category === 'Dừa' && b && b.duaVarieties.length > 1 && !b.poEntries.length;
+      if(needsVariety && !chungLoai){
+        alert('Lô này có nhiều chủng loại dừa — vui lòng chọn chủng loại cần ghi kết quả kiểm.');
+        return;
+      }
+
       const payload = {
         batch_code: currentBatch,
-        category: fieldVal('qc-category') || 'Dừa',
+        category: category,
+        chung_loai: chungLoai,
         // Module này chỉ kiểm thành phẩm trước khi xuất khẩu — kiểm đầu vào
         // (nguyên liệu thô) thuộc phạm vi Vùng nguyên liệu, không ghi ở đây.
         check_type: 'Thành phẩm',
