@@ -24,10 +24,10 @@
     <div class="card">
       <table>
         <thead>
-          <tr><th>Lô hàng</th><th>NCC</th><th>Loại</th><th>Số lượng (trái)</th><th>Ngày nhập hàng</th><th>Trạng thái</th><th>Ghi chú</th><th>Thao tác</th></tr>
+          <tr><th>Lô hàng</th><th>NCC</th><th>Loại</th><th>Chủng loại</th><th>Số lượng (trái)</th><th>Ngày nhập hàng</th><th>Trạng thái</th><th>Ghi chú</th><th>Thao tác</th></tr>
         </thead>
         <tbody id="raw-batch-tbody">
-          <tr><td colspan="8" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+          <tr><td colspan="9" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
         </tbody>
       </table>
     </div>
@@ -54,6 +54,17 @@
               <label class="radio-option"><input type="radio" name="f-loai" value="Vườn" checked>Vườn</label>
               <label class="radio-option"><input type="radio" name="f-loai" value="Lái">Lái</label>
             </div>
+          </div>
+          <div class="form-group">
+            <label for="f-chungloai">Chủng loại</label>
+            <input type="text" id="f-chungloai" list="chung-loai-options" placeholder="VD: Xiêm xanh">
+            <datalist id="chung-loai-options">
+              <option value="Xiêm xanh">
+              <option value="Xiêm đỏ">
+              <option value="Xiêm lai">
+              <option value="Dừa trọc">
+              <option value="Dừa khô">
+            </datalist>
           </div>
           <div class="form-group">
             <label for="f-soluong">Số lượng (trái)</label>

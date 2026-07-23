@@ -609,6 +609,7 @@ const titles = {
       document.getElementById('f-ncc').value = tr.dataset.ncc || '';
       const loaiRadio = form.querySelector('input[name="f-loai"][value="' + tr.dataset.loai + '"]');
       if(loaiRadio) loaiRadio.checked = true;
+      document.getElementById('f-chungloai').value = tr.dataset.chungLoai || '';
       document.getElementById('f-soluong').value = tr.dataset.soluong || '';
       document.getElementById('f-ngay').value = tr.dataset.ngayNhap || '';
       document.getElementById('f-trangthai').value = tr.dataset.trangThai || 'Chờ kiểm tra';
@@ -656,6 +657,7 @@ const titles = {
       tr.dataset.batch = d.batch;
       tr.dataset.ncc = d.ncc;
       tr.dataset.loai = d.loai;
+      tr.dataset.chungLoai = d.chung_loai || '';
       tr.dataset.soluong = d.soluong || '';
       tr.dataset.ngayNhap = d.ngay_nhap || '';
       tr.dataset.trangThai = d.trang_thai;
@@ -664,22 +666,23 @@ const titles = {
       tr.cells[0].textContent = d.batch;
       tr.cells[1].textContent = d.ncc;
       tr.cells[2].textContent = d.loai;
-      tr.cells[3].textContent = d.soluong ? d.soluong + ' trái' : '—';
-      tr.cells[4].textContent = formatDate(d.ngay_nhap);
+      tr.cells[3].textContent = d.chung_loai || '—';
+      tr.cells[4].textContent = d.soluong ? d.soluong + ' trái' : '—';
+      tr.cells[5].textContent = formatDate(d.ngay_nhap);
 
-      tr.cells[5].textContent = '';
+      tr.cells[6].textContent = '';
       const badge = document.createElement('span');
       badge.className = 'badge ' + statusBadge[d.trang_thai];
       badge.textContent = d.trang_thai;
-      tr.cells[5].appendChild(badge);
+      tr.cells[6].appendChild(badge);
 
-      tr.cells[6].textContent = d.ghi_chu || '—';
+      tr.cells[7].textContent = d.ghi_chu || '—';
     }
 
     function createRow(d){
       const tr = document.createElement('tr');
       tr.className = 'hoverable';
-      for(let i = 0; i < 7; i++) tr.appendChild(document.createElement('td'));
+      for(let i = 0; i < 8; i++) tr.appendChild(document.createElement('td'));
 
       const actionsTd = document.createElement('td');
       actionsTd.className = 'row-actions';
@@ -710,7 +713,7 @@ const titles = {
       tbody.textContent = '';
       const tr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 8;
+      td.colSpan = 9;
       td.style.textAlign = 'center';
       td.style.color = 'var(--ink-soft)';
       td.style.padding = '20px';
@@ -723,7 +726,7 @@ const titles = {
       tbody.textContent = '';
       const tr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 8;
+      td.colSpan = 9;
       td.style.textAlign = 'center';
       td.style.color = 'var(--red)';
       td.style.padding = '20px';
@@ -762,6 +765,7 @@ const titles = {
       const batch = document.getElementById('f-batch').value.trim();
       const ncc = document.getElementById('f-ncc').value.trim();
       const loai = form.querySelector('input[name="f-loai"]:checked').value;
+      const chungloai = document.getElementById('f-chungloai').value.trim();
       const soluong = document.getElementById('f-soluong').value.trim();
       const ngay = document.getElementById('f-ngay').value;
       const trangthai = document.getElementById('f-trangthai').value;
@@ -773,6 +777,7 @@ const titles = {
         batch: batch,
         ncc: ncc,
         loai: loai,
+        chung_loai: chungloai || null,
         soluong: soluong,
         ngay_nhap: ngay || null,
         trang_thai: trangthai,
