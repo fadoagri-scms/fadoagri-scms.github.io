@@ -378,13 +378,30 @@ const titles = {
       openModal();
     }
 
+    async function deleteRow(tr){
+      const id = tr.dataset.id;
+      if(!id) return;
+      const label = opts.deleteLabel ? (opts.deleteLabel(tr) || 'dòng này') : 'dòng này';
+      if(!confirm('Xóa ' + label + '? Hành động không thể hoàn tác.')) return;
+      try{
+        const { error } = await sb.from(opts.table).delete().eq('id', id);
+        if(error) throw error;
+        await refreshRows();
+        if(opts.afterSave) opts.afterSave();
+      } catch(err){
+        alert('Không thể xóa: ' + err.message);
+      }
+    }
+
     openBtn.addEventListener('click', openAddModal);
     closeBtn.addEventListener('click', closeModal);
     cancelBtn.addEventListener('click', closeModal);
     overlay.addEventListener('click', function(e){ if(e.target === overlay) closeModal(); });
     tbody.addEventListener('click', function(e){
-      const btn = e.target.closest('.row-edit-btn');
-      if(btn) openEditModal(btn.closest('tr'));
+      const editBtnEl = e.target.closest('.row-edit-btn');
+      if(editBtnEl){ openEditModal(editBtnEl.closest('tr')); return; }
+      const delBtnEl = e.target.closest('.row-delete-btn');
+      if(delBtnEl){ deleteRow(delBtnEl.closest('tr')); return; }
     });
 
     function createRow(d){
@@ -399,6 +416,14 @@ const titles = {
       editBtn.setAttribute('aria-label', 'Chỉnh sửa');
       editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
       actionsTd.appendChild(editBtn);
+      if(opts.deletable !== false){
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'row-delete-btn';
+        deleteBtn.setAttribute('aria-label', 'Xóa');
+        deleteBtn.innerHTML = '<i class="ti ti-trash"></i>';
+        actionsTd.appendChild(deleteBtn);
+      }
       tr.appendChild(actionsTd);
       opts.renderRow(tr, d);
       return tr;
@@ -598,9 +623,25 @@ const titles = {
     cancelBtn.addEventListener('click', closeModal);
     overlay.addEventListener('click', (e)=>{ if(e.target === overlay) closeModal(); });
 
+    async function deleteRow(tr){
+      const id = tr.dataset.id;
+      if(!id) return;
+      if(!confirm('Xóa lô nguyên liệu "' + (tr.dataset.batch || '') + '"? Hành động không thể hoàn tác.')) return;
+      try{
+        const { error } = await sb.from(TABLE).delete().eq('id', id);
+        if(error) throw error;
+        await refreshRows();
+        notifyRawBatchesChanged();
+      } catch(err){
+        alert('Không thể xóa: ' + err.message);
+      }
+    }
+
     tbody.addEventListener('click', function(e){
-      const btn = e.target.closest('.row-edit-btn');
-      if(btn) openEditModal(btn.closest('tr'));
+      const editBtnEl = e.target.closest('.row-edit-btn');
+      if(editBtnEl){ openEditModal(editBtnEl.closest('tr')); return; }
+      const delBtnEl = e.target.closest('.row-delete-btn');
+      if(delBtnEl){ deleteRow(delBtnEl.closest('tr')); return; }
     });
 
     function formatDate(value){
@@ -648,6 +689,12 @@ const titles = {
       editBtn.setAttribute('aria-label', 'Chỉnh sửa');
       editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
       actionsTd.appendChild(editBtn);
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'row-delete-btn';
+      deleteBtn.setAttribute('aria-label', 'Xóa');
+      deleteBtn.innerHTML = '<i class="ti ti-trash"></i>';
+      actionsTd.appendChild(deleteBtn);
       tr.appendChild(actionsTd);
 
       applyRowData(tr, d);
@@ -779,6 +826,7 @@ const titles = {
       editLabel: 'Lưu thay đổi',
       orderBy: [{ column: 'name', ascending: true }],
       emptyMessage: 'Chưa có nhà cung cấp nào.',
+      deleteLabel: function(tr){ return 'nhà cung cấp "' + (tr.dataset.name || '') + '"'; },
       renderRow: function(tr, d){
         tr.dataset.id = d.id;
         tr.dataset.name = d.name || '';
@@ -905,6 +953,7 @@ const titles = {
       editLabel: 'Lưu thay đổi',
       orderBy: [{ column: 'created_at', ascending: false }],
       emptyMessage: 'Chưa có đơn đặt hàng nào.',
+      deleteLabel: function(tr){ return 'PO "' + (tr.dataset.poCode || '') + '"'; },
       renderRow: function(tr, d){
         tr.dataset.id = d.id;
         tr.dataset.batch = d.batch_code || '';
@@ -1449,10 +1498,30 @@ const titles = {
         editBtn.setAttribute('aria-label', 'Chỉnh sửa');
         editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
         actionsTd.appendChild(editBtn);
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'row-delete-btn';
+        deleteBtn.setAttribute('aria-label', 'Xóa');
+        deleteBtn.innerHTML = '<i class="ti ti-trash"></i>';
+        actionsTd.appendChild(deleteBtn);
         tr.appendChild(actionsTd);
 
         historyTbody.appendChild(tr);
       });
+    }
+
+    async function deleteQcCheck(tr){
+      const id = tr.dataset.id;
+      if(!id) return;
+      if(!confirm('Xóa kết quả kiểm "' + (tr.dataset.type || '') + '" này? Hành động không thể hoàn tác.')) return;
+      try{
+        const { error } = await sb.from('qc_checks').delete().eq('id', id);
+        if(error) throw error;
+        if(editingQcId === id) resetForm();
+        await loadAll();
+      } catch(err){
+        alert('Không thể xóa: ' + err.message);
+      }
     }
 
     const KNOWN_QC_CATEGORIES = ['Dừa', 'Chanh', 'Thanh long', 'Khác'];
@@ -1509,15 +1578,19 @@ const titles = {
     cancelBtn.addEventListener('click', resetForm);
 
     historyTbody.addEventListener('click', function(e){
-      const btn = e.target.closest('.row-edit-btn');
-      if(!btn) return;
-      const tr = btn.closest('tr');
-      editingQcId = tr.dataset.id;
-      categorySelect.value = tr.dataset.category || 'Dừa';
-      document.getElementById('qc-result').value = tr.dataset.result || 'Chờ xác nhận';
-      document.getElementById('qc-inspector').value = tr.dataset.inspector || '';
-      document.getElementById('qc-note').value = tr.dataset.note || '';
-      submitBtn.textContent = 'Lưu thay đổi';
+      const editBtnEl = e.target.closest('.row-edit-btn');
+      if(editBtnEl){
+        const tr = editBtnEl.closest('tr');
+        editingQcId = tr.dataset.id;
+        categorySelect.value = tr.dataset.category || 'Dừa';
+        document.getElementById('qc-result').value = tr.dataset.result || 'Chờ xác nhận';
+        document.getElementById('qc-inspector').value = tr.dataset.inspector || '';
+        document.getElementById('qc-note').value = tr.dataset.note || '';
+        submitBtn.textContent = 'Lưu thay đổi';
+        return;
+      }
+      const delBtnEl = e.target.closest('.row-delete-btn');
+      if(delBtnEl){ deleteQcCheck(delBtnEl.closest('tr')); return; }
     });
 
     function updateStats(){
@@ -1819,6 +1892,7 @@ const titles = {
       emptyMessage: 'Chưa có lô vận chuyển nào.',
       emptyFilteredMessage: 'Không có lô vận chuyển nào trong kỳ đã chọn.',
       filterForDisplay: function(rows){ return rows.filter(shipmentInSelectedPeriod); },
+      deleteLabel: function(tr){ return 'lô vận chuyển "' + (tr.dataset.batch || '') + '"'; },
       renderRow: function(tr, d){
         const productDisplay = productForBatch(d.batch_code) || d.product || '';
         tr.dataset.id = d.id;
@@ -2271,9 +2345,25 @@ const titles = {
     cancelBtn.addEventListener('click', closeModal);
     overlay.addEventListener('click', function(e){ if(e.target === overlay) closeModal(); });
     list.addEventListener('click', function(e){
-      const btn = e.target.closest('.row-edit-btn');
-      if(btn) openEditModal(btn.closest('.feedback-card'));
+      const editBtnEl = e.target.closest('.row-edit-btn');
+      if(editBtnEl){ openEditModal(editBtnEl.closest('.feedback-card')); return; }
+      const delBtnEl = e.target.closest('.row-delete-btn');
+      if(delBtnEl){ deleteFeedback(delBtnEl.closest('.feedback-card')); return; }
     });
+
+    async function deleteFeedback(card){
+      const id = card.dataset.id;
+      if(!id) return;
+      if(!confirm('Xóa feedback lô "' + (card.dataset.batch || '') + '"? Hành động không thể hoàn tác.')) return;
+      try{
+        const { error } = await sb.from(TABLE).delete().eq('id', id);
+        if(error) throw error;
+        await refreshList();
+        notifyFeedbacksChanged();
+      } catch(err){
+        alert('Không thể xóa: ' + err.message);
+      }
+    }
 
     function starIcon(filled){
       const i = document.createElement('i');
@@ -2318,6 +2408,12 @@ const titles = {
       editBtn.setAttribute('aria-label', 'Chỉnh sửa');
       editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
       right.appendChild(editBtn);
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'row-delete-btn';
+      deleteBtn.setAttribute('aria-label', 'Xóa');
+      deleteBtn.innerHTML = '<i class="ti ti-trash"></i>';
+      right.appendChild(deleteBtn);
       top.appendChild(left);
       top.appendChild(right);
 
@@ -2815,6 +2911,7 @@ const titles = {
       editLabel: 'Lưu thay đổi',
       orderBy: [{ column: 'full_name', ascending: true }],
       emptyMessage: 'Chưa có nhân sự nào.',
+      deleteLabel: function(tr){ return 'nhân sự "' + (tr.dataset.name || '') + '"'; },
       renderRow: function(tr, d){
         tr.dataset.id = d.id;
         tr.dataset.name = d.full_name || '';

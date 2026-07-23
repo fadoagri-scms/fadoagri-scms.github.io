@@ -37,9 +37,10 @@
   /* Ẩn khung app (sidebar+main) cho tới khi xác nhận đăng nhập xong — tránh
      lóe nội dung thật trước khi JS kịp kiểm tra phiên đăng nhập. */
   .gated{display:none !important;}
-  /* Module không thuộc quyền thao tác của role hiện tại — ẩn nút thêm/sửa,
+  /* Module không thuộc quyền thao tác của role hiện tại — ẩn nút thêm/sửa/xóa,
      chặn thật vẫn nằm ở RLS phía Supabase, đây chỉ là lớp UX. */
   .readonly-module .row-edit-btn,
+  .readonly-module .row-delete-btn,
   .readonly-module .btn-primary{display:none !important;}
 
   .sidebar{
@@ -350,12 +351,14 @@
   .chart-empty{padding:30px 0;text-align:center;color:var(--ink-soft);font-size:13px;}
 
   .row-actions{white-space:nowrap;}
-  .row-edit-btn{
+  .row-edit-btn,
+  .row-delete-btn{
     background:none;border:none;color:var(--ink-soft);cursor:pointer;
     font-size:15px;padding:5px 7px;border-radius:9px;line-height:1;
     transition:background .15s ease, color .15s ease;
   }
   .row-edit-btn:hover{background:var(--surface-2);color:var(--forest-deep);}
+  .row-delete-btn:hover{background:var(--surface-2);color:var(--red);}
 
   @media (max-width: 1080px){
     .kpi-grid{grid-template-columns:repeat(2,1fr);}
