@@ -34,10 +34,10 @@
       <div class="card">
         <table>
           <thead>
-            <tr><th>Lô hàng</th><th>NCC</th><th>Số lượng</th><th>Ngày nhập</th><th>Ngày sản xuất</th><th>Thành phẩm</th><th>Hao hụt</th><th>Bắt đầu</th><th>Kết thúc</th><th>Tổng SL thành phẩm</th><th>Thao tác</th></tr>
+            <tr><th>Lô hàng</th><th>NCC</th><th>Số lượng</th><th>Ngày nhập</th><th>Ngày sản xuất</th><th>Thành phẩm</th><th>Quy cách</th><th>Số lượng thùng</th><th>Hao hụt</th><th>Bắt đầu</th><th>Kết thúc</th><th>Tổng SL thành phẩm</th><th>Thao tác</th></tr>
           </thead>
           <tbody id="factory-tbody">
-            <tr><td colspan="11" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+            <tr><td colspan="13" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
           </tbody>
         </table>
       </div>
@@ -93,7 +93,7 @@
       <div class="card">
         <table>
           <thead>
-            <tr><th>Lô hàng</th><th>Số lượng thành phẩm</th><th>Ngày xuất hàng</th><th>Số lượng xuất</th><th>Số lượng còn lại</th><th>Thao tác</th></tr>
+            <tr><th>Lô hàng</th><th>Số lượng thành phẩm</th><th>Ngày xuất hàng</th><th>Số lượng xuất (thùng)</th><th>Số lượng còn lại</th><th>Thao tác</th></tr>
           </thead>
           <tbody id="inventory-tbody">
             <tr><td colspan="6" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
@@ -117,6 +117,11 @@
           <div class="form-group">
             <label for="fac-finished-qty">Thành phẩm (trái)</label>
             <input type="text" id="fac-finished-qty" placeholder="VD: 2.000">
+          </div>
+          <div class="form-group">
+            <label for="fac-quycach">Quy cách (số trái/thùng)</label>
+            <input type="text" id="fac-quycach" placeholder="VD: 25">
+            <div class="muted" style="font-size:11px;margin-top:4px;">Số lượng thùng tự tính = Thành phẩm ÷ Quy cách.</div>
           </div>
           <div class="form-group">
             <label for="fac-start">Bắt đầu</label>
@@ -192,8 +197,8 @@
             <input type="date" id="inv-export-date">
           </div>
           <div class="form-group">
-            <label for="inv-exported-qty">Số lượng xuất (trái)</label>
-            <input type="text" id="inv-exported-qty" placeholder="VD: 1.500">
+            <label for="inv-exported-qty">Số lượng xuất (thùng)</label>
+            <input type="text" id="inv-exported-qty" placeholder="VD: 60">
           </div>
           <div class="modal-actions">
             <button type="button" class="btn-secondary" id="btn-cancel-add-inventory">Hủy</button>
