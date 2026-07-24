@@ -3323,6 +3323,7 @@ const titles = {
           tr.dataset.finished = line.finished != null ? line.finished : '';
           tr.dataset.exportDate = line.exportDate || '';
           tr.dataset.exportedQty = line.exportedQty != null ? line.exportedQty : '';
+          tr.dataset.stockId = line.stockId != null ? line.stockId : '';
 
           if(idx === 0){
             const batchTd = document.createElement('td');
@@ -3383,6 +3384,17 @@ const titles = {
           editBtn.setAttribute('aria-label', 'Chỉnh sửa');
           editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
           actionsTd.appendChild(editBtn);
+          // Chỉ dòng nào THẬT SỰ có bản ghi xuất hàng (factory_finished_stock)
+          // mới xóa được — dòng chỉ đến từ thành phẩm ở Xưởng sản xuất (chưa
+          // từng xuất) thì không có gì để xóa.
+          if(line.stockId != null){
+            const deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.className = 'row-delete-btn';
+            deleteBtn.setAttribute('aria-label', 'Xóa');
+            deleteBtn.innerHTML = '<i class="ti ti-trash"></i>';
+            actionsTd.appendChild(deleteBtn);
+          }
           tr.appendChild(actionsTd);
 
           inventoryTbody.appendChild(tr);
@@ -3461,6 +3473,7 @@ const titles = {
             batch: v.batch,
             variety: v.variety,
             finished: v.finished,
+            stockId: stock ? stock.id : null,
             exportDate: stock ? stock.export_date : null,
             exportedQty: exportedQty,
             // Đã xuất nhập theo thùng — quy đổi ngược ra trái bằng quy cách
@@ -3507,10 +3520,26 @@ const titles = {
     if(closeInvBtn) closeInvBtn.addEventListener('click', closeModal);
     if(cancelInvBtn) cancelInvBtn.addEventListener('click', closeModal);
     inventoryOverlay.addEventListener('click', function(e){ if(e.target === inventoryOverlay) closeModal(); });
+    async function deleteStockRow(tr){
+      const stockId = tr.dataset.stockId;
+      if(!stockId) return;
+      const varietyLabel = tr.dataset.variety && tr.dataset.variety !== UNSPECIFIED_VARIETY ? ' (' + tr.dataset.variety + ')' : '';
+      if(!confirm('Xóa bản ghi xuất hàng của lô "' + tr.dataset.batch + '"' + varietyLabel + '? Hành động không thể hoàn tác.')) return;
+      try{
+        const { error } = await sb.from('factory_finished_stock').delete().eq('id', stockId);
+        if(error) throw error;
+        await refreshInventoryRows();
+        notifyFactoryProductionChanged();
+      } catch(err){
+        alert('Không thể xóa: ' + err.message);
+      }
+    }
+
     inventoryTbody.addEventListener('click', function(e){
-      const btn = e.target.closest('.row-edit-btn');
-      if(!btn) return;
-      openEditModal(btn.closest('tr'));
+      const editBtnEl = e.target.closest('.row-edit-btn');
+      if(editBtnEl){ openEditModal(editBtnEl.closest('tr')); return; }
+      const delBtnEl = e.target.closest('.row-delete-btn');
+      if(delBtnEl){ deleteStockRow(delBtnEl.closest('tr')); return; }
     });
 
     inventoryForm.addEventListener('submit', async function(e){
