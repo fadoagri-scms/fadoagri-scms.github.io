@@ -1092,7 +1092,7 @@ const titles = {
             batch: batchCode, nccSet: new Set(), categorySet: new Set(), category: null,
             isDua: false, totalQty: 0, totalQtyText: null,
             ngayNhap: null, hasFactory: false, finishedQty: null, exportedQty: null,
-            hasSourceInfo: false, poEntries: [], saleType: null, periodDate: null,
+            hasSourceInfo: false, poEntries: [], saleType: null, orderStatus: null, periodDate: null,
             varietyMap: {}, duaVarieties: [], duaBoxes: 0
           };
         }
@@ -1149,15 +1149,18 @@ const titles = {
         if(!bi.batch) return;
         const b = ensure(bi.batch);
         b.saleType = bi.sale_type || null;
+        b.orderStatus = bi.order_status || null;
       });
 
       // factory_finished_stock.exported_qty = số lượng ĐÃ xuất kho/load cont
       // thực tế cho lô đó (tổng luỹ kế, không phải thành phẩm hay hao hụt) —
-      // đây mới là "Số lượng thực tế" đúng nghĩa cho phần Dừa.
+      // đây mới là "Số lượng thực tế" đúng nghĩa cho phần Dừa. Từ khi Tồn kho
+      // tách theo chủng loại, 1 lô có thể có NHIỀU dòng (1 dòng/chủng loại)
+      // nên phải cộng dồn, không được ghi đè như trước.
       (stockRows || []).forEach(function(s){
         if(!s.batch) return;
         const b = ensure(s.batch);
-        b.exportedQty = s.exported_qty != null ? Number(s.exported_qty) : null;
+        if(s.exported_qty != null) b.exportedQty = (b.exportedQty || 0) + Number(s.exported_qty);
       });
 
       Object.values(map).forEach(function(b){
@@ -1431,6 +1434,49 @@ const titles = {
       return item;
     }
 
+    async function saveOrderStatus(batchCode, value){
+      try{
+        const { error } = await sb.from('batch_info').upsert({ batch: batchCode, order_status: value || null }, { onConflict: 'batch' });
+        if(error) throw error;
+        // "Đã đóng hàng" → hàng đã sẵn sàng, phải xuất hiện ngay bên
+        // Logistics. Chỉ tự tạo dòng mới nếu lô này CHƯA từng có bản ghi vận
+        // chuyển nào (tránh ghi đè tiến độ đang theo dõi nếu lỡ bấm lại) —
+        // bắt đầu ở "Kho nội địa", chung cho cả Xuất khẩu lẫn Nội địa vì
+        // Logistics đã tự giới hạn các giai đoạn TIẾP THEO theo Hình thức.
+        if(value === 'Đã đóng hàng'){
+          const { data: existing, error: findErr } = await sb.from('shipments').select('id').eq('batch_code', batchCode).limit(1);
+          if(findErr) throw findErr;
+          if(!existing || !existing.length){
+            const { error: insErr } = await sb.from('shipments').insert({ batch_code: batchCode, stage: 'Kho nội địa' });
+            if(insErr) throw insErr;
+          }
+        }
+        await loadAll();
+      } catch(err){
+        alert('Không thể lưu Trạng thái đơn hàng: ' + err.message);
+      }
+    }
+
+    // Trạng thái đơn hàng cũng tự lưu khi đổi, giống Hình thức.
+    function buildOrderStatusItem(b){
+      const item = document.createElement('div');
+      const label = document.createElement('div');
+      label.className = 'info-label';
+      label.textContent = 'Trạng thái đơn hàng';
+      const select = document.createElement('select');
+      [['', '— Chưa xác định —'], ['Chưa đóng hàng', 'Chưa đóng hàng'], ['Đã đóng hàng', 'Đã đóng hàng']].forEach(function(o){
+        const opt = document.createElement('option');
+        opt.value = o[0];
+        opt.textContent = o[1];
+        if((b.orderStatus || '') === o[0]) opt.selected = true;
+        select.appendChild(opt);
+      });
+      select.addEventListener('change', function(){ saveOrderStatus(b.batch, select.value); });
+      item.appendChild(label);
+      item.appendChild(select);
+      return item;
+    }
+
     function renderInfoGrid(b){
       infoGrid.textContent = '';
       const items = [
@@ -1457,7 +1503,10 @@ const titles = {
         item.appendChild(label);
         item.appendChild(value);
         infoGrid.appendChild(item);
-        if(pair[0] === 'Sản phẩm') infoGrid.appendChild(buildSaleTypeItem(b));
+        if(pair[0] === 'Sản phẩm'){
+          infoGrid.appendChild(buildSaleTypeItem(b));
+          infoGrid.appendChild(buildOrderStatusItem(b));
+        }
       });
     }
 
@@ -1647,7 +1696,7 @@ const titles = {
       const b = batchSummaries[batchCode] || {
         batch: batchCode, ncc: null, category: 'Dừa', isDua: false,
         totalQty: 0, totalQtyText: null, ngayNhap: null, hasFactory: false, finishedQty: null,
-        poEntries: [], saleType: null
+        poEntries: [], saleType: null, orderStatus: null
       };
       modalTitle.textContent = 'Lô hàng: ' + batchCode;
       renderInfoGrid(b);
@@ -1870,6 +1919,29 @@ const titles = {
       const b = sharedBatchSummaries[batchCode];
       return b ? (b.category || '') : '';
     }
+    // Lô "Nội địa" không qua thủ tục xuất khẩu (hải quan, tàu biển...) nên
+    // chỉ cần 2 giai đoạn: Kho nội địa → Khách đã nhận hàng. Lô "Xuất khẩu"
+    // (hoặc chưa phân loại Hình thức) vẫn đủ các giai đoạn như cũ.
+    const EXPORT_STAGE_OPTIONS = ['Kho nội địa', 'Cảng đi', 'Trên biển', 'Thông quan', 'Cảng đến', 'Giao khách hàng', 'Khách đã nhận hàng'];
+    const DOMESTIC_STAGE_OPTIONS = ['Kho nội địa', 'Khách đã nhận hàng'];
+    function updateStageOptions(batchCode, preserveValue){
+      const select = document.getElementById('ship-stage');
+      if(!select) return;
+      const b = batchCode && sharedBatchSummaries[batchCode];
+      const isDomestic = !!(b && b.saleType === 'Nội địa');
+      const list = isDomestic ? DOMESTIC_STAGE_OPTIONS : EXPORT_STAGE_OPTIONS;
+      const current = preserveValue !== undefined ? preserveValue : select.value;
+      select.textContent = '';
+      list.forEach(function(stage){
+        const opt = document.createElement('option');
+        opt.value = stage;
+        opt.textContent = stage;
+        select.appendChild(opt);
+      });
+      // Giá trị cũ không còn hợp lệ (VD: đang "Trên biển" mà lô vừa đổi
+      // Hình thức sang Nội địa) thì reset về lựa chọn đầu tiên.
+      select.value = list.indexOf(current) !== -1 ? current : list[0];
+    }
     function populateBatchSelect(currentBatch){
       if(!shipBatchSelect) return;
       const known = knownBatchList();
@@ -2042,8 +2114,8 @@ const titles = {
       fillForm: function(form, tr){
         populateBatchSelect(tr.dataset.batch || '');
         syncProductField(tr.dataset.product);
+        updateStageOptions(tr.dataset.batch || '', tr.dataset.stage || 'Kho nội địa');
         document.getElementById('ship-pi-po').value = tr.dataset.piPo || '';
-        document.getElementById('ship-stage').value = tr.dataset.stage || 'Kho nội địa';
         document.getElementById('ship-location').value = tr.dataset.location || '';
         document.getElementById('ship-etd').value = tr.dataset.etd || '';
         document.getElementById('ship-eta').value = tr.dataset.eta || '';
@@ -2095,10 +2167,14 @@ const titles = {
       shipOpenBtn.addEventListener('click', function(){
         populateBatchSelect(null);
         syncProductField();
+        updateStageOptions(null);
       });
     }
     if(shipBatchSelect){
-      shipBatchSelect.addEventListener('change', function(){ syncProductField(); });
+      shipBatchSelect.addEventListener('change', function(){
+        syncProductField();
+        updateStageOptions(shipBatchSelect.value);
+      });
     }
     // Vừa chọn "Khách đã nhận hàng" trong modal thì tự điền ngay ngày hôm nay
     // vào ô "Ngày khách nhận hàng" (nếu còn trống) để người dùng thấy ngay
@@ -2117,6 +2193,7 @@ const titles = {
     onBatchSummaryChanged(function(){
       populateBatchSelect(shipBatchSelect ? shipBatchSelect.value : null);
       syncProductField();
+      updateStageOptions(shipBatchSelect ? shipBatchSelect.value : null);
       if(shipmentsModule) shipmentsModule.refreshRows();
     });
   })();
@@ -2159,8 +2236,14 @@ const titles = {
     }
 
     function mergedRows(){
+      // Lô "Nội địa" không cần theo dõi chứng từ xuất khẩu (hợp đồng, C/O,
+      // kiểm dịch, vận đơn...) vì thủ tục trong nước khách hàng tự lo — chỉ
+      // hiện lô "Xuất khẩu" (hoặc chưa phân loại Hình thức) ở đây. Đồng thời
+      // chỉ hiện khi lô đã "Đã đóng hàng" ở Đánh giá chất lượng — chưa đóng
+      // hàng thì chưa có gì để theo dõi chứng từ, tránh nhắc thiếu chứng từ
+      // quá sớm cho lô còn đang sản xuất/chưa đóng.
       const batches = Object.values(sharedBatchSummaries)
-        .filter(function(b){ return b.hasSourceInfo; })
+        .filter(function(b){ return b.hasSourceInfo && b.saleType !== 'Nội địa' && b.orderStatus === 'Đã đóng hàng'; })
         .map(function(b){ return b.batch; })
         .sort();
       return batches.map(function(batch){
@@ -2782,7 +2865,7 @@ const titles = {
       factoryTbody.textContent = '';
       if(!rawRows.length){ showFactoryMessage('Chưa có lô nguyên liệu nào.'); return; }
 
-      // Gom theo lô hàng để gộp (rowspan) cột Lô hàng + Tổng SL thành phẩm
+      // Gom theo lô hàng để gộp (rowspan) cột Lô hàng + Tổng số lượng thùng
       const groups = [];
       const groupIndex = {};
       rawRows.forEach(function(r){
@@ -2793,10 +2876,14 @@ const titles = {
 
       groups.forEach(function(items){
         const rowspan = items.length;
-        let totalFinished = null;
+        // Tổng số lượng thùng = cộng dồn số thùng TỪNG đợt (mỗi đợt có thể
+        // khác Quy cách) — đợt nào chưa điền Quy cách thì không tính được,
+        // bỏ qua đợt đó thay vì làm sai cả tổng.
+        let totalBoxes = null;
         items.forEach(function(r){
           const fb = getFb(r);
-          if(fb && fb.finished_qty != null){ totalFinished = (totalFinished || 0) + Number(fb.finished_qty); }
+          const boxes = fb ? boxCount(fb.finished_qty, fb.quy_cach) : null;
+          if(boxes != null) totalBoxes = (totalBoxes || 0) + boxes;
         });
 
         items.forEach(function(r, idx){
@@ -2827,6 +2914,11 @@ const titles = {
           nccTd.textContent = r.ncc || '—';
           tr.appendChild(nccTd);
 
+          const varietyTd = document.createElement('td');
+          varietyTd.className = 'muted';
+          varietyTd.textContent = r.chung_loai || '—';
+          tr.appendChild(varietyTd);
+
           const qtyTd = document.createElement('td');
           qtyTd.className = 'muted';
           qtyTd.textContent = r.soluong ? r.soluong + ' trái' : '—';
@@ -2851,11 +2943,6 @@ const titles = {
           quyCachTd.className = 'muted';
           quyCachTd.textContent = fb && fb.quy_cach != null ? fb.quy_cach + ' trái/thùng' : '—';
           tr.appendChild(quyCachTd);
-
-          const boxTd = document.createElement('td');
-          boxTd.className = 'muted';
-          boxTd.textContent = fmtBoxQty(boxCount(fb && fb.finished_qty, fb && fb.quy_cach));
-          tr.appendChild(boxTd);
 
           const inputQty = parseQty(r.soluong);
           const outputQty = fb && fb.finished_qty != null ? Number(fb.finished_qty) : null;
@@ -2883,7 +2970,7 @@ const titles = {
           if(idx === 0){
             const totalTd = document.createElement('td');
             totalTd.rowSpan = rowspan;
-            totalTd.textContent = fmtQty(totalFinished);
+            totalTd.textContent = fmtBoxQty(totalBoxes);
             tr.appendChild(totalTd);
           }
 
@@ -3096,9 +3183,11 @@ const titles = {
   })();
 
   // ---- Xưởng Ba Phi: Tồn kho ----
-  // Tổng hợp trực tiếp từ Sản xuất: mỗi lô hàng = tổng thành phẩm (sum
-  // finished_qty theo raw_batches.batch) trừ đi số đã xuất (factory_finished_stock,
-  // 1 dòng/lô hàng) = số lượng còn lại.
+  // Tổng hợp trực tiếp từ Sản xuất, tách RIÊNG theo từng chủng loại dừa
+  // trong 1 lô hàng (1 lô có thể gồm nhiều chủng loại, mỗi chủng loại có
+  // thành phẩm/ngày xuất/số lượng xuất riêng) — không còn gộp chung 1 dòng/
+  // lô hàng như trước. factory_finished_stock giờ khoá duy nhất theo
+  // (batch, chung_loai) thay vì chỉ (batch).
   (function(){
     const statRemaining = document.getElementById('stat-inventory-remaining');
     const statLots = document.getElementById('stat-inventory-lots');
@@ -3110,11 +3199,13 @@ const titles = {
     const inventoryOverlay = document.getElementById('add-inventory-overlay');
     const inventoryModalBatchInfo = document.getElementById('inventory-modal-batch-info');
     const inventorySubmitBtn = document.getElementById('btn-submit-add-inventory');
-    const INVENTORY_COLS = 6;
+    const INVENTORY_COLS = 7;
+    const UNSPECIFIED_VARIETY = 'Chưa phân loại';
 
     if(!inventoryOverlay || !inventoryForm || !inventoryTbody || !sb) return;
 
     let editingBatch = null;
+    let editingVariety = null;
 
     function parseQty(s){
       if(s === undefined || s === null || String(s).trim() === '') return null;
@@ -3145,112 +3236,180 @@ const titles = {
       inventoryTbody.appendChild(tr);
     }
 
-    function renderInventoryRows(lots){
+    function renderInventoryRows(groups){
       inventoryTbody.textContent = '';
-      if(!lots.length){ showInventoryMessage('Chưa có lô nào có thành phẩm.'); return; }
+      if(!groups.length){ showInventoryMessage('Chưa có lô nào có thành phẩm.'); return; }
 
-      lots.forEach(function(lot){
-        const tr = document.createElement('tr');
-        tr.className = 'hoverable';
-        tr.dataset.batch = lot.batch;
-        tr.dataset.finished = lot.finished != null ? lot.finished : '';
-        tr.dataset.exportDate = lot.exportDate || '';
-        tr.dataset.exportedQty = lot.exportedQty != null ? lot.exportedQty : '';
+      groups.forEach(function(group){
+        const rowspan = group.lines.length;
+        group.lines.forEach(function(line, idx){
+          const tr = document.createElement('tr');
+          tr.className = 'hoverable';
+          tr.dataset.batch = group.batch;
+          tr.dataset.variety = line.variety;
+          tr.dataset.finished = line.finished != null ? line.finished : '';
+          tr.dataset.exportDate = line.exportDate || '';
+          tr.dataset.exportedQty = line.exportedQty != null ? line.exportedQty : '';
 
-        const batchTd = document.createElement('td');
-        batchTd.textContent = lot.batch;
-        tr.appendChild(batchTd);
+          if(idx === 0){
+            const batchTd = document.createElement('td');
+            batchTd.rowSpan = rowspan;
+            batchTd.textContent = group.batch;
+            tr.appendChild(batchTd);
+          }
 
-        const finishedTd = document.createElement('td');
-        finishedTd.className = 'muted';
-        finishedTd.textContent = fmtQty(lot.finished);
-        tr.appendChild(finishedTd);
+          const exportDateTd = document.createElement('td');
+          exportDateTd.className = 'muted';
+          exportDateTd.textContent = line.exportDate ? fmtDate(line.exportDate) : '—';
+          tr.appendChild(exportDateTd);
 
-        const exportDateTd = document.createElement('td');
-        exportDateTd.className = 'muted';
-        exportDateTd.textContent = lot.exportDate ? fmtDate(lot.exportDate) : '—';
-        tr.appendChild(exportDateTd);
+          const exportedTd = document.createElement('td');
+          exportedTd.className = 'muted';
+          exportedTd.textContent = fmtBoxQty(line.exportedQty);
+          tr.appendChild(exportedTd);
 
-        const exportedTd = document.createElement('td');
-        exportedTd.className = 'muted';
-        exportedTd.textContent = fmtBoxQty(lot.exportedQty);
-        tr.appendChild(exportedTd);
+          const varietyTd = document.createElement('td');
+          varietyTd.className = 'muted';
+          varietyTd.textContent = line.variety === UNSPECIFIED_VARIETY ? '—' : line.variety;
+          tr.appendChild(varietyTd);
 
-        const remaining = (lot.finished || 0) - (lot.exportedTrai || 0);
-        const remainingTd = document.createElement('td');
-        remainingTd.textContent = fmtQty(remaining);
-        remainingTd.className = remaining <= 0 ? 'success' : 'warn-text';
-        tr.appendChild(remainingTd);
+          if(idx === 0){
+            const totalExportedTd = document.createElement('td');
+            totalExportedTd.rowSpan = rowspan;
+            totalExportedTd.textContent = fmtBoxQty(group.totalExportedQty);
+            tr.appendChild(totalExportedTd);
+          }
 
-        const actionsTd = document.createElement('td');
-        actionsTd.className = 'row-actions';
-        const editBtn = document.createElement('button');
-        editBtn.type = 'button';
-        editBtn.className = 'row-edit-btn';
-        editBtn.setAttribute('aria-label', 'Chỉnh sửa');
-        editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
-        actionsTd.appendChild(editBtn);
-        tr.appendChild(actionsTd);
+          const remainingTd = document.createElement('td');
+          if(line.exportedTrai == null){
+            // Có xuất hàng (thùng) nhưng chưa rõ Quy cách của chủng loại này
+            // ở Xưởng sản xuất — không đoán số trái, tránh trừ nhầm ra 1 số
+            // vô nghĩa (thùng ≠ trái nếu chưa biết quy cách).
+            remainingTd.textContent = '—';
+            remainingTd.className = 'muted';
+            remainingTd.title = 'Chưa có Quy cách ở Xưởng sản xuất cho chủng loại này nên chưa quy đổi được thùng đã xuất ra trái.';
+          } else {
+            const remaining = (line.finished || 0) - line.exportedTrai;
+            remainingTd.textContent = fmtQty(remaining);
+            if(remaining < 0){
+              remainingTd.className = '';
+              remainingTd.style.color = 'var(--red)';
+              remainingTd.style.fontWeight = '600';
+              remainingTd.title = 'Số đã xuất quy đổi ra trái lớn hơn thành phẩm — kiểm tra lại số liệu.';
+            } else {
+              remainingTd.className = remaining === 0 ? 'success' : 'warn-text';
+            }
+          }
+          tr.appendChild(remainingTd);
 
-        inventoryTbody.appendChild(tr);
+          const actionsTd = document.createElement('td');
+          actionsTd.className = 'row-actions';
+          const editBtn = document.createElement('button');
+          editBtn.type = 'button';
+          editBtn.className = 'row-edit-btn';
+          editBtn.setAttribute('aria-label', 'Chỉnh sửa');
+          editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
+          actionsTd.appendChild(editBtn);
+          tr.appendChild(actionsTd);
+
+          inventoryTbody.appendChild(tr);
+        });
       });
     }
 
-    function updateInventoryStats(lots){
-      const totalRemaining = lots.reduce(function(sum, lot){ return sum + Math.max((lot.finished || 0) - (lot.exportedTrai || 0), 0); }, 0);
-      if(statRemaining) statRemaining.textContent = lots.length ? totalRemaining.toLocaleString('vi-VN') + ' trái' : '—';
-      if(statLots) statLots.textContent = String(lots.filter(function(lot){ return (lot.finished || 0) - (lot.exportedTrai || 0) > 0; }).length);
+    function updateInventoryStats(groups){
+      let totalRemaining = 0;
+      let lotsWithStock = 0;
+      groups.forEach(function(group){
+        let batchRemaining = 0;
+        group.lines.forEach(function(line){
+          // Chủng loại chưa quy đổi được (exportedTrai null) thì bỏ qua khỏi
+          // tổng — không được coi như 0 (dễ làm tổng nhỏ hơn thực tế) hay
+          // cộng nhầm cả thành phẩm vào (dễ làm tổng lớn hơn thực tế) khi
+          // chưa chắc có đã xuất hay chưa.
+          if(line.exportedTrai == null) return;
+          batchRemaining += Math.max((line.finished || 0) - line.exportedTrai, 0);
+        });
+        totalRemaining += batchRemaining;
+        if(batchRemaining > 0) lotsWithStock++;
+      });
+      if(statRemaining) statRemaining.textContent = groups.length ? totalRemaining.toLocaleString('vi-VN') + ' trái' : '—';
+      if(statLots) statLots.textContent = String(lotsWithStock);
     }
+
+    function varietyKey(batch, variety){ return batch + '::' + variety; }
 
     async function refreshInventoryRows(){
       try{
         const [rawRes, stockRes] = await Promise.all([
-          sb.from('raw_batches').select('batch, factory_batches(finished_qty, quy_cach)'),
+          sb.from('raw_batches').select('batch, chung_loai, factory_batches(finished_qty, quy_cach)'),
           sb.from('factory_finished_stock').select('*')
         ]);
         if(rawRes.error) throw rawRes.error;
         if(stockRes.error) throw stockRes.error;
 
-        // boxesByBatch = tổng số thùng khả dụng của lô, cộng dồn TỪNG đợt sản
-        // xuất theo đúng quy cách riêng của đợt đó (1 lô có thể gồm nhiều đợt
-        // đóng thùng khác quy cách) — dùng để suy ra quy cách bình quân của cả
-        // lô (finished ÷ boxes) khi cần quy đổi "Đã xuất (thùng)" ra trái.
-        const finishedByBatch = {};
-        const boxesByBatch = {};
+        // Gom theo (lô hàng, chủng loại) — mỗi chủng loại trong lô có thành
+        // phẩm/số thùng khả dụng riêng, cộng dồn TỪNG đợt sản xuất theo đúng
+        // Quy cách của đợt đó (1 chủng loại vẫn có thể có nhiều đợt nhập).
+        const varietyMap = {};
+        function ensureVariety(batch, variety){
+          const key = varietyKey(batch, variety);
+          if(!varietyMap[key]) varietyMap[key] = { batch: batch, variety: variety, finished: 0, boxes: 0 };
+          return varietyMap[key];
+        }
         (rawRes.data || []).forEach(function(r){
           const fb = getFb(r);
-          if(fb && fb.finished_qty != null){
-            finishedByBatch[r.batch] = (finishedByBatch[r.batch] || 0) + Number(fb.finished_qty);
-            const boxes = boxCount(fb.finished_qty, fb.quy_cach);
-            if(boxes != null) boxesByBatch[r.batch] = (boxesByBatch[r.batch] || 0) + boxes;
-          }
+          if(!fb || fb.finished_qty == null) return;
+          const variety = (r.chung_loai || '').trim() || UNSPECIFIED_VARIETY;
+          const v = ensureVariety(r.batch, variety);
+          v.finished += Number(fb.finished_qty);
+          const boxes = boxCount(fb.finished_qty, fb.quy_cach);
+          if(boxes != null) v.boxes += boxes;
         });
-        const stockByBatch = {};
-        (stockRes.data || []).forEach(function(s){ stockByBatch[s.batch] = s; });
 
-        const lots = Object.keys(finishedByBatch).map(function(batch){
-          const stock = stockByBatch[batch];
-          const finished = finishedByBatch[batch];
-          const boxes = boxesByBatch[batch] || 0;
-          const avgQuyCach = boxes > 0 ? finished / boxes : null;
+        const stockByKey = {};
+        (stockRes.data || []).forEach(function(s){
+          const variety = s.chung_loai || UNSPECIFIED_VARIETY;
+          stockByKey[varietyKey(s.batch, variety)] = s;
+          // Đã có bản ghi xuất cho chủng loại này thì vẫn phải hiện ra dù
+          // Vùng nguyên liệu hiện không còn thành phẩm nào khớp (không được
+          // để mất dữ liệu xuất đã nhập).
+          ensureVariety(s.batch, variety);
+        });
+
+        // Gom các dòng chủng loại theo lô để tính Tổng số lượng xuất (thùng)
+        // của cả lô (rowspan cùng cột Lô hàng).
+        const byBatch = {};
+        Object.values(varietyMap).forEach(function(v){
+          const stock = stockByKey[varietyKey(v.batch, v.variety)];
+          const avgQuyCach = v.boxes > 0 ? v.finished / v.boxes : null;
           const exportedQty = stock && stock.exported_qty != null ? Number(stock.exported_qty) : null;
-          return {
-            batch: batch,
-            finished: finished,
-            avgQuyCach: avgQuyCach,
-            // Đã xuất nhập theo thùng — quy đổi ngược ra trái bằng quy cách
-            // bình quân của lô để trừ ra "Còn lại" vẫn theo trái như trước.
-            // Lô nào chưa có Quy cách ở Xưởng sản xuất (avgQuyCach = null)
-            // thì tạm coi số đã nhập là trái luôn, giữ đúng cách tính cũ cho
-            // tới khi được điền Quy cách.
-            exportedTrai: exportedQty == null ? 0 : (avgQuyCach != null ? exportedQty * avgQuyCach : exportedQty),
+          const line = {
+            batch: v.batch,
+            variety: v.variety,
+            finished: v.finished,
             exportDate: stock ? stock.export_date : null,
-            exportedQty: exportedQty
+            exportedQty: exportedQty,
+            // Đã xuất nhập theo thùng — quy đổi ngược ra trái bằng quy cách
+            // bình quân của CHÍNH chủng loại đó để trừ ra "Tồn kho" vẫn theo
+            // trái như trước. Chủng loại nào chưa có Quy cách ở Xưởng sản
+            // xuất (avgQuyCach = null) thì KHÔNG đoán — để null, hiện "—" ở
+            // Tồn kho thay vì trừ nhầm số thùng vào số trái ra 1 số âm vô
+            // nghĩa (thùng và trái không cùng đơn vị nếu chưa biết quy cách).
+            exportedTrai: exportedQty == null ? 0 : (avgQuyCach != null ? exportedQty * avgQuyCach : null)
           };
-        }).sort(function(a, b){ return a.batch.localeCompare(b.batch); });
+          if(!byBatch[v.batch]) byBatch[v.batch] = [];
+          byBatch[v.batch].push(line);
+        });
 
-        renderInventoryRows(lots);
-        updateInventoryStats(lots);
+        const groups = Object.keys(byBatch).sort(function(a, b){ return a.localeCompare(b); }).map(function(batch){
+          const lines = byBatch[batch].sort(function(a, b){ return a.variety.localeCompare(b.variety, 'vi'); });
+          const totalExportedQty = lines.reduce(function(sum, l){ return sum + (l.exportedQty || 0); }, 0);
+          return { batch: batch, lines: lines, totalExportedQty: totalExportedQty };
+        });
+
+        renderInventoryRows(groups);
+        updateInventoryStats(groups);
       } catch(err){
         console.error('Không tải được dữ liệu Tồn kho:', err);
         showInventoryMessage('Không tải được dữ liệu — kiểm tra kết nối Supabase.', 'var(--red)');
@@ -3258,12 +3417,14 @@ const titles = {
     }
 
     function openModal(){ inventoryOverlay.classList.add('active'); }
-    function closeModal(){ inventoryOverlay.classList.remove('active'); inventoryForm.reset(); editingBatch = null; }
+    function closeModal(){ inventoryOverlay.classList.remove('active'); inventoryForm.reset(); editingBatch = null; editingVariety = null; }
 
     function openEditModal(tr){
       editingBatch = tr.dataset.batch;
+      editingVariety = tr.dataset.variety || UNSPECIFIED_VARIETY;
       if(inventoryModalBatchInfo){
-        inventoryModalBatchInfo.textContent = 'Lô hàng: ' + tr.dataset.batch + ' · Thành phẩm: ' + fmtQty(tr.dataset.finished ? Number(tr.dataset.finished) : null);
+        const varietyLabel = editingVariety === UNSPECIFIED_VARIETY ? '' : (' · Chủng loại: ' + editingVariety);
+        inventoryModalBatchInfo.textContent = 'Lô hàng: ' + tr.dataset.batch + varietyLabel + ' · Thành phẩm: ' + fmtQty(tr.dataset.finished ? Number(tr.dataset.finished) : null);
       }
       document.getElementById('inv-export-date').value = tr.dataset.exportDate || '';
       document.getElementById('inv-exported-qty').value = tr.dataset.exportedQty || '';
@@ -3284,6 +3445,7 @@ const titles = {
       if(!editingBatch) return;
       const payload = {
         batch: editingBatch,
+        chung_loai: editingVariety || UNSPECIFIED_VARIETY,
         export_date: fieldVal('inv-export-date') || null,
         exported_qty: parseQty(fieldVal('inv-exported-qty'))
       };
@@ -3292,7 +3454,7 @@ const titles = {
       inventorySubmitBtn.disabled = true;
       inventorySubmitBtn.textContent = 'Đang lưu...';
       try{
-        const { error } = await sb.from('factory_finished_stock').upsert(payload, { onConflict: 'batch' });
+        const { error } = await sb.from('factory_finished_stock').upsert(payload, { onConflict: 'batch,chung_loai' });
         if(error) throw error;
         await refreshInventoryRows();
         closeModal();
