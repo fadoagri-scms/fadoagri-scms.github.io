@@ -1040,8 +1040,11 @@ const titles = {
     function resultBadgeClass(r){
       return { 'Chờ xác nhận': 'amber', 'Đạt': 'green', 'Đạt có điều kiện': 'amber', 'Không đạt 1 phần': 'red' }[r] || 'gray';
     }
-    function saleTypeBadgeClass(v){
-      return { 'Xuất khẩu': 'blue', 'Nội địa': 'gray' }[v] || 'amber';
+    // Tô màu select sửa trực tiếp trong bảng theo giá trị đang chọn (cùng
+    // bảng màu với badge — xem .table-inline-select.select-* trong CSS).
+    function applySelectColor(select, colorName){
+      ['select-green', 'select-amber', 'select-red', 'select-blue', 'select-gray'].forEach(function(c){ select.classList.remove(c); });
+      select.classList.add('select-' + colorName);
     }
     function badge(text, cls){
       const span = document.createElement('span');
@@ -1092,7 +1095,7 @@ const titles = {
             batch: batchCode, nccSet: new Set(), categorySet: new Set(), category: null,
             isDua: false, totalQty: 0, totalQtyText: null,
             ngayNhap: null, hasFactory: false, finishedQty: null, exportedQty: null,
-            hasSourceInfo: false, poEntries: [], saleType: null, orderStatus: null, periodDate: null,
+            hasSourceInfo: false, poEntries: [], saleType: null, orderStatus: null, note: '', periodDate: null,
             varietyMap: {}, duaVarieties: [], duaBoxes: 0
           };
         }
@@ -1150,6 +1153,7 @@ const titles = {
         const b = ensure(bi.batch);
         b.saleType = bi.sale_type || null;
         b.orderStatus = bi.order_status || null;
+        b.note = bi.note || '';
       });
 
       // factory_finished_stock.exported_qty = số lượng ĐÃ xuất kho/load cont
@@ -1231,29 +1235,66 @@ const titles = {
       if(chungLoai !== undefined && (q.chung_loai || null) !== (chungLoai || null)) return false;
       return true;
     }
-    function latestCheck(batchCode, type, qcCategory, chungLoai){
+
+    // Kết quả kiểm "Thành phẩm" GẦN NHẤT khớp đúng category (+ chungLoai nếu
+    // là Dừa) của 1 dòng trong bảng tổng hợp — dùng để Đánh giá chất lượng
+    // sửa trực tiếp được (select phản ánh đúng bản ghi sẽ bị update).
+    function finishedCheck(batchCode, qcCategory, chungLoai){
       return allQcRows.find(function(q){
-        if(q.batch_code !== batchCode || q.check_type !== type) return false;
+        if(q.batch_code !== batchCode || q.check_type !== 'Thành phẩm') return false;
         return checksMatch(q, qcCategory, chungLoai);
       }) || null;
     }
 
-    function overallStatus(batchCode, qcCategory, chungLoai){
-      const checks = allQcRows.filter(function(q){
-        if(q.batch_code !== batchCode) return false;
-        return checksMatch(q, qcCategory, chungLoai);
+    const QUICK_RESULT_OPTIONS = ['Chờ xác nhận', 'Đạt', 'Đạt có điều kiện', 'Không đạt 1 phần'];
+
+    async function saveQuickResult(batchCode, qcCategory, chungLoai, value){
+      if(!value) return;
+      try{
+        const existing = finishedCheck(batchCode, qcCategory, chungLoai);
+        if(existing){
+          const { error } = await sb.from('qc_checks').update({ result: value }).eq('id', existing.id);
+          if(error) throw error;
+        } else {
+          const { error } = await sb.from('qc_checks').insert({
+            batch_code: batchCode, category: qcCategory, chung_loai: chungLoai || null,
+            check_type: 'Thành phẩm', result: value
+          });
+          if(error) throw error;
+        }
+        await loadAll();
+      } catch(err){
+        alert('Không thể lưu kết quả: ' + err.message);
+      }
+    }
+
+    function buildQuickResultSelect(batchCode, qcCategory, chungLoai){
+      const select = document.createElement('select');
+      const blankOpt = document.createElement('option');
+      blankOpt.value = '';
+      blankOpt.textContent = 'Chưa kiểm';
+      select.appendChild(blankOpt);
+      QUICK_RESULT_OPTIONS.forEach(function(r){
+        const opt = document.createElement('option');
+        opt.value = r;
+        opt.textContent = r;
+        select.appendChild(opt);
       });
-      if(!checks.length) return { text: 'Chưa kiểm', cls: 'gray' };
-      if(checks.some(function(q){ return q.result === 'Không đạt 1 phần'; })) return { text: 'Không đạt 1 phần', cls: 'red' };
-      if(checks.some(function(q){ return !q.result || q.result === 'Chờ xác nhận'; })) return { text: 'Chờ xác nhận', cls: 'amber' };
-      return { text: 'Đạt', cls: 'green' };
+      const current = finishedCheck(batchCode, qcCategory, chungLoai);
+      select.value = current && current.result ? current.result : '';
+      applySelectColor(select, resultBadgeClass(select.value));
+      select.addEventListener('change', function(){
+        applySelectColor(select, resultBadgeClass(select.value));
+        saveQuickResult(batchCode, qcCategory, chungLoai, select.value);
+      });
+      return select;
     }
 
     function showSummaryMessage(text, color){
       summaryTbody.textContent = '';
       const tr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 8;
+      td.colSpan = 9;
       td.style.textAlign = 'center';
       td.style.color = color || 'var(--ink-soft)';
       td.style.padding = '20px';
@@ -1353,37 +1394,57 @@ const titles = {
           if(idx === 0){
             const saleTypeTd = document.createElement('td');
             saleTypeTd.rowSpan = rowspan;
-            saleTypeTd.appendChild(badge(b.saleType || 'Chưa phân loại', saleTypeBadgeClass(b.saleType)));
+            const saleTypeSelect = buildSaleTypeSelect(b);
+            saleTypeSelect.className = 'table-inline-select';
+            saleTypeTd.appendChild(saleTypeSelect);
             tr.appendChild(saleTypeTd);
           }
 
           const qtyTd = document.createElement('td');
           qtyTd.className = 'muted';
           qtyTd.textContent = line.qty;
-          // Ở các dòng nối tiếp (idx>0), các ô rowspan (QC/Đánh giá/Thao tác)
-          // không lặp lại nên qtyTd vô tình thành ô cuối cùng trong <tr> đó —
-          // CSS "td:last-child{text-align:right}" (dành riêng cho cột Thao
-          // tác) sẽ bắt nhầm qtyTd, làm số liệu lúc lệch trái lúc lệch phải
-          // không đồng nhất giữa các dòng. Ép rõ text-align:left để tránh.
+          // Ở các dòng nối tiếp (idx>0), các ô rowspan (Trạng thái/Ghi chú/
+          // Thao tác) không lặp lại nên qtyTd vô tình thành ô cuối cùng
+          // trong <tr> đó — CSS "td:last-child{text-align:right}" (dành
+          // riêng cho cột Thao tác) sẽ bắt nhầm qtyTd, làm số liệu lúc lệch
+          // trái lúc lệch phải không đồng nhất giữa các dòng. Ép rõ
+          // text-align:left để tránh.
           qtyTd.style.textAlign = 'left';
           tr.appendChild(qtyTd);
 
-          // Mỗi dòng tra kết quả kiểm riêng theo đúng sản phẩm của dòng đó
-          // (category + chungLoai nếu là Dừa) — không rowspan/gộp chung QC
-          // của cả lô nữa, vì mỗi sản phẩm trong lô có thể đạt/không đạt
-          // khác nhau (ép text-align:left như qtyTd để tránh CSS
-          // td:last-child bắt nhầm khi ô này là ô cuối ở dòng nối tiếp).
-          const lineOutCheck = latestCheck(b.batch, 'Thành phẩm', line.qcCategory, line.chungLoai);
-          const outTd = document.createElement('td');
-          outTd.style.textAlign = 'left';
-          outTd.appendChild(lineOutCheck ? badge(lineOutCheck.result || '—', resultBadgeClass(lineOutCheck.result)) : badge('Chưa kiểm', 'gray'));
-          tr.appendChild(outTd);
+          if(idx === 0){
+            const orderStatusTd = document.createElement('td');
+            orderStatusTd.rowSpan = rowspan;
+            const orderStatusSelect = buildOrderStatusSelect(b);
+            orderStatusSelect.className = 'table-inline-select';
+            orderStatusTd.appendChild(orderStatusSelect);
+            tr.appendChild(orderStatusTd);
+          }
 
-          const lineStatus = overallStatus(b.batch, line.qcCategory, line.chungLoai);
+          // Đánh giá chất lượng sửa trực tiếp ngay trong bảng — select phản
+          // ánh đúng kết quả kiểm "Thành phẩm" GẦN NHẤT của riêng dòng này
+          // (category + chungLoai), chọn lại là lưu ngay (update nếu đã có
+          // bản ghi khớp, insert mới nếu chưa) (ép text-align:left như qtyTd
+          // để tránh CSS td:last-child bắt nhầm ở dòng nối tiếp).
           const statusTd = document.createElement('td');
           statusTd.style.textAlign = 'left';
-          statusTd.appendChild(badge(lineStatus.text, lineStatus.cls));
+          const statusSelect = buildQuickResultSelect(b.batch, line.qcCategory, line.chungLoai);
+          statusSelect.className = 'table-inline-select';
+          statusTd.appendChild(statusSelect);
           tr.appendChild(statusTd);
+
+          if(idx === 0){
+            const noteTd = document.createElement('td');
+            noteTd.rowSpan = rowspan;
+            const noteInput = document.createElement('input');
+            noteInput.type = 'text';
+            noteInput.className = 'table-inline-input';
+            noteInput.placeholder = 'Ghi chú...';
+            noteInput.value = b.note || '';
+            noteInput.addEventListener('change', function(){ saveNote(b.batch, noteInput.value); });
+            noteTd.appendChild(noteInput);
+            tr.appendChild(noteTd);
+          }
 
           if(idx === 0){
             const actionsTd = document.createElement('td');
@@ -1413,13 +1474,13 @@ const titles = {
       }
     }
 
-    // Hình thức là select tự lưu khi đổi (upsert batch_info), không đi qua
-    // form-add-qc — vì nó thuộc về lô hàng, không phải 1 lần kiểm QC cụ thể.
-    function buildSaleTypeItem(b){
-      const item = document.createElement('div');
-      const label = document.createElement('div');
-      label.className = 'info-label';
-      label.textContent = 'Hình thức';
+    // Hình thức sửa trực tiếp ngay trong bảng tổng hợp (renderSummary), tự
+    // lưu khi đổi (upsert batch_info) — không đi qua form-add-qc vì nó
+    // thuộc về lô hàng, không phải 1 lần kiểm QC cụ thể.
+    function saleTypeColorName(v){
+      return { 'Xuất khẩu': 'blue', 'Nội địa': 'gray' }[v] || 'amber';
+    }
+    function buildSaleTypeSelect(b){
       const select = document.createElement('select');
       [['', '— Chưa phân loại —'], ['Nội địa', 'Nội địa'], ['Xuất khẩu', 'Xuất khẩu']].forEach(function(o){
         const opt = document.createElement('option');
@@ -1428,10 +1489,12 @@ const titles = {
         if((b.saleType || '') === o[0]) opt.selected = true;
         select.appendChild(opt);
       });
-      select.addEventListener('change', function(){ saveSaleType(b.batch, select.value); });
-      item.appendChild(label);
-      item.appendChild(select);
-      return item;
+      applySelectColor(select, saleTypeColorName(b.saleType));
+      select.addEventListener('change', function(){
+        applySelectColor(select, saleTypeColorName(select.value));
+        saveSaleType(b.batch, select.value);
+      });
+      return select;
     }
 
     async function saveOrderStatus(batchCode, value){
@@ -1457,12 +1520,12 @@ const titles = {
       }
     }
 
-    // Trạng thái đơn hàng cũng tự lưu khi đổi, giống Hình thức.
-    function buildOrderStatusItem(b){
-      const item = document.createElement('div');
-      const label = document.createElement('div');
-      label.className = 'info-label';
-      label.textContent = 'Trạng thái đơn hàng';
+    function orderStatusColorName(v){
+      return { 'Đã đóng hàng': 'green', 'Chưa đóng hàng': 'amber' }[v] || 'gray';
+    }
+    // Trạng thái đơn hàng sửa trực tiếp ngay trong bảng tổng hợp
+    // (renderSummary), tự lưu khi đổi giống Hình thức.
+    function buildOrderStatusSelect(b){
       const select = document.createElement('select');
       [['', '— Chưa xác định —'], ['Chưa đóng hàng', 'Chưa đóng hàng'], ['Đã đóng hàng', 'Đã đóng hàng']].forEach(function(o){
         const opt = document.createElement('option');
@@ -1471,10 +1534,22 @@ const titles = {
         if((b.orderStatus || '') === o[0]) opt.selected = true;
         select.appendChild(opt);
       });
-      select.addEventListener('change', function(){ saveOrderStatus(b.batch, select.value); });
-      item.appendChild(label);
-      item.appendChild(select);
-      return item;
+      applySelectColor(select, orderStatusColorName(b.orderStatus));
+      select.addEventListener('change', function(){
+        applySelectColor(select, orderStatusColorName(select.value));
+        saveOrderStatus(b.batch, select.value);
+      });
+      return select;
+    }
+
+    async function saveNote(batchCode, value){
+      try{
+        const { error } = await sb.from('batch_info').upsert({ batch: batchCode, note: value || null }, { onConflict: 'batch' });
+        if(error) throw error;
+        await loadAll();
+      } catch(err){
+        alert('Không thể lưu Ghi chú: ' + err.message);
+      }
     }
 
     function renderInfoGrid(b){
@@ -1503,11 +1578,9 @@ const titles = {
         item.appendChild(label);
         item.appendChild(value);
         infoGrid.appendChild(item);
-        if(pair[0] === 'Sản phẩm'){
-          infoGrid.appendChild(buildSaleTypeItem(b));
-          infoGrid.appendChild(buildOrderStatusItem(b));
-        }
       });
+      // Hình thức/Trạng thái đơn hàng giờ sửa trực tiếp ở bảng tổng hợp
+      // (renderSummary), không lặp lại trong modal nữa.
     }
 
     function poStatusBadgeClass(s){
@@ -1696,7 +1769,7 @@ const titles = {
       const b = batchSummaries[batchCode] || {
         batch: batchCode, ncc: null, category: 'Dừa', isDua: false,
         totalQty: 0, totalQtyText: null, ngayNhap: null, hasFactory: false, finishedQty: null,
-        poEntries: [], saleType: null, orderStatus: null
+        poEntries: [], saleType: null, orderStatus: null, note: ''
       };
       modalTitle.textContent = 'Lô hàng: ' + batchCode;
       renderInfoGrid(b);
