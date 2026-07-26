@@ -1059,9 +1059,12 @@ const titles = {
     }
     function fmtQty(n){ return n == null ? '—' : Number(n).toLocaleString('vi-VN') + ' trái'; }
     function fmtBoxQty(n){ return n == null ? '—' : Number(n).toLocaleString('vi-VN') + ' thùng'; }
-    function boxCount(finishedQty, quyCach){
-      if(finishedQty == null || !quyCach) return null;
-      return Math.floor(Number(finishedQty) / Number(quyCach));
+    // Số lượng thùng của 1 đợt sản xuất = cộng dồn từng dòng Quy cách khai
+    // báo sau khi đóng gói (factory_batch_boxes) — 1 đợt có thể đóng nhiều
+    // quy cách khác nhau.
+    function sumBoxRows(fb){
+      if(!fb || !fb.factory_batch_boxes || !fb.factory_batch_boxes.length) return null;
+      return fb.factory_batch_boxes.reduce(function(sum, r){ return sum + (Number(r.so_luong_thung) || 0); }, 0);
     }
     function getFb(r){
       if(!r.factory_batches) return null;
@@ -1118,7 +1121,7 @@ const titles = {
         if(fb && fb.finished_qty != null){
           b.hasFactory = true;
           b.finishedQty = (b.finishedQty || 0) + Number(fb.finished_qty);
-          const boxes = boxCount(fb.finished_qty, fb.quy_cach);
+          const boxes = sumBoxRows(fb);
           if(boxes != null) b.duaBoxes += boxes;
         }
       });
@@ -1843,7 +1846,7 @@ const titles = {
     async function loadAll(){
       try{
         const [rawRes, poRes, qcRes, batchInfoRes, stockRes] = await Promise.all([
-          sb.from('raw_batches').select('*, factory_batches(*)'),
+          sb.from('raw_batches').select('*, factory_batches(*, factory_batch_boxes(*))'),
           sb.from('purchase_orders').select('*'),
           sb.from('qc_checks').select('*').order('created_at', { ascending: false }),
           sb.from('batch_info').select('*'),
@@ -2896,11 +2899,16 @@ const titles = {
     }
     function fmtQty(n){ return n == null ? '—' : Number(n).toLocaleString('vi-VN') + ' trái'; }
     function fmtBoxQty(n){ return n == null ? '—' : Number(n).toLocaleString('vi-VN') + ' thùng'; }
-    // Số lượng thùng = Thành phẩm (trái) ÷ Quy cách (số trái/thùng), làm
-    // tròn xuống vì không đóng được thùng lẻ.
-    function boxCount(finishedQty, quyCach){
-      if(finishedQty == null || !quyCach) return null;
-      return Math.floor(Number(finishedQty) / Number(quyCach));
+    // Số lượng thùng của 1 đợt sản xuất = cộng dồn từng dòng Quy cách khai
+    // báo sau khi đóng gói (factory_batch_boxes) — 1 đợt có thể đóng nhiều
+    // quy cách khác nhau, không còn 1 giá trị/đợt như trước.
+    function sumBoxRows(fb){
+      if(!fb || !fb.factory_batch_boxes || !fb.factory_batch_boxes.length) return null;
+      return fb.factory_batch_boxes.reduce(function(sum, r){ return sum + (Number(r.so_luong_thung) || 0); }, 0);
+    }
+    function boxRowsSummary(fb){
+      if(!fb || !fb.factory_batch_boxes || !fb.factory_batch_boxes.length) return '—';
+      return fb.factory_batch_boxes.map(function(r){ return r.quy_cach + '×' + r.so_luong_thung; }).join(', ') + ' thùng';
     }
     // Bắt đầu/Kết thúc là input type="time" (HH:MM) — trừ ra số giờ xử lý.
     // Nếu Kết thúc nhỏ hơn Bắt đầu thì coi như kéo sang hôm sau (qua đêm).
@@ -2954,8 +2962,7 @@ const titles = {
         // bỏ qua đợt đó thay vì làm sai cả tổng.
         let totalBoxes = null;
         items.forEach(function(r){
-          const fb = getFb(r);
-          const boxes = fb ? boxCount(fb.finished_qty, fb.quy_cach) : null;
+          const boxes = sumBoxRows(getFb(r));
           if(boxes != null) totalBoxes = (totalBoxes || 0) + boxes;
         });
 
@@ -2974,7 +2981,7 @@ const titles = {
           tr.dataset.start = fb && fb.start_time ? fb.start_time : '';
           tr.dataset.finish = fb && fb.expected_finish ? fb.expected_finish : '';
           tr.dataset.duration = fb && fb.duration_hours != null ? fb.duration_hours : '';
-          tr.dataset.quyCach = fb && fb.quy_cach != null ? fb.quy_cach : '';
+          tr.dataset.boxes = fb && fb.factory_batch_boxes ? JSON.stringify(fb.factory_batch_boxes) : '[]';
 
           if(idx === 0){
             const batchTd = document.createElement('td');
@@ -3014,7 +3021,7 @@ const titles = {
 
           const quyCachTd = document.createElement('td');
           quyCachTd.className = 'muted';
-          quyCachTd.textContent = fb && fb.quy_cach != null ? fb.quy_cach + ' trái/thùng' : '—';
+          quyCachTd.textContent = boxRowsSummary(fb);
           tr.appendChild(quyCachTd);
 
           const inputQty = parseQty(r.soluong);
@@ -3099,7 +3106,7 @@ const titles = {
 
     async function refreshFactoryRows(){
       try{
-        let q = sb.from('raw_batches').select('*, factory_batches(*)');
+        let q = sb.from('raw_batches').select('*, factory_batches(*, factory_batch_boxes(*))');
         if(factoryYearSelect && factoryYearSelect.value){
           const range = periodRange(Number(factoryYearSelect.value), factoryMonthSelect && factoryMonthSelect.value ? Number(factoryMonthSelect.value) : null);
           q = q.gte('ngay_nhap', range.start).lt('ngay_nhap', range.end);
@@ -3116,8 +3123,60 @@ const titles = {
       }
     }
 
+    // Danh sách Quy cách động trong modal — mỗi dòng là 1 tổ hợp (Quy cách,
+    // Số lượng thùng), thêm/xóa tùy ý vì chỉ biết được sau khi đóng gói.
+    const boxesListEl = document.getElementById('fac-boxes-list');
+    const addBoxRowBtn = document.getElementById('btn-add-box-row');
+
+    function createBoxRow(quyCach, soLuongThung){
+      if(!boxesListEl) return;
+      const row = document.createElement('div');
+      row.className = 'box-row';
+      row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;';
+      const quyCachInput = document.createElement('input');
+      quyCachInput.type = 'text';
+      quyCachInput.placeholder = 'Quy cách (trái/thùng)';
+      quyCachInput.value = quyCach != null ? quyCach : '';
+      quyCachInput.style.flex = '1';
+      const soLuongInput = document.createElement('input');
+      soLuongInput.type = 'text';
+      soLuongInput.placeholder = 'Số lượng thùng';
+      soLuongInput.value = soLuongThung != null ? soLuongThung : '';
+      soLuongInput.style.flex = '1';
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'row-delete-btn';
+      removeBtn.setAttribute('aria-label', 'Xóa dòng quy cách');
+      removeBtn.innerHTML = '<i class="ti ti-trash"></i>';
+      removeBtn.addEventListener('click', function(){ row.remove(); });
+      row.appendChild(quyCachInput);
+      row.appendChild(soLuongInput);
+      row.appendChild(removeBtn);
+      boxesListEl.appendChild(row);
+    }
+
+    function resetBoxRows(boxes){
+      if(!boxesListEl) return;
+      boxesListEl.textContent = '';
+      if(boxes && boxes.length){
+        boxes.forEach(function(b){ createBoxRow(b.quy_cach, b.so_luong_thung); });
+      } else {
+        createBoxRow();
+      }
+    }
+
+    function readBoxRows(){
+      if(!boxesListEl) return [];
+      return Array.from(boxesListEl.querySelectorAll('.box-row')).map(function(row){
+        const inputs = row.querySelectorAll('input');
+        return { quyCach: parseQty(inputs[0].value), soLuongThung: parseQty(inputs[1].value) };
+      }).filter(function(r){ return r.quyCach && r.soLuongThung; });
+    }
+
+    if(addBoxRowBtn) addBoxRowBtn.addEventListener('click', function(){ createBoxRow(); });
+
     function openModal(){ factoryOverlay.classList.add('active'); }
-    function closeModal(){ factoryOverlay.classList.remove('active'); factoryForm.reset(); editingRawBatchId = null; editingBatchLabel = ''; }
+    function closeModal(){ factoryOverlay.classList.remove('active'); factoryForm.reset(); resetBoxRows(); editingRawBatchId = null; editingBatchLabel = ''; }
 
     function openEditModal(tr){
       editingRawBatchId = tr.dataset.rawId;
@@ -3128,7 +3187,9 @@ const titles = {
       }
       document.getElementById('fac-production-date').value = tr.dataset.productionDate || '';
       document.getElementById('fac-finished-qty').value = tr.dataset.finishedQty || '';
-      document.getElementById('fac-quycach').value = tr.dataset.quyCach || '';
+      let boxes = [];
+      try{ boxes = JSON.parse(tr.dataset.boxes || '[]'); } catch(e){ boxes = []; }
+      resetBoxRows(boxes);
       document.getElementById('fac-start').value = tr.dataset.start || '';
       document.getElementById('fac-finish').value = tr.dataset.finish || '';
       factoryModalTitle.textContent = 'Cập nhật sản xuất';
@@ -3153,19 +3214,33 @@ const titles = {
         raw_batch_id: editingRawBatchId,
         production_date: fieldVal('fac-production-date') || null,
         finished_qty: parseQty(fieldVal('fac-finished-qty')),
-        quy_cach: parseQty(fieldVal('fac-quycach')),
         start_time: startVal,
         expected_finish: finishVal,
         duration_hours: computeDurationHours(startVal, finishVal),
         batch_code: editingBatchLabel
       };
+      const boxRows = readBoxRows();
 
       const originalLabel = factorySubmitBtn.textContent;
       factorySubmitBtn.disabled = true;
       factorySubmitBtn.textContent = 'Đang lưu...';
       try{
-        const { error } = await sb.from('factory_batches').upsert(payload, { onConflict: 'raw_batch_id' });
+        const { data: fbRows, error } = await sb.from('factory_batches').upsert(payload, { onConflict: 'raw_batch_id' }).select('id');
         if(error) throw error;
+        const factoryBatchId = fbRows && fbRows[0] && fbRows[0].id;
+        // Đồng bộ danh sách Quy cách bằng cách xóa hết bản ghi cũ rồi chèn
+        // lại đúng danh sách hiện có trong form — đơn giản hơn diff từng dòng
+        // đã đổi/thêm/xóa.
+        if(factoryBatchId){
+          const { error: delErr } = await sb.from('factory_batch_boxes').delete().eq('factory_batch_id', factoryBatchId);
+          if(delErr) throw delErr;
+          if(boxRows.length){
+            const { error: insErr } = await sb.from('factory_batch_boxes').insert(boxRows.map(function(r){
+              return { factory_batch_id: factoryBatchId, quy_cach: r.quyCach, so_luong_thung: r.soLuongThung };
+            }));
+            if(insErr) throw insErr;
+          }
+        }
         await refreshFactoryRows();
         closeModal();
         notifyFactoryProductionChanged();
@@ -3287,9 +3362,12 @@ const titles = {
     }
     function fmtQty(n){ return n == null ? '—' : Number(n).toLocaleString('vi-VN') + ' trái'; }
     function fmtBoxQty(n){ return n == null ? '—' : Number(n).toLocaleString('vi-VN') + ' thùng'; }
-    function boxCount(finishedQty, quyCach){
-      if(finishedQty == null || !quyCach) return null;
-      return Math.floor(Number(finishedQty) / Number(quyCach));
+    // Số lượng thùng của 1 đợt sản xuất = cộng dồn từng dòng Quy cách khai
+    // báo sau khi đóng gói (factory_batch_boxes) — 1 đợt có thể đóng nhiều
+    // quy cách khác nhau.
+    function sumBoxRows(fb){
+      if(!fb || !fb.factory_batch_boxes || !fb.factory_batch_boxes.length) return null;
+      return fb.factory_batch_boxes.reduce(function(sum, r){ return sum + (Number(r.so_luong_thung) || 0); }, 0);
     }
     function getFb(r){
       if(!r.factory_batches) return null;
@@ -3427,7 +3505,7 @@ const titles = {
     async function refreshInventoryRows(){
       try{
         const [rawRes, stockRes] = await Promise.all([
-          sb.from('raw_batches').select('batch, chung_loai, factory_batches(finished_qty, quy_cach)'),
+          sb.from('raw_batches').select('batch, chung_loai, factory_batches(finished_qty, factory_batch_boxes(so_luong_thung))'),
           sb.from('factory_finished_stock').select('*')
         ]);
         if(rawRes.error) throw rawRes.error;
@@ -3448,7 +3526,7 @@ const titles = {
           const variety = (r.chung_loai || '').trim() || UNSPECIFIED_VARIETY;
           const v = ensureVariety(r.batch, variety);
           v.finished += Number(fb.finished_qty);
-          const boxes = boxCount(fb.finished_qty, fb.quy_cach);
+          const boxes = sumBoxRows(fb);
           if(boxes != null) v.boxes += boxes;
         });
 

@@ -119,9 +119,10 @@
             <input type="text" id="fac-finished-qty" placeholder="VD: 2.000">
           </div>
           <div class="form-group">
-            <label for="fac-quycach">Quy cách (số trái/thùng)</label>
-            <input type="text" id="fac-quycach" placeholder="VD: 25">
-            <div class="muted" style="font-size:11px;margin-top:4px;">Số lượng thùng tự tính = Thành phẩm ÷ Quy cách.</div>
+            <label>Quy cách đóng thùng</label>
+            <div id="fac-boxes-list"></div>
+            <button type="button" class="btn-secondary" id="btn-add-box-row" style="margin-top:4px;">+ Thêm quy cách</button>
+            <div class="muted" style="font-size:11px;margin-top:4px;">Khai báo sau khi đóng gói xong — 1 đợt sản xuất có thể đóng nhiều quy cách thùng khác nhau.</div>
           </div>
           <div class="form-group">
             <label for="fac-start">Bắt đầu</label>
