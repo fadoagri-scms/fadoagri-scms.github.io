@@ -1099,7 +1099,7 @@ const titles = {
             isDua: false, totalQty: 0, totalQtyText: null,
             ngayNhap: null, hasFactory: false, finishedQty: null, exportedQty: null,
             hasSourceInfo: false, poEntries: [], saleType: null, orderStatus: null, note: '', periodDate: null,
-            varietyMap: {}, duaVarieties: [], duaBoxes: 0
+            varietyMap: {}, duaVarieties: [], duaBoxes: 0, sanPhamByVariety: {}, exportedByVariety: {}
           };
         }
         return map[batchCode];
@@ -1123,6 +1123,10 @@ const titles = {
           b.finishedQty = (b.finishedQty || 0) + Number(fb.finished_qty);
           const boxes = sumBoxRows(fb);
           if(boxes != null) b.duaBoxes += boxes;
+          // Tên sản phẩm cụ thể (VD: "Dừa xiêm xanh nón lá") lấy từ đợt sản
+          // xuất gần nhất khai báo cho đúng chủng loại đó — thường các đợt
+          // cùng chủng loại đều chế biến ra cùng 1 sản phẩm.
+          if(fb.san_pham) b.sanPhamByVariety[variety] = fb.san_pham;
         }
       });
 
@@ -1167,7 +1171,11 @@ const titles = {
       (stockRows || []).forEach(function(s){
         if(!s.batch) return;
         const b = ensure(s.batch);
-        if(s.exported_qty != null) b.exportedQty = (b.exportedQty || 0) + Number(s.exported_qty);
+        if(s.exported_qty != null){
+          b.exportedQty = (b.exportedQty || 0) + Number(s.exported_qty);
+          const variety = (s.chung_loai || '').trim() || 'Chưa phân loại';
+          b.exportedByVariety[variety] = (b.exportedByVariety[variety] || 0) + Number(s.exported_qty);
+        }
       });
 
       Object.values(map).forEach(function(b){
@@ -1316,18 +1324,22 @@ const titles = {
         // dòng phải đúng bằng số sản phẩm thực có trong lô (kể cả khi lô
         // ghép thêm PO ngành hàng khác), mỗi dòng kiểm/đánh giá QC độc lập.
         // Chỉ khi CHƯA từng nhập chủng loại (1 mục duy nhất "Chưa phân
-        // loại") mới coi là 1 dòng "Dừa" chung như trước, và lúc đó vẫn
-        // dùng số lượng thực xuất (exportedQty) vì chưa tách được theo
-        // chủng loại nào cả.
+        // loại") mới coi là 1 dòng "Dừa" chung như trước.
         const multi = b.duaVarieties.length > 1;
         b.duaVarieties.forEach(function(v){
           const named = v.name !== 'Chưa phân loại';
+          // Sản phẩm hiện đúng tên thành phẩm khai báo ở Xưởng sản xuất (VD:
+          // "Dừa xiêm xanh nón lá") nếu đã có, chưa có thì tạm dùng tên
+          // chủng loại như trước. Số lượng thực tế LUÔN theo thùng — lô chỉ
+          // 1 chủng loại lấy tổng đã xuất của cả lô, nhiều chủng loại thì
+          // lấy đúng số đã xuất của riêng chủng loại đó.
+          const exportedForVariety = multi ? b.exportedByVariety[v.name] : b.exportedQty;
           lines.push({
             ncc: 'Xưởng Ba Phi',
-            category: named ? v.name : 'Dừa',
+            category: b.sanPhamByVariety[v.name] || (named ? v.name : 'Dừa'),
             qcCategory: 'Dừa',
             chungLoai: named ? v.name : null,
-            qty: multi ? (v.qty ? fmtQty(v.qty) : '—') : (b.exportedQty != null ? fmtBoxQty(b.exportedQty) : '—')
+            qty: exportedForVariety != null ? fmtBoxQty(exportedForVariety) : '—'
           });
         });
       }
@@ -2869,7 +2881,7 @@ const titles = {
     const factoryModalTitle = document.getElementById('add-factory-modal-title');
     const factoryModalBatchInfo = document.getElementById('factory-modal-batch-info');
     const factorySubmitBtn = document.getElementById('btn-submit-add-factory');
-    const FACTORY_COLS = 14;
+    const FACTORY_COLS = 13;
     const factoryMonthSelect = document.getElementById('factory-month-select');
     const factoryYearSelect = document.getElementById('factory-year-select');
 
@@ -2995,10 +3007,10 @@ const titles = {
           nccTd.textContent = r.ncc || '—';
           tr.appendChild(nccTd);
 
-          const varietyTd = document.createElement('td');
-          varietyTd.className = 'muted';
-          varietyTd.textContent = r.chung_loai || '—';
-          tr.appendChild(varietyTd);
+          const sanPhamTd = document.createElement('td');
+          sanPhamTd.className = 'muted';
+          sanPhamTd.textContent = (fb && fb.san_pham) || '—';
+          tr.appendChild(sanPhamTd);
 
           const qtyTd = document.createElement('td');
           qtyTd.className = 'muted';
@@ -3019,11 +3031,6 @@ const titles = {
           finishedTd.className = 'muted';
           finishedTd.textContent = fb ? fmtQty(fb.finished_qty) : '—';
           tr.appendChild(finishedTd);
-
-          const sanPhamTd = document.createElement('td');
-          sanPhamTd.className = 'muted';
-          sanPhamTd.textContent = (fb && fb.san_pham) || '—';
-          tr.appendChild(sanPhamTd);
 
           const quyCachTd = document.createElement('td');
           quyCachTd.className = 'muted';
@@ -3418,10 +3425,13 @@ const titles = {
             tr.appendChild(batchTd);
           }
 
-          const exportDateTd = document.createElement('td');
-          exportDateTd.className = 'muted';
-          exportDateTd.textContent = line.exportDate ? fmtDate(line.exportDate) : '—';
-          tr.appendChild(exportDateTd);
+          if(idx === 0){
+            const exportDateTd = document.createElement('td');
+            exportDateTd.rowSpan = rowspan;
+            exportDateTd.className = 'muted';
+            exportDateTd.textContent = group.exportDate ? fmtDate(group.exportDate) : '—';
+            tr.appendChild(exportDateTd);
+          }
 
           const exportedTd = document.createElement('td');
           exportedTd.className = 'muted';
@@ -3577,7 +3587,13 @@ const titles = {
         const groups = Object.keys(byBatch).sort(function(a, b){ return a.localeCompare(b); }).map(function(batch){
           const lines = byBatch[batch].sort(function(a, b){ return a.variety.localeCompare(b.variety, 'vi'); });
           const totalExportedQty = lines.reduce(function(sum, l){ return sum + (l.exportedQty || 0); }, 0);
-          return { batch: batch, lines: lines, totalExportedQty: totalExportedQty };
+          // Ngày xuất hàng gộp chung theo cả lô (giống cột Lô hàng) — 1 container
+          // chỉ xuất đi 1 ngày, không phải mỗi chủng loại 1 ngày riêng. Lấy ngày
+          // gần nhất nếu các dòng lỡ có ngày khác nhau.
+          const exportDate = lines.reduce(function(latest, l){
+            return l.exportDate && (!latest || l.exportDate > latest) ? l.exportDate : latest;
+          }, null);
+          return { batch: batch, lines: lines, totalExportedQty: totalExportedQty, exportDate: exportDate };
         });
 
         renderInventoryRows(groups);
