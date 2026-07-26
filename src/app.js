@@ -2869,7 +2869,7 @@ const titles = {
     const factoryModalTitle = document.getElementById('add-factory-modal-title');
     const factoryModalBatchInfo = document.getElementById('factory-modal-batch-info');
     const factorySubmitBtn = document.getElementById('btn-submit-add-factory');
-    const FACTORY_COLS = 13;
+    const FACTORY_COLS = 14;
     const factoryMonthSelect = document.getElementById('factory-month-select');
     const factoryYearSelect = document.getElementById('factory-year-select');
 
@@ -2981,6 +2981,7 @@ const titles = {
           tr.dataset.start = fb && fb.start_time ? fb.start_time : '';
           tr.dataset.finish = fb && fb.expected_finish ? fb.expected_finish : '';
           tr.dataset.duration = fb && fb.duration_hours != null ? fb.duration_hours : '';
+          tr.dataset.sanPham = fb && fb.san_pham ? fb.san_pham : '';
           tr.dataset.boxes = fb && fb.factory_batch_boxes ? JSON.stringify(fb.factory_batch_boxes) : '[]';
 
           if(idx === 0){
@@ -3018,6 +3019,11 @@ const titles = {
           finishedTd.className = 'muted';
           finishedTd.textContent = fb ? fmtQty(fb.finished_qty) : '—';
           tr.appendChild(finishedTd);
+
+          const sanPhamTd = document.createElement('td');
+          sanPhamTd.className = 'muted';
+          sanPhamTd.textContent = (fb && fb.san_pham) || '—';
+          tr.appendChild(sanPhamTd);
 
           const quyCachTd = document.createElement('td');
           quyCachTd.className = 'muted';
@@ -3187,6 +3193,7 @@ const titles = {
       }
       document.getElementById('fac-production-date').value = tr.dataset.productionDate || '';
       document.getElementById('fac-finished-qty').value = tr.dataset.finishedQty || '';
+      document.getElementById('fac-sanpham').value = tr.dataset.sanPham || '';
       let boxes = [];
       try{ boxes = JSON.parse(tr.dataset.boxes || '[]'); } catch(e){ boxes = []; }
       resetBoxRows(boxes);
@@ -3214,6 +3221,7 @@ const titles = {
         raw_batch_id: editingRawBatchId,
         production_date: fieldVal('fac-production-date') || null,
         finished_qty: parseQty(fieldVal('fac-finished-qty')),
+        san_pham: fieldVal('fac-sanpham') || null,
         start_time: startVal,
         expected_finish: finishVal,
         duration_hours: computeDurationHours(startVal, finishVal),
