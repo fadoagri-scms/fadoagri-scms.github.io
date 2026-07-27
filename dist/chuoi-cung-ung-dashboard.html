@@ -2128,27 +2128,53 @@ const titles = {
       tr.dataset.ngayNhap = d.ngay_nhap || '';
       tr.dataset.trangThai = d.trang_thai;
       tr.dataset.ghiChu = d.ghi_chu || '';
+    }
 
-      tr.cells[0].textContent = d.batch;
-      tr.cells[1].textContent = d.ncc;
-      tr.cells[2].textContent = d.loai;
-      tr.cells[3].textContent = d.chung_loai || '—';
-      tr.cells[4].textContent = d.soluong ? d.soluong + ' trái' : '—';
-      tr.cells[5].textContent = formatDate(d.ngay_nhap);
+    // "Lô hàng" gộp theo rowspan cho các dòng cùng 1 mã lô (giống bảng Tiến
+    // độ sản xuất ở Xưởng Ba Phi) — mỗi lượt nhập nguyên liệu vẫn là 1 dòng
+    // riêng, chỉ gộp mỗi cột đầu để dễ thấy cùng thuộc 1 lô hàng.
+    function createRow(d, batchRowspan){
+      const tr = document.createElement('tr');
+      tr.className = 'hoverable';
+      applyRowData(tr, d);
 
-      tr.cells[6].textContent = '';
+      if(batchRowspan){
+        const batchTd = document.createElement('td');
+        batchTd.rowSpan = batchRowspan;
+        batchTd.textContent = d.batch;
+        tr.appendChild(batchTd);
+      }
+
+      const nccTd = document.createElement('td');
+      nccTd.textContent = d.ncc;
+      tr.appendChild(nccTd);
+
+      const loaiTd = document.createElement('td');
+      loaiTd.textContent = d.loai;
+      tr.appendChild(loaiTd);
+
+      const chungLoaiTd = document.createElement('td');
+      chungLoaiTd.textContent = d.chung_loai || '—';
+      tr.appendChild(chungLoaiTd);
+
+      const soluongTd = document.createElement('td');
+      soluongTd.textContent = d.soluong ? d.soluong + ' trái' : '—';
+      tr.appendChild(soluongTd);
+
+      const ngayTd = document.createElement('td');
+      ngayTd.textContent = formatDate(d.ngay_nhap);
+      tr.appendChild(ngayTd);
+
+      const trangThaiTd = document.createElement('td');
       const badge = document.createElement('span');
       badge.className = 'badge ' + statusBadge[d.trang_thai];
       badge.textContent = d.trang_thai;
-      tr.cells[6].appendChild(badge);
+      trangThaiTd.appendChild(badge);
+      tr.appendChild(trangThaiTd);
 
-      tr.cells[7].textContent = d.ghi_chu || '—';
-    }
-
-    function createRow(d){
-      const tr = document.createElement('tr');
-      tr.className = 'hoverable';
-      for(let i = 0; i < 8; i++) tr.appendChild(document.createElement('td'));
+      const ghiChuTd = document.createElement('td');
+      ghiChuTd.textContent = d.ghi_chu || '—';
+      tr.appendChild(ghiChuTd);
 
       const actionsTd = document.createElement('td');
       actionsTd.className = 'row-actions';
@@ -2166,13 +2192,28 @@ const titles = {
       actionsTd.appendChild(deleteBtn);
       tr.appendChild(actionsTd);
 
-      applyRowData(tr, d);
       return tr;
     }
 
     function renderRows(rows){
       tbody.textContent = '';
-      rows.forEach(function(d){ tbody.appendChild(createRow(d)); });
+      // Gom theo lô hàng NHƯNG giữ nguyên thứ tự xuất hiện đầu tiên của mỗi
+      // lô (không sắp xếp lại) — rows đã sắp theo ngày nhập/created_at mới
+      // nhất trước, chỉ cần đảm bảo các dòng cùng lô đứng liền nhau để
+      // rowspan không bị lỗi (PostgREST không đảm bảo các dòng cùng batch
+      // luôn liền kề nếu sau này đổi cách sắp xếp).
+      const groups = [];
+      const groupIndex = {};
+      rows.forEach(function(d){
+        const key = d.batch || '';
+        if(!(key in groupIndex)){ groupIndex[key] = groups.length; groups.push([]); }
+        groups[groupIndex[key]].push(d);
+      });
+      groups.forEach(function(items){
+        items.forEach(function(d, idx){
+          tbody.appendChild(createRow(d, idx === 0 ? items.length : 0));
+        });
+      });
     }
 
     function showLoading(){
