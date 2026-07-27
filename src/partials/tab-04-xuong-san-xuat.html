@@ -34,7 +34,7 @@
       <div class="card">
         <table>
           <thead>
-            <tr><th>Lô hàng</th><th>NCC</th><th>Sản phẩm</th><th>Số lượng</th><th>Ngày nhập</th><th>Ngày sản xuất</th><th>Thành phẩm</th><th>Quy cách</th><th>Số lượng thùng</th><th>Hao hụt</th><th>Bắt đầu</th><th>Kết thúc</th><th>Tổng số lượng thùng</th><th>Thao tác</th></tr>
+            <tr><th>Lô hàng</th><th>NCC</th><th>Số lượng</th><th>Ngày nhập</th><th>Ngày sản xuất</th><th>Thành phẩm</th><th>Sản phẩm</th><th>Quy cách</th><th>Số lượng thùng</th><th>Hao hụt</th><th>Bắt đầu</th><th>Kết thúc</th><th>Tổng số lượng thùng</th><th>Thao tác</th></tr>
           </thead>
           <tbody id="factory-tbody">
             <tr><td colspan="14" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
@@ -119,14 +119,10 @@
             <input type="text" id="fac-finished-qty" placeholder="VD: 2.000">
           </div>
           <div class="form-group">
-            <label for="fac-sanpham">Sản phẩm</label>
-            <input type="text" id="fac-sanpham" placeholder="VD: Dừa xiêm xanh nón lá">
-          </div>
-          <div class="form-group">
-            <label>Quy cách đóng thùng</label>
+            <label>Sản phẩm &amp; Quy cách đóng thùng</label>
             <div id="fac-boxes-list"></div>
             <button type="button" class="btn-secondary" id="btn-add-box-row" style="margin-top:4px;">+ Thêm quy cách</button>
-            <div class="muted" style="font-size:11px;margin-top:4px;">Khai báo sau khi đóng gói xong — 1 đợt sản xuất có thể đóng nhiều quy cách thùng khác nhau.</div>
+            <div class="muted" style="font-size:11px;margin-top:4px;">Khai báo sau khi đóng gói xong — 1 đợt sản xuất có thể đóng nhiều quy cách thùng khác nhau, kể cả sản phẩm khác nhau (VD: vài thùng làm mẫu cho khách khác).</div>
           </div>
           <div class="form-group">
             <label for="fac-start">Bắt đầu</label>
