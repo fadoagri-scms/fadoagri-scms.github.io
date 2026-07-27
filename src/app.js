@@ -1987,9 +1987,9 @@ const titles = {
         resetForm();
       } catch(err){
         alert('Không thể lưu vào Supabase: ' + err.message);
+        submitBtn.textContent = originalLabel;
       } finally {
         submitBtn.disabled = false;
-        submitBtn.textContent = originalLabel;
       }
     });
   })();
