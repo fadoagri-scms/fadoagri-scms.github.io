@@ -4514,13 +4514,21 @@ const titles = {
               tr.appendChild(finishedTd);
             }
 
+            // Ở các dòng quy cách phụ (subIdx>0), các ô rowspan (Hao hụt/Bắt
+            // đầu/Kết thúc/Tổng/Thao tác) không lặp lại nên soLuongThungTd vô
+            // tình thành ô cuối cùng trong <tr> đó — CSS
+            // "td:last-child{text-align:right}" (dành riêng cho cột Thao
+            // tác) sẽ bắt nhầm, làm số liệu lúc lệch trái lúc lệch phải
+            // không đồng nhất giữa các dòng. Ép rõ text-align:left để tránh.
             const quyCachTd = document.createElement('td');
             quyCachTd.className = 'muted';
+            quyCachTd.style.textAlign = 'left';
             quyCachTd.textContent = box ? (box.quy_cach + ' trái/thùng') : '—';
             tr.appendChild(quyCachTd);
 
             const soLuongThungTd = document.createElement('td');
             soLuongThungTd.className = 'muted';
+            soLuongThungTd.style.textAlign = 'left';
             soLuongThungTd.textContent = box ? fmtBoxQty(box.so_luong_thung) : '—';
             tr.appendChild(soLuongThungTd);
 
