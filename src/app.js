@@ -1305,7 +1305,7 @@ const titles = {
       summaryTbody.textContent = '';
       const tr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 9;
+      td.colSpan = 10;
       td.style.textAlign = 'center';
       td.style.color = color || 'var(--ink-soft)';
       td.style.padding = '20px';
@@ -1447,6 +1447,18 @@ const titles = {
           statusSelect.className = 'table-inline-select';
           statusTd.appendChild(statusSelect);
           tr.appendChild(statusTd);
+
+          // % đạt lấy từ đúng lần kiểm "Thành phẩm" gần nhất khớp dòng này
+          // (cùng check khớp với statusSelect ở trên) — chưa có số lượng
+          // kiểm/đạt cụ thể thì tạm suy ra từ Kết quả (Đạt/Đạt có điều kiện =
+          // 100%, còn lại = 0%), giống logic ở Lịch sử kiểm QC.
+          const rateTd = document.createElement('td');
+          rateTd.className = 'muted';
+          rateTd.style.textAlign = 'left';
+          const matchedCheck = finishedCheck(b.batch, line.qcCategory, line.chungLoai);
+          const rate = matchedCheck ? checkPassRate(matchedCheck) : null;
+          rateTd.textContent = rate ? rate.pct + '%' : '—';
+          tr.appendChild(rateTd);
 
           if(idx === 0){
             const noteTd = document.createElement('td');
@@ -1648,13 +1660,27 @@ const titles = {
       });
     }
 
+    // Tỷ lệ đạt của 1 lần kiểm: ưu tiên số lượng kiểm/đạt nếu đã nhập (chính
+    // xác theo đúng số lượng thực tế); chưa nhập thì tạm coi Kết quả là
+    // nhị phân (Đạt/Đạt có điều kiện = 100%, còn lại = 0%) để vẫn có số mà
+    // không bắt buộc phải đo số lượng mỗi lần kiểm.
+    function checkPassRate(d){
+      if(d.so_luong_kiem != null && Number(d.so_luong_kiem) > 0){
+        const dat = d.so_luong_dat != null ? Number(d.so_luong_dat) : 0;
+        return { kiem: Number(d.so_luong_kiem), dat: dat, pct: Math.round(dat / Number(d.so_luong_kiem) * 100) };
+      }
+      if(!d.result || d.result === 'Chờ xác nhận') return null;
+      const pass = d.result === 'Đạt' || d.result === 'Đạt có điều kiện';
+      return { kiem: 1, dat: pass ? 1 : 0, pct: pass ? 100 : 0 };
+    }
+
     function renderHistory(batchCode){
       const checks = allQcRows.filter(function(q){ return q.batch_code === batchCode; });
       historyTbody.textContent = '';
       if(!checks.length){
         const tr = document.createElement('tr');
         const td = document.createElement('td');
-        td.colSpan = 6;
+        td.colSpan = 7;
         td.style.textAlign = 'center';
         td.style.color = 'var(--ink-soft)';
         td.style.padding = '20px';
@@ -1673,6 +1699,8 @@ const titles = {
         tr.dataset.result = d.result || '';
         tr.dataset.inspector = d.inspector || '';
         tr.dataset.note = d.note || '';
+        tr.dataset.soLuongKiem = d.so_luong_kiem != null ? d.so_luong_kiem : '';
+        tr.dataset.soLuongDat = d.so_luong_dat != null ? d.so_luong_dat : '';
 
         const typeTd = document.createElement('td');
         typeTd.textContent = d.check_type || '—';
@@ -1686,6 +1714,16 @@ const titles = {
         const resultTd = document.createElement('td');
         resultTd.appendChild(badge(d.result || '—', resultBadgeClass(d.result)));
         tr.appendChild(resultTd);
+
+        const rateTd = document.createElement('td');
+        rateTd.className = 'muted';
+        if(d.so_luong_kiem != null && Number(d.so_luong_kiem) > 0){
+          const rate = checkPassRate(d);
+          rateTd.textContent = rate.dat.toLocaleString('vi-VN') + '/' + rate.kiem.toLocaleString('vi-VN') + ' · ' + rate.pct + '%';
+        } else {
+          rateTd.textContent = '—';
+        }
+        tr.appendChild(rateTd);
 
         const inspectorTd = document.createElement('td');
         inspectorTd.textContent = d.inspector || '—';
@@ -1827,6 +1865,8 @@ const titles = {
         populateChungLoaiOptions(currentBatch, tr.dataset.chungLoai || '');
         updateChungLoaiVisibility();
         document.getElementById('qc-result').value = tr.dataset.result || 'Chờ xác nhận';
+        document.getElementById('qc-so-luong-kiem').value = tr.dataset.soLuongKiem || '';
+        document.getElementById('qc-so-luong-dat').value = tr.dataset.soLuongDat || '';
         document.getElementById('qc-inspector').value = tr.dataset.inspector || '';
         document.getElementById('qc-note').value = tr.dataset.note || '';
         submitBtn.textContent = 'Lưu thay đổi';
@@ -1845,13 +1885,18 @@ const titles = {
         statPending.textContent = String(allQcRows.filter(function(d){ return d.result === 'Chờ xác nhận'; }).length);
       }
       if(statPass){
-        const decided = allQcRows.filter(function(d){ return d.result && d.result !== 'Chờ xác nhận'; });
-        if(decided.length){
-          const passed = decided.filter(function(d){ return d.result === 'Đạt' || d.result === 'Đạt có điều kiện'; }).length;
-          statPass.textContent = Math.round(passed / decided.length * 100) + '%';
-        } else {
-          statPass.textContent = '—';
-        }
+        // Tính theo trọng số số lượng (so_luong_dat / so_luong_kiem) khi đã
+        // nhập — lần kiểm nào chưa nhập số lượng thì tạm tính như 1 đơn vị
+        // đạt/không đạt theo Kết quả, để không phá thống kê của các lần kiểm
+        // cũ (trước khi có 2 ô số lượng này).
+        let totalKiem = 0, totalDat = 0;
+        allQcRows.forEach(function(d){
+          const rate = checkPassRate(d);
+          if(!rate) return;
+          totalKiem += rate.kiem;
+          totalDat += rate.dat;
+        });
+        statPass.textContent = totalKiem ? Math.round(totalDat / totalKiem * 100) + '%' : '—';
       }
     }
 
@@ -1921,6 +1966,8 @@ const titles = {
         // (nguyên liệu thô) thuộc phạm vi Vùng nguyên liệu, không ghi ở đây.
         check_type: 'Thành phẩm',
         result: fieldVal('qc-result'),
+        so_luong_kiem: parseQty(fieldVal('qc-so-luong-kiem')),
+        so_luong_dat: parseQty(fieldVal('qc-so-luong-dat')),
         inspector: fieldVal('qc-inspector') || null,
         note: fieldVal('qc-note') || null
       };
@@ -2881,7 +2928,7 @@ const titles = {
     const factoryModalTitle = document.getElementById('add-factory-modal-title');
     const factoryModalBatchInfo = document.getElementById('factory-modal-batch-info');
     const factorySubmitBtn = document.getElementById('btn-submit-add-factory');
-    const FACTORY_COLS = 14;
+    const FACTORY_COLS = 15;
     const factoryMonthSelect = document.getElementById('factory-month-select');
     const factoryYearSelect = document.getElementById('factory-year-select');
 
@@ -3020,6 +3067,12 @@ const titles = {
               nccTd.rowSpan = deliveryRowspan;
               nccTd.textContent = r.ncc || '—';
               tr.appendChild(nccTd);
+
+              const chungLoaiTd = document.createElement('td');
+              chungLoaiTd.rowSpan = deliveryRowspan;
+              chungLoaiTd.className = 'muted';
+              chungLoaiTd.textContent = r.chung_loai || '—';
+              tr.appendChild(chungLoaiTd);
 
               const qtyTd = document.createElement('td');
               qtyTd.rowSpan = deliveryRowspan;
