@@ -24,12 +24,62 @@
     <div class="card">
       <table>
         <thead>
-          <tr><th>Lô hàng</th><th>NCC</th><th>Loại</th><th>Chủng loại</th><th>Số lượng (trái)</th><th>Ngày nhập hàng</th><th>Trạng thái</th><th>Ghi chú</th><th>Thao tác</th></tr>
+          <tr><th>Lô hàng</th><th>Đầu mối thu mua</th><th>Loại</th><th>Chủng loại</th><th>Số lượng (trái)</th><th>Ngày nhập hàng</th><th>Trạng thái</th><th>Ghi chú</th><th>Thao tác</th></tr>
         </thead>
         <tbody id="raw-batch-tbody">
           <tr><td colspan="9" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
         </tbody>
       </table>
+    </div>
+
+    <div class="section-header-row">
+      <div class="section-label">Danh sách đầu mối thu mua</div>
+      <button class="btn-primary" id="btn-open-add-raw-supplier" type="button"><i class="ti ti-plus"></i>Thêm đầu mối</button>
+    </div>
+    <div class="card table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Đầu mối</th><th>Loại</th><th>Chủng loại thường giao</th><th>Số lô đã giao</th>
+            <th>Tổng số lượng (trái)</th><th>Sản lượng TB/lô</th><th>Tỷ lệ đạt chuẩn</th><th>Tỷ lệ đúng hẹn</th>
+            <th>Địa chỉ</th><th>SĐT</th><th>Ghi chú/đề xuất</th><th>Thao tác</th>
+          </tr>
+        </thead>
+        <tbody id="raw-supplier-tbody">
+          <tr><td colspan="12" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="modal-overlay" id="add-raw-supplier-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="add-raw-supplier-modal-title">Sửa hồ sơ đầu mối</div>
+          <button class="modal-close" id="btn-close-add-raw-supplier" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <form id="form-add-raw-supplier">
+          <div class="form-group">
+            <label for="rs-name">Đầu mối</label>
+            <input type="text" id="rs-name" placeholder="VD: Thương lái Bến Tre" required>
+          </div>
+          <div class="form-group">
+            <label for="rs-address">Địa chỉ</label>
+            <input type="text" id="rs-address" placeholder="VD: Ấp 3, Giồng Trôm, Bến Tre">
+          </div>
+          <div class="form-group">
+            <label for="rs-phone">Số điện thoại</label>
+            <input type="text" id="rs-phone" placeholder="VD: 090x xxx xxx">
+          </div>
+          <div class="form-group">
+            <label for="rs-note">Ghi chú/đề xuất</label>
+            <textarea id="rs-note" rows="2" placeholder="VD: Nên đặt thêm cho vụ sau"></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-raw-supplier">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-raw-supplier">Lưu</button>
+          </div>
+        </form>
+      </div>
     </div>
 
     <div class="modal-overlay" id="add-batch-overlay">
@@ -45,7 +95,7 @@
             <div class="muted" style="font-size:11px;margin-top:4px;">Định dạng: Tên khách hàng - Số đơn.Năm (2 số cuối)</div>
           </div>
           <div class="form-group">
-            <label for="f-ncc">NCC</label>
+            <label for="f-ncc">Đầu mối thu mua</label>
             <input type="text" id="f-ncc" placeholder="VD: Thương lái Bến Tre" required>
           </div>
           <div class="form-group">
@@ -73,6 +123,14 @@
           <div class="form-group">
             <label for="f-ngay">Ngày nhập hàng</label>
             <input type="date" id="f-ngay">
+          </div>
+          <div class="form-group">
+            <label for="f-ngay-hen">Ngày hẹn giao</label>
+            <input type="date" id="f-ngay-hen">
+          </div>
+          <div class="form-group">
+            <label for="f-gio-hen">Giờ hẹn giao</label>
+            <input type="time" id="f-gio-hen">
           </div>
           <div class="form-group">
             <label for="f-trangthai">Trạng thái</label>

@@ -1,5 +1,6 @@
 const titles = {
     overview:  ["Tổng quan", "Toàn cảnh hoạt động chuỗi cung ứng hôm nay"],
+    trace:     ["Truy xuất lô hàng", "Toàn bộ hành trình 1 lô hàng trên cùng 1 trang"],
     raw:       ["Vùng nguyên liệu", "Thu mua và kiểm tra dừa thô đầu vào"],
     ncc:       ["Nhà cung cấp", "Quản lý nhà cung cấp, tra cứu đơn đặt hàng và đánh giá"],
     factory:   ["Xưởng Ba Phi", "Tiến độ và thời gian xử lý theo lô hàng"],
@@ -10,17 +11,107 @@ const titles = {
     users:     ["Quản lý tài khoản", "Gán vai trò cho tài khoản đăng nhập"]
   };
 
+  const ACTIVE_TAB_STORAGE_KEY = 'fadoagri_active_tab';
+
   function goTab(tab){
     document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
     document.querySelectorAll('.tab-content').forEach(el => el.classList.toggle('active', el.id === 'tab-' + tab));
     document.getElementById('page-title').textContent = titles[tab][0];
     document.getElementById('page-sub').textContent = titles[tab][1];
     window.scrollTo({top:0, behavior:'smooth'});
+    try{ localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tab); }catch(e){}
+  }
+
+  // Cho phép các module khác (Tổng quan...) điều hướng thẳng tới 1 lô hàng
+  // cụ thể trong tab Truy xuất lô hàng — module đó tự gán hàm thật vào
+  // traceModuleOpen sau khi khởi tạo xong (tránh phụ thuộc thứ tự IIFE).
+  let traceModuleOpen = null;
+  function goToBatchTrace(batchCode){
+    goTab('trace');
+    if(traceModuleOpen) traceModuleOpen(batchCode);
+  }
+
+  // Refresh trang xong vẫn ở đúng module đang xem trước đó — chỉ khôi phục
+  // sau khi quyền theo vai trò đã áp dụng (applyRolePermissions), để không
+  // nhảy vào 1 module mà role hiện tại không có quyền xem.
+  function restoreActiveTab(){
+    let saved;
+    try{ saved = localStorage.getItem(ACTIVE_TAB_STORAGE_KEY); }catch(e){ saved = null; }
+    if(!saved || !titles[saved]) return;
+    const navBtn = document.querySelector('.nav-item[data-tab="' + saved + '"]');
+    if(!navBtn || navBtn.style.display === 'none') return;
+    goTab(saved);
   }
 
   document.querySelectorAll('.nav-item').forEach(btn=>{
     btn.addEventListener('click', ()=> goTab(btn.dataset.tab));
   });
+
+  // ---- Modal xác nhận xóa dùng chung (thay window.confirm) ----
+  // Trả về Promise<boolean> — resolve(true) nếu bấm "Xóa", resolve(false)
+  // nếu Hủy/bấm ra ngoài. Rơi về window.confirm() nếu vì lý do gì đó modal
+  // chưa có trong DOM (an toàn, không chặn thao tác xóa).
+  function confirmDialog(message, opts){
+    opts = opts || {};
+    const overlay = document.getElementById('confirm-overlay');
+    const msgEl = document.getElementById('confirm-message');
+    const titleEl = document.getElementById('confirm-title');
+    const okBtn = document.getElementById('confirm-ok-btn');
+    const cancelBtn = document.getElementById('confirm-cancel-btn');
+    if(!overlay || !msgEl || !titleEl || !okBtn || !cancelBtn){
+      return Promise.resolve(window.confirm(message));
+    }
+    return new Promise(function(resolve){
+      titleEl.textContent = opts.title || 'Xác nhận xóa';
+      msgEl.textContent = message;
+      okBtn.textContent = opts.okLabel || 'Xóa';
+      okBtn.className = opts.danger === false ? 'btn-primary' : 'btn-danger';
+      overlay.classList.add('active');
+      function cleanup(result){
+        overlay.classList.remove('active');
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+        overlay.removeEventListener('click', onOverlay);
+        resolve(result);
+      }
+      function onOk(){ cleanup(true); }
+      function onCancel(){ cleanup(false); }
+      function onOverlay(e){ if(e.target === overlay) cleanup(false); }
+      okBtn.addEventListener('click', onOk);
+      cancelBtn.addEventListener('click', onCancel);
+      overlay.addEventListener('click', onOverlay);
+    });
+  }
+
+  // ---- Toast "Hoàn tác" sau khi xóa (xóa thật ra là xóa mềm — set deleted_at) ----
+  // onUndo là hàm async gỡ deleted_at + tải lại danh sách; tự ẩn sau 6s nếu
+  // không bấm Hoàn tác.
+  function showUndoToast(message, onUndo){
+    const container = document.getElementById('toast-container');
+    if(!container) return;
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    const span = document.createElement('span');
+    span.textContent = message;
+    toast.appendChild(span);
+    const undoBtn = document.createElement('button');
+    undoBtn.type = 'button';
+    undoBtn.className = 'toast-undo-btn';
+    undoBtn.textContent = 'Hoàn tác';
+    toast.appendChild(undoBtn);
+    container.appendChild(toast);
+    const timer = setTimeout(function(){ toast.remove(); }, 6000);
+    undoBtn.addEventListener('click', async function(){
+      clearTimeout(timer);
+      undoBtn.disabled = true;
+      undoBtn.textContent = 'Đang hoàn tác...';
+      try{
+        if(onUndo) await onUndo();
+      } finally {
+        toast.remove();
+      }
+    });
+  }
 
   (function(){
     const el = document.getElementById('topbar-date');
@@ -133,7 +224,7 @@ const titles = {
   }
 
   async function loadCurrentUserProfile(authUser){
-    const { data, error } = await sb.from('profiles').select('*').eq('id', authUser.id).single();
+    const { data, error } = await sb.from('profiles').select('*').eq('id', authUser.id).is('deleted_at', null).single();
     if(error || !data) return null;
     return data;
   }
@@ -157,6 +248,7 @@ const titles = {
     currentUser = { id: session.user.id, email: session.user.email, full_name: profile.full_name, role: profile.role };
     await applyRolePermissions();
     setAppVisible(true);
+    restoreActiveTab();
   }
 
   if(sb){
@@ -382,12 +474,19 @@ const titles = {
       const id = tr.dataset.id;
       if(!id) return;
       const label = opts.deleteLabel ? (opts.deleteLabel(tr) || 'dòng này') : 'dòng này';
-      if(!confirm('Xóa ' + label + '? Hành động không thể hoàn tác.')) return;
+      const ok = await confirmDialog('Xóa ' + label + '?');
+      if(!ok) return;
       try{
-        const { error } = await sb.from(opts.table).delete().eq('id', id);
+        const { error } = await sb.from(opts.table).update({ deleted_at: new Date().toISOString() }).eq('id', id);
         if(error) throw error;
         await refreshRows();
         if(opts.afterSave) opts.afterSave();
+        showUndoToast('Đã xóa ' + label + '.', async function(){
+          const { error: restoreErr } = await sb.from(opts.table).update({ deleted_at: null }).eq('id', id);
+          if(restoreErr){ alert('Không thể hoàn tác: ' + restoreErr.message); return; }
+          await refreshRows();
+          if(opts.afterSave) opts.afterSave();
+        });
       } catch(err){
         alert('Không thể xóa: ' + err.message);
       }
@@ -443,7 +542,7 @@ const titles = {
     }
 
     async function fetchRows(){
-      let q = sb.from(opts.table).select('*');
+      let q = sb.from(opts.table).select('*').is('deleted_at', null);
       // dateFilter là hàm trả về {column, start, end} (đọc lại mỗi lần fetch để
       // luôn dùng giá trị select tháng/năm mới nhất) hoặc null nếu chưa lọc.
       const range = opts.dateFilter ? opts.dateFilter() : null;
@@ -516,8 +615,10 @@ const titles = {
     const cancelBtn = document.getElementById('btn-cancel-add-batch');
     const form = document.getElementById('form-add-batch');
     const tbody = document.getElementById('raw-batch-tbody');
+    const supplierTbody = document.getElementById('raw-supplier-tbody');
     const modalTitle = document.getElementById('add-batch-modal-title');
     const submitBtn = document.getElementById('btn-submit-add-batch');
+    let latestProfiles = {};
 
     if(!overlay || !form || !tbody || !sb) return;
     const TABLE = 'raw_batches';
@@ -565,7 +666,7 @@ const titles = {
 
         if(statWeekNote){
           const suppliers = new Set(weekRows.map(function(d){ return d.ncc; }).filter(Boolean));
-          statWeekNote.textContent = weekRows.length ? ('Từ ' + suppliers.size + ' NCC') : 'Chưa có lô nào tuần này';
+          statWeekNote.textContent = weekRows.length ? ('Từ ' + suppliers.size + ' đầu mối') : 'Chưa có lô nào tuần này';
         }
       }
 
@@ -612,6 +713,8 @@ const titles = {
       document.getElementById('f-chungloai').value = tr.dataset.chungLoai || '';
       document.getElementById('f-soluong').value = tr.dataset.soluong || '';
       document.getElementById('f-ngay').value = tr.dataset.ngayNhap || '';
+      document.getElementById('f-ngay-hen').value = tr.dataset.ngayHenGiao || '';
+      document.getElementById('f-gio-hen').value = (tr.dataset.gioHenGiao || '').slice(0, 5);
       document.getElementById('f-trangthai').value = tr.dataset.trangThai || 'Chờ kiểm tra';
       document.getElementById('f-ghichu').value = tr.dataset.ghiChu || '';
       modalTitle.textContent = 'Chỉnh sửa lô nguyên liệu';
@@ -627,12 +730,20 @@ const titles = {
     async function deleteRow(tr){
       const id = tr.dataset.id;
       if(!id) return;
-      if(!confirm('Xóa lô nguyên liệu "' + (tr.dataset.batch || '') + '"? Hành động không thể hoàn tác.')) return;
+      const label = 'lô nguyên liệu "' + (tr.dataset.batch || '') + '"';
+      const ok = await confirmDialog('Xóa ' + label + '?');
+      if(!ok) return;
       try{
-        const { error } = await sb.from(TABLE).delete().eq('id', id);
+        const { error } = await sb.from(TABLE).update({ deleted_at: new Date().toISOString() }).eq('id', id);
         if(error) throw error;
         await refreshRows();
         notifyRawBatchesChanged();
+        showUndoToast('Đã xóa ' + label + '.', async function(){
+          const { error: restoreErr } = await sb.from(TABLE).update({ deleted_at: null }).eq('id', id);
+          if(restoreErr){ alert('Không thể hoàn tác: ' + restoreErr.message); return; }
+          await refreshRows();
+          notifyRawBatchesChanged();
+        });
       } catch(err){
         alert('Không thể xóa: ' + err.message);
       }
@@ -643,6 +754,15 @@ const titles = {
       if(editBtnEl){ openEditModal(editBtnEl.closest('tr')); return; }
       const delBtnEl = e.target.closest('.row-delete-btn');
       if(delBtnEl){ deleteRow(delBtnEl.closest('tr')); return; }
+      const summaryEl = e.target.closest('.batch-summary-row');
+      if(summaryEl){
+        const expanded = summaryEl.classList.toggle('expanded');
+        let next = summaryEl.nextElementSibling;
+        while(next && next.classList.contains('batch-detail-row')){
+          next.style.display = expanded ? '' : 'none';
+          next = next.nextElementSibling;
+        }
+      }
     });
 
     function formatDate(value){
@@ -660,24 +780,24 @@ const titles = {
       tr.dataset.chungLoai = d.chung_loai || '';
       tr.dataset.soluong = d.soluong || '';
       tr.dataset.ngayNhap = d.ngay_nhap || '';
+      tr.dataset.ngayHenGiao = d.ngay_hen_giao || '';
+      tr.dataset.gioHenGiao = d.gio_hen_giao || '';
       tr.dataset.trangThai = d.trang_thai;
       tr.dataset.ghiChu = d.ghi_chu || '';
     }
 
-    // "Lô hàng" gộp theo rowspan cho các dòng cùng 1 mã lô (giống bảng Tiến
-    // độ sản xuất ở Xưởng Ba Phi) — mỗi lượt nhập nguyên liệu vẫn là 1 dòng
-    // riêng, chỉ gộp mỗi cột đầu để dễ thấy cùng thuộc 1 lô hàng.
-    function createRow(d, batchRowspan){
+    // Mỗi lượt nhập nguyên liệu là 1 dòng chi tiết; các dòng cùng 1 mã lô
+    // được gộp dưới 1 dòng tổng hợp (accordion) — mặc định thu gọn, bấm vào
+    // dòng tổng hợp để mở/đóng xem từng lượt nhập. Lô chỉ có 1 lượt nhập thì
+    // hiện thẳng luôn, không cần gộp/mở rộng.
+    function createDetailRow(d, showBatch){
       const tr = document.createElement('tr');
       tr.className = 'hoverable';
       applyRowData(tr, d);
 
-      if(batchRowspan){
-        const batchTd = document.createElement('td');
-        batchTd.rowSpan = batchRowspan;
-        batchTd.textContent = d.batch;
-        tr.appendChild(batchTd);
-      }
+      const batchTd = document.createElement('td');
+      if(showBatch) batchTd.textContent = d.batch;
+      tr.appendChild(batchTd);
 
       const nccTd = document.createElement('td');
       nccTd.textContent = d.ncc;
@@ -729,13 +849,74 @@ const titles = {
       return tr;
     }
 
+    function createSummaryRow(items){
+      const tr = document.createElement('tr');
+      tr.className = 'hoverable batch-summary-row';
+      tr.dataset.batch = items[0].batch || '';
+
+      const batchTd = document.createElement('td');
+      const chevron = document.createElement('i');
+      chevron.className = 'ti ti-chevron-right batch-chevron';
+      batchTd.appendChild(chevron);
+      batchTd.appendChild(document.createTextNode(' ' + (items[0].batch || '')));
+      tr.appendChild(batchTd);
+
+      const nccCount = new Set(items.map(function(d){ return d.ncc; }).filter(Boolean)).size;
+      const nccTd = document.createElement('td');
+      nccTd.textContent = nccCount + ' đầu mối';
+      tr.appendChild(nccTd);
+
+      const loaiTd = document.createElement('td');
+      const loaiSet = Array.from(new Set(items.map(function(d){ return d.loai; }).filter(Boolean)));
+      loaiTd.textContent = loaiSet.join(', ') || '—';
+      tr.appendChild(loaiTd);
+
+      const chungLoaiTd = document.createElement('td');
+      const chungLoaiSet = Array.from(new Set(items.map(function(d){ return d.chung_loai; }).filter(Boolean)));
+      chungLoaiTd.textContent = chungLoaiSet.join(', ') || '—';
+      tr.appendChild(chungLoaiTd);
+
+      const total = items.reduce(function(sum, d){ return sum + parseQuantity(d.soluong); }, 0);
+      const totalTd = document.createElement('td');
+      totalTd.textContent = total.toLocaleString('vi-VN') + ' trái (' + items.length + ' lượt)';
+      tr.appendChild(totalTd);
+
+      const dates = items.map(function(d){ return d.ngay_nhap; }).filter(Boolean).sort();
+      const dateTd = document.createElement('td');
+      if(!dates.length) dateTd.textContent = '—';
+      else if(dates[0] === dates[dates.length - 1]) dateTd.textContent = formatDate(dates[0]);
+      else dateTd.textContent = formatDate(dates[0]) + ' – ' + formatDate(dates[dates.length - 1]);
+      tr.appendChild(dateTd);
+
+      const statusTd = document.createElement('td');
+      let worst = 'Đạt chuẩn';
+      if(items.some(function(d){ return d.trang_thai === 'Chờ kiểm tra'; })) worst = 'Chờ kiểm tra';
+      else if(items.some(function(d){ return d.trang_thai === 'Từ chối một phần'; })) worst = 'Từ chối một phần';
+      const badge = document.createElement('span');
+      badge.className = 'badge ' + statusBadge[worst];
+      badge.textContent = worst === 'Đạt chuẩn' ? ('Đạt chuẩn (' + items.length + ')') : worst;
+      statusTd.appendChild(badge);
+      tr.appendChild(statusTd);
+
+      const noteCount = items.filter(function(d){ return d.ghi_chu; }).length;
+      const noteTd = document.createElement('td');
+      noteTd.textContent = noteCount ? (noteCount + ' ghi chú') : '—';
+      tr.appendChild(noteTd);
+
+      const actionsTd = document.createElement('td');
+      actionsTd.className = 'row-actions muted';
+      actionsTd.style.fontSize = '11.5px';
+      actionsTd.textContent = items.length + ' dòng';
+      tr.appendChild(actionsTd);
+
+      return tr;
+    }
+
     function renderRows(rows){
       tbody.textContent = '';
-      // Gom theo lô hàng NHƯNG giữ nguyên thứ tự xuất hiện đầu tiên của mỗi
-      // lô (không sắp xếp lại) — rows đã sắp theo ngày nhập/created_at mới
-      // nhất trước, chỉ cần đảm bảo các dòng cùng lô đứng liền nhau để
-      // rowspan không bị lỗi (PostgREST không đảm bảo các dòng cùng batch
-      // luôn liền kề nếu sau này đổi cách sắp xếp).
+      // Gom theo lô hàng, giữ nguyên thứ tự xuất hiện đầu tiên của mỗi lô
+      // (không sắp xếp lại) — rows đã sắp theo ngày nhập/created_at mới nhất
+      // trước.
       const groups = [];
       const groupIndex = {};
       rows.forEach(function(d){
@@ -744,9 +925,160 @@ const titles = {
         groups[groupIndex[key]].push(d);
       });
       groups.forEach(function(items){
-        items.forEach(function(d, idx){
-          tbody.appendChild(createRow(d, idx === 0 ? items.length : 0));
+        if(items.length === 1){
+          tbody.appendChild(createDetailRow(items[0], true));
+          return;
+        }
+        tbody.appendChild(createSummaryRow(items));
+        items.forEach(function(d){
+          const tr = createDetailRow(d, false);
+          tr.classList.add('batch-detail-row');
+          tr.style.display = 'none';
+          tbody.appendChild(tr);
         });
+      });
+    }
+
+    // Bảng "Danh sách đầu mối thu mua" — tổng hợp tự động từ chính các lô
+    // nguyên liệu đã nhập (không phải bảng nhập tay riêng), để tránh trùng
+    // dữ liệu với NCC thương mại bên module Nhà cung cấp.
+    function rateBadge(pct){
+      const badge = document.createElement('span');
+      badge.className = 'badge ' + (pct >= 85 ? 'green' : (pct >= 60 ? 'amber' : 'red'));
+      badge.textContent = pct + '%';
+      return badge;
+    }
+
+    function renderSupplierSummary(rows, profiles){
+      if(!supplierTbody) return;
+      supplierTbody.textContent = '';
+      profiles = profiles || {};
+
+      const groups = [];
+      const groupIndex = {};
+      rows.forEach(function(d){
+        const key = d.ncc || '';
+        if(!key) return;
+        if(!(key in groupIndex)){
+          groupIndex[key] = groups.length;
+          groups.push({
+            ncc: key, loai: d.loai, batches: new Set(), total: 0,
+            decided: 0, passed: 0, chungLoaiTotals: {},
+            onTimeConsidered: 0, onTime: 0
+          });
+        }
+        const g = groups[groupIndex[key]];
+        g.batches.add(d.batch || '');
+        const qty = parseQuantity(d.soluong);
+        g.total += qty;
+        if(d.trang_thai && d.trang_thai !== 'Chờ kiểm tra'){
+          g.decided += 1;
+          if(d.trang_thai === 'Đạt chuẩn') g.passed += 1;
+        }
+        if(d.chung_loai) g.chungLoaiTotals[d.chung_loai] = (g.chungLoaiTotals[d.chung_loai] || 0) + qty;
+        if(d.ngay_hen_giao && d.ngay_nhap){
+          g.onTimeConsidered += 1;
+          if(d.ngay_nhap <= d.ngay_hen_giao) g.onTime += 1;
+        }
+      });
+
+      // Đầu mối mới thêm qua modal (chưa có lô nguyên liệu nào) vẫn phải
+      // hiện trong bảng — số liệu tổng hợp mặc định 0/— tới khi có lô thật.
+      Object.keys(profiles).forEach(function(name){
+        if(!(name in groupIndex)){
+          groups.push({
+            ncc: name, loai: null, batches: new Set(), total: 0,
+            decided: 0, passed: 0, chungLoaiTotals: {},
+            onTimeConsidered: 0, onTime: 0
+          });
+        }
+      });
+
+      if(!groups.length){
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 12;
+        td.style.textAlign = 'center';
+        td.style.color = 'var(--ink-soft)';
+        td.style.padding = '20px';
+        td.textContent = 'Chưa có đầu mối nào.';
+        tr.appendChild(td);
+        supplierTbody.appendChild(tr);
+        return;
+      }
+
+      groups.sort(function(a, b){ return b.total - a.total; });
+
+      groups.forEach(function(g){
+        const tr = document.createElement('tr');
+        tr.className = 'hoverable';
+        tr.dataset.ncc = g.ncc;
+
+        const nccTd = document.createElement('td');
+        nccTd.textContent = g.ncc;
+        tr.appendChild(nccTd);
+
+        const loaiTd = document.createElement('td');
+        loaiTd.textContent = g.loai || '—';
+        tr.appendChild(loaiTd);
+
+        const topChungLoaiTd = document.createElement('td');
+        const chungLoaiEntries = Object.keys(g.chungLoaiTotals);
+        if(chungLoaiEntries.length){
+          chungLoaiEntries.sort(function(a, b){ return g.chungLoaiTotals[b] - g.chungLoaiTotals[a]; });
+          topChungLoaiTd.textContent = chungLoaiEntries[0];
+        } else {
+          topChungLoaiTd.textContent = '—';
+        }
+        tr.appendChild(topChungLoaiTd);
+
+        const countTd = document.createElement('td');
+        countTd.textContent = String(g.batches.size);
+        tr.appendChild(countTd);
+
+        const totalTd = document.createElement('td');
+        totalTd.textContent = g.total.toLocaleString('vi-VN') + ' trái';
+        tr.appendChild(totalTd);
+
+        const avgTd = document.createElement('td');
+        avgTd.textContent = g.batches.size ? (Math.round(g.total / g.batches.size).toLocaleString('vi-VN') + ' trái') : '—';
+        tr.appendChild(avgTd);
+
+        const rateTd = document.createElement('td');
+        if(g.decided) rateTd.appendChild(rateBadge(Math.round(g.passed / g.decided * 100)));
+        else rateTd.textContent = '—';
+        tr.appendChild(rateTd);
+
+        const onTimeTd = document.createElement('td');
+        if(g.onTimeConsidered) onTimeTd.appendChild(rateBadge(Math.round(g.onTime / g.onTimeConsidered * 100)));
+        else onTimeTd.textContent = '—';
+        tr.appendChild(onTimeTd);
+
+        const profile = profiles[g.ncc] || {};
+
+        const addressTd = document.createElement('td');
+        addressTd.textContent = profile.address || '—';
+        tr.appendChild(addressTd);
+
+        const phoneTd = document.createElement('td');
+        phoneTd.textContent = profile.phone || '—';
+        tr.appendChild(phoneTd);
+
+        const noteTd = document.createElement('td');
+        noteTd.textContent = profile.note || '—';
+        tr.appendChild(noteTd);
+
+        const actionsTd = document.createElement('td');
+        actionsTd.className = 'row-actions';
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'row-edit-btn';
+        editBtn.setAttribute('aria-label', 'Sửa hồ sơ đầu mối');
+        editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
+        actionsTd.appendChild(editBtn);
+        tr.appendChild(actionsTd);
+
+        supplierTbody.appendChild(tr);
       });
     }
 
@@ -780,20 +1112,40 @@ const titles = {
       const { data, error } = await sb
         .from(TABLE)
         .select('*')
+        .is('deleted_at', null)
         .order('ngay_nhap', { ascending: false })
         .order('created_at', { ascending: false });
       if(error) throw error;
       return data;
     }
 
+    // Hồ sơ đầu mối (địa chỉ/SĐT/ghi chú) — bảng riêng raw_suppliers, nhập
+    // tay qua modal sửa, khớp với raw_batches.ncc theo tên. Lỗi tải hồ sơ
+    // không chặn bảng tổng hợp chính hiển thị (chỉ thiếu cột địa chỉ/SĐT).
+    async function fetchSupplierProfiles(){
+      try{
+        const { data, error } = await sb.from('raw_suppliers').select('*');
+        if(error) throw error;
+        const map = {};
+        (data || []).forEach(function(p){ map[p.name] = p; });
+        return map;
+      } catch(err){
+        console.error('Không tải được hồ sơ đầu mối:', err);
+        return {};
+      }
+    }
+
     async function refreshRows(){
       try{
         const rows = await fetchRows();
+        latestProfiles = await fetchSupplierProfiles();
         renderRows(rows);
         updateStats(rows);
+        renderSupplierSummary(rows, latestProfiles);
       } catch(err){
         console.error('Không tải được dữ liệu từ Supabase:', err);
         showError('Không tải được dữ liệu — kiểm tra kết nối Supabase.');
+        if(supplierTbody) supplierTbody.textContent = '';
       }
     }
 
@@ -809,6 +1161,8 @@ const titles = {
       const chungloai = document.getElementById('f-chungloai').value.trim();
       const soluong = document.getElementById('f-soluong').value.trim();
       const ngay = document.getElementById('f-ngay').value;
+      const ngayHen = document.getElementById('f-ngay-hen').value;
+      const gioHen = document.getElementById('f-gio-hen').value;
       const trangthai = document.getElementById('f-trangthai').value;
       const ghichu = document.getElementById('f-ghichu').value.trim();
 
@@ -821,6 +1175,8 @@ const titles = {
         chung_loai: chungloai || null,
         soluong: soluong,
         ngay_nhap: ngay || null,
+        ngay_hen_giao: ngayHen || null,
+        gio_hen_giao: gioHen || null,
         trang_thai: trangthai,
         ghi_chu: ghichu
       };
@@ -847,6 +1203,85 @@ const titles = {
         submitBtn.textContent = originalLabel;
       }
     });
+
+    // ---- Modal thêm/sửa hồ sơ đầu mối (địa chỉ/SĐT/ghi chú) ----
+    const rsOverlay = document.getElementById('add-raw-supplier-overlay');
+    const rsOpenBtn = document.getElementById('btn-open-add-raw-supplier');
+    const rsCloseBtn = document.getElementById('btn-close-add-raw-supplier');
+    const rsCancelBtn = document.getElementById('btn-cancel-add-raw-supplier');
+    const rsForm = document.getElementById('form-add-raw-supplier');
+    const rsSubmitBtn = document.getElementById('btn-submit-add-raw-supplier');
+    const rsModalTitle = document.getElementById('add-raw-supplier-modal-title');
+    const rsNameInput = document.getElementById('rs-name');
+
+    if(rsOverlay && rsForm && supplierTbody){
+      // Sửa hồ sơ đầu mối đã có (từ nút bút chì trong bảng) — tên khóa với
+      // raw_batches.ncc nên khóa luôn ô tên, tránh gõ nhầm làm mất liên kết.
+      const openEditRawSupplierModal = function(name){
+        const profile = latestProfiles[name] || {};
+        rsNameInput.value = name;
+        rsNameInput.readOnly = true;
+        document.getElementById('rs-address').value = profile.address || '';
+        document.getElementById('rs-phone').value = profile.phone || '';
+        document.getElementById('rs-note').value = profile.note || '';
+        rsModalTitle.textContent = 'Sửa hồ sơ đầu mối';
+        rsSubmitBtn.textContent = 'Lưu';
+        rsOverlay.classList.add('active');
+      };
+      // Thêm đầu mối mới chưa từng có lô hàng nào — gõ tên tự do, đầu mối sẽ
+      // xuất hiện ngay trong bảng tổng hợp (số liệu lô/số lượng vẫn là 0/—
+      // cho tới khi có lô nguyên liệu thực nhập cho đầu mối này).
+      const openAddRawSupplierModal = function(){
+        rsForm.reset();
+        rsNameInput.readOnly = false;
+        rsModalTitle.textContent = 'Thêm đầu mối';
+        rsSubmitBtn.textContent = 'Thêm đầu mối';
+        rsOverlay.classList.add('active');
+      };
+      const closeRawSupplierModal = function(){
+        rsOverlay.classList.remove('active');
+        rsForm.reset();
+        rsNameInput.readOnly = false;
+      };
+
+      if(rsOpenBtn) rsOpenBtn.addEventListener('click', openAddRawSupplierModal);
+      rsCloseBtn.addEventListener('click', closeRawSupplierModal);
+      rsCancelBtn.addEventListener('click', closeRawSupplierModal);
+      rsOverlay.addEventListener('click', function(e){ if(e.target === rsOverlay) closeRawSupplierModal(); });
+
+      supplierTbody.addEventListener('click', function(e){
+        const btn = e.target.closest('.row-edit-btn');
+        if(!btn) return;
+        const tr = btn.closest('tr');
+        if(tr && tr.dataset.ncc) openEditRawSupplierModal(tr.dataset.ncc);
+      });
+
+      rsForm.addEventListener('submit', async function(e){
+        e.preventDefault();
+        const name = document.getElementById('rs-name').value.trim();
+        if(!name) return;
+        const payload = {
+          name: name,
+          address: document.getElementById('rs-address').value.trim() || null,
+          phone: document.getElementById('rs-phone').value.trim() || null,
+          note: document.getElementById('rs-note').value.trim() || null
+        };
+        const originalLabel = rsSubmitBtn.textContent;
+        rsSubmitBtn.disabled = true;
+        rsSubmitBtn.textContent = 'Đang lưu...';
+        try{
+          const { error } = await sb.from('raw_suppliers').upsert(payload, { onConflict: 'name' });
+          if(error) throw error;
+          closeRawSupplierModal();
+          await refreshRows();
+        } catch(err){
+          alert('Không thể lưu hồ sơ đầu mối: ' + err.message);
+        } finally {
+          rsSubmitBtn.disabled = false;
+          rsSubmitBtn.textContent = originalLabel;
+        }
+      });
+    }
   })();
 
   // ---- Nhà cung cấp ----
@@ -968,7 +1403,7 @@ const titles = {
     async function loadPoYears(){
       if(!poYearSelect || !sb) return;
       try{
-        const { data, error } = await sb.from('purchase_orders').select('created_at');
+        const { data, error } = await sb.from('purchase_orders').select('created_at').is('deleted_at', null);
         if(error) throw error;
         const years = (data || []).map(function(r){ const p = periodParts(r.created_at); return p ? p.year : null; }).filter(Boolean);
         populateMonthYearSelect(poMonthSelect, poYearSelect, years);
@@ -1575,7 +2010,7 @@ const titles = {
         // bắt đầu ở "Kho nội địa", chung cho cả Xuất khẩu lẫn Nội địa vì
         // Logistics đã tự giới hạn các giai đoạn TIẾP THEO theo Hình thức.
         if(value === 'Đã đóng hàng'){
-          const { data: existing, error: findErr } = await sb.from('shipments').select('id').eq('batch_code', batchCode).limit(1);
+          const { data: existing, error: findErr } = await sb.from('shipments').select('id').eq('batch_code', batchCode).is('deleted_at', null).limit(1);
           if(findErr) throw findErr;
           if(!existing || !existing.length){
             const { error: insErr } = await sb.from('shipments').insert({ batch_code: batchCode, stage: 'Kho nội địa' });
@@ -1798,12 +2233,19 @@ const titles = {
     async function deleteQcCheck(tr){
       const id = tr.dataset.id;
       if(!id) return;
-      if(!confirm('Xóa kết quả kiểm "' + (tr.dataset.type || '') + '" này? Hành động không thể hoàn tác.')) return;
+      const label = 'kết quả kiểm "' + (tr.dataset.type || '') + '"';
+      const ok = await confirmDialog('Xóa ' + label + '?');
+      if(!ok) return;
       try{
-        const { error } = await sb.from('qc_checks').delete().eq('id', id);
+        const { error } = await sb.from('qc_checks').update({ deleted_at: new Date().toISOString() }).eq('id', id);
         if(error) throw error;
         if(editingQcId === id) resetForm();
         await loadAll();
+        showUndoToast('Đã xóa ' + label + '.', async function(){
+          const { error: restoreErr } = await sb.from('qc_checks').update({ deleted_at: null }).eq('id', id);
+          if(restoreErr){ alert('Không thể hoàn tác: ' + restoreErr.message); return; }
+          await loadAll();
+        });
       } catch(err){
         alert('Không thể xóa: ' + err.message);
       }
@@ -1944,11 +2386,11 @@ const titles = {
     async function loadAll(){
       try{
         const [rawRes, poRes, qcRes, batchInfoRes, stockRes] = await Promise.all([
-          sb.from('raw_batches').select('*, factory_batches(*, factory_batch_boxes(*))'),
-          sb.from('purchase_orders').select('*'),
-          sb.from('qc_checks').select('*').order('created_at', { ascending: false }),
+          sb.from('raw_batches').select('*, factory_batches(*, factory_batch_boxes(*))').is('deleted_at', null),
+          sb.from('purchase_orders').select('*').is('deleted_at', null),
+          sb.from('qc_checks').select('*').is('deleted_at', null).order('created_at', { ascending: false }),
           sb.from('batch_info').select('*'),
-          sb.from('factory_finished_stock').select('*')
+          sb.from('factory_finished_stock').select('*').is('deleted_at', null)
         ]);
         [rawRes, poRes, qcRes, stockRes].forEach(function(r){ if(r.error) throw r.error; });
         // batch_info có thể chưa tồn tại nếu chưa chạy migration — bỏ qua lỗi
@@ -2733,12 +3175,20 @@ const titles = {
     async function deleteFeedback(card){
       const id = card.dataset.id;
       if(!id) return;
-      if(!confirm('Xóa feedback lô "' + (card.dataset.batch || '') + '"? Hành động không thể hoàn tác.')) return;
+      const label = 'feedback lô "' + (card.dataset.batch || '') + '"';
+      const ok = await confirmDialog('Xóa ' + label + '?');
+      if(!ok) return;
       try{
-        const { error } = await sb.from(TABLE).delete().eq('id', id);
+        const { error } = await sb.from(TABLE).update({ deleted_at: new Date().toISOString() }).eq('id', id);
         if(error) throw error;
         await refreshList();
         notifyFeedbacksChanged();
+        showUndoToast('Đã xóa ' + label + '.', async function(){
+          const { error: restoreErr } = await sb.from(TABLE).update({ deleted_at: null }).eq('id', id);
+          if(restoreErr){ alert('Không thể hoàn tác: ' + restoreErr.message); return; }
+          await refreshList();
+          notifyFeedbacksChanged();
+        });
       } catch(err){
         alert('Không thể xóa: ' + err.message);
       }
@@ -2893,7 +3343,7 @@ const titles = {
 
     async function refreshList(){
       try{
-        const { data, error } = await sb.from(TABLE).select('*').order('created_at', { ascending: false });
+        const { data, error } = await sb.from(TABLE).select('*').is('deleted_at', null).order('created_at', { ascending: false });
         if(error) throw error;
         allFeedbacks = data || [];
         renderList();
@@ -2980,7 +3430,7 @@ const titles = {
     async function loadFactoryYears(){
       if(!factoryYearSelect) return;
       try{
-        const { data, error } = await sb.from('raw_batches').select('ngay_nhap');
+        const { data, error } = await sb.from('raw_batches').select('ngay_nhap').is('deleted_at', null);
         if(error) throw error;
         const years = (data || []).map(function(r){ const p = periodParts(r.ngay_nhap); return p ? p.year : null; }).filter(Boolean);
         populateMonthYearSelect(factoryMonthSelect, factoryYearSelect, years);
@@ -3259,7 +3709,7 @@ const titles = {
 
     async function refreshFactoryRows(){
       try{
-        let q = sb.from('raw_batches').select('*, factory_batches(*, factory_batch_boxes(*))');
+        let q = sb.from('raw_batches').select('*, factory_batches(*, factory_batch_boxes(*))').is('deleted_at', null);
         if(factoryYearSelect && factoryYearSelect.value){
           const range = periodRange(Number(factoryYearSelect.value), factoryMonthSelect && factoryMonthSelect.value ? Number(factoryMonthSelect.value) : null);
           q = q.gte('ngay_nhap', range.start).lt('ngay_nhap', range.end);
@@ -3713,8 +4163,8 @@ const titles = {
     async function refreshInventoryRows(){
       try{
         const [rawRes, stockRes] = await Promise.all([
-          sb.from('raw_batches').select('batch, chung_loai, factory_batches(finished_qty, san_pham, factory_batch_boxes(quy_cach, so_luong_thung, san_pham))'),
-          sb.from('factory_finished_stock').select('*')
+          sb.from('raw_batches').select('batch, chung_loai, factory_batches(finished_qty, san_pham, factory_batch_boxes(quy_cach, so_luong_thung, san_pham))').is('deleted_at', null),
+          sb.from('factory_finished_stock').select('*').is('deleted_at', null)
         ]);
         if(rawRes.error) throw rawRes.error;
         if(stockRes.error) throw stockRes.error;
@@ -3856,12 +4306,20 @@ const titles = {
       const varietyLabel = tr.dataset.variety && tr.dataset.variety !== UNSPECIFIED_VARIETY ? ' (' + tr.dataset.variety + ')' : '';
       const sanPhamLabel = tr.dataset.sanPham ? ' — ' + tr.dataset.sanPham : '';
       const quyCachLabel = tr.dataset.quyCach ? ' — quy cách ' + tr.dataset.quyCach + ' trái/thùng' : '';
-      if(!confirm('Xóa bản ghi xuất hàng của lô "' + tr.dataset.batch + '"' + varietyLabel + sanPhamLabel + quyCachLabel + '? Hành động không thể hoàn tác.')) return;
+      const label = 'bản ghi xuất hàng của lô "' + tr.dataset.batch + '"' + varietyLabel + sanPhamLabel + quyCachLabel;
+      const ok = await confirmDialog('Xóa ' + label + '?');
+      if(!ok) return;
       try{
-        const { error } = await sb.from('factory_finished_stock').delete().eq('id', stockId);
+        const { error } = await sb.from('factory_finished_stock').update({ deleted_at: new Date().toISOString() }).eq('id', stockId);
         if(error) throw error;
         await refreshInventoryRows();
         notifyFactoryProductionChanged();
+        showUndoToast('Đã xóa ' + label + '.', async function(){
+          const { error: restoreErr } = await sb.from('factory_finished_stock').update({ deleted_at: null }).eq('id', stockId);
+          if(restoreErr){ alert('Không thể hoàn tác: ' + restoreErr.message); return; }
+          await refreshInventoryRows();
+          notifyFactoryProductionChanged();
+        });
       } catch(err){
         alert('Không thể xóa: ' + err.message);
       }
@@ -3883,7 +4341,8 @@ const titles = {
         quy_cach: editingQuyCach != null ? Number(editingQuyCach) : null,
         san_pham: editingSanPham || '',
         export_date: fieldVal('inv-export-date') || null,
-        exported_qty: parseQty(fieldVal('inv-exported-qty'))
+        exported_qty: parseQty(fieldVal('inv-exported-qty')),
+        deleted_at: null
       };
 
       const originalLabel = inventorySubmitBtn.textContent;
@@ -3924,6 +4383,20 @@ const titles = {
     const FEEDBACK_DEADLINE_DAYS = 3;
 
     if(!recentTbody || !sb) return;
+
+    // Bấm vào từng thẻ số liệu để xem đầy đủ ở đúng module tính ra con số đó.
+    [
+      [kpiActive, 'qc'],
+      [kpiContainers, 'logistics'],
+      [kpiQcRate, 'qc'],
+      [kpiSatisfaction, 'feedback']
+    ].forEach(function(pair){
+      const el = pair[0], tab = pair[1];
+      const card = el && el.closest('.kpi-card');
+      if(!card) return;
+      card.classList.add('clickable');
+      card.addEventListener('click', function(){ goTab(tab); });
+    });
 
     function stageBadgeClass(stage){
       return { 'Trên biển': 'amber', 'Thông quan': 'blue', 'Cảng đến': 'blue', 'Giao khách hàng': 'blue', 'Khách đã nhận hàng': 'green' }[stage] || 'gray';
@@ -3984,10 +4457,10 @@ const titles = {
     async function loadOverview(){
       try{
         const [qcRes, shipRes, docRes, fbRes] = await Promise.all([
-          sb.from('qc_checks').select('*'),
-          sb.from('shipments').select('*').order('created_at', { ascending: false }),
+          sb.from('qc_checks').select('*').is('deleted_at', null),
+          sb.from('shipments').select('*').is('deleted_at', null).order('created_at', { ascending: false }),
           sb.from('documents_checklist').select('*'),
-          sb.from('feedbacks').select('*')
+          sb.from('feedbacks').select('*').is('deleted_at', null)
         ]);
         [qcRes, shipRes, docRes, fbRes].forEach(function(r){ if(r.error) throw r.error; });
 
@@ -4060,6 +4533,7 @@ const titles = {
         recent.forEach(function(d){
           const tr = document.createElement('tr');
           tr.className = 'hoverable';
+          tr.addEventListener('click', function(){ goToBatchTrace(d.batch_code); });
 
           const batchTd = document.createElement('td');
           batchTd.textContent = d.batch_code;
@@ -4384,11 +4858,18 @@ const titles = {
     }
 
     async function deleteAccount(u){
-      if(!confirm('Xóa tài khoản "' + (u.full_name || u.email) + '"? Người này sẽ mất quyền truy cập dashboard ngay lập tức.')) return;
+      const label = 'tài khoản "' + (u.full_name || u.email) + '"';
+      const ok = await confirmDialog('Xóa ' + label + '? Người này sẽ mất quyền truy cập dashboard ngay lập tức.');
+      if(!ok) return;
       try{
-        const { error } = await sb.from('profiles').delete().eq('id', u.id);
+        const { error } = await sb.from('profiles').update({ deleted_at: new Date().toISOString() }).eq('id', u.id);
         if(error) throw error;
         await refreshUsers();
+        showUndoToast('Đã xóa ' + label + '.', async function(){
+          const { error: restoreErr } = await sb.from('profiles').update({ deleted_at: null }).eq('id', u.id);
+          if(restoreErr){ alert('Không thể hoàn tác: ' + restoreErr.message); return; }
+          await refreshUsers();
+        });
       } catch(err){
         alert('Không thể xóa: ' + err.message);
       }
@@ -4400,7 +4881,8 @@ const titles = {
     // thực sự tới nơi.
     async function sendPasswordReset(u){
       if(!u.email){ alert('Tài khoản này chưa có email.'); return; }
-      if(!confirm('Gửi email đặt lại mật khẩu tới ' + u.email + '?')) return;
+      const ok = await confirmDialog('Gửi email đặt lại mật khẩu tới ' + u.email + '?', { title: 'Xác nhận', okLabel: 'Gửi', danger: false });
+      if(!ok) return;
       try{
         const { error } = await sb.auth.resetPasswordForEmail(u.email);
         if(error) throw error;
@@ -4412,7 +4894,7 @@ const titles = {
 
     async function refreshUsers(){
       try{
-        const { data, error } = await sb.from('profiles').select('*').order('email');
+        const { data, error } = await sb.from('profiles').select('*').is('deleted_at', null).order('email');
         if(error) throw error;
         tbody.textContent = '';
         if(!data.length){ showMessage('Chưa có tài khoản nào — tạo trong Supabase Dashboard rồi gán vai trò tại đây.'); return; }
@@ -4584,6 +5066,160 @@ const titles = {
     refreshUsers();
   })();
 
+  // ---- Thùng rác (dữ liệu đã xóa mềm từ mọi module) ----
+  // Gom deleted_at khác null từ 9 bảng có nút xóa, cho khôi phục (gỡ
+  // deleted_at) hoặc xóa vĩnh viễn thật sự (.delete()) — đây là nơi DUY NHẤT
+  // trong app còn gọi .delete() cho dữ liệu người dùng tạo ra.
+  (function(){
+    const trashTbody = document.getElementById('trash-tbody');
+    if(!trashTbody || !sb) return;
+
+    const TRASH_TABLES = [
+      { table: 'raw_batches', label: 'Lô nguyên liệu',
+        describe: function(d){ return (d.batch || '—') + ' — ' + (d.ncc || '—') + (d.soluong ? ' (' + d.soluong + ' trái)' : ''); },
+        notify: function(){ notifyRawBatchesChanged(); } },
+      { table: 'suppliers', label: 'Nhà cung cấp',
+        describe: function(d){ return d.name || '—'; } },
+      { table: 'purchase_orders', label: 'Đơn đặt hàng',
+        describe: function(d){ return (d.po_code || '—') + ' — ' + (d.supplier_name || d.batch_code || ''); },
+        notify: function(){ notifyPurchaseOrdersChanged(); } },
+      { table: 'shipments', label: 'Vận chuyển',
+        describe: function(d){ return d.batch_code || '—'; } },
+      { table: 'factory_staff', label: 'Nhân sự Xưởng Ba Phi',
+        describe: function(d){ return d.full_name || '—'; } },
+      { table: 'qc_checks', label: 'Kết quả QC',
+        describe: function(d){ return (d.batch_code || '—') + ' — ' + (d.check_type || ''); } },
+      { table: 'feedbacks', label: 'Feedback KH',
+        describe: function(d){ return d.batch_code || '—'; },
+        notify: function(){ notifyFeedbacksChanged(); } },
+      { table: 'factory_finished_stock', label: 'Xuất kho thành phẩm',
+        describe: function(d){ return (d.batch || '—') + (d.san_pham ? ' — ' + d.san_pham : ''); },
+        notify: function(){ notifyFactoryProductionChanged(); } },
+      { table: 'profiles', label: 'Tài khoản',
+        describe: function(d){ return d.full_name || d.email || '—'; } }
+    ];
+
+    function formatDeletedAt(value){
+      if(!value) return '—';
+      const d = new Date(value);
+      if(isNaN(d.getTime())) return '—';
+      const pad = function(n){ return String(n).padStart(2, '0'); };
+      return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+
+    function showMessage(text, color){
+      trashTbody.textContent = '';
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 4;
+      td.style.textAlign = 'center';
+      td.style.color = color || 'var(--ink-soft)';
+      td.style.padding = '20px';
+      td.textContent = text;
+      tr.appendChild(td);
+      trashTbody.appendChild(tr);
+    }
+
+    async function fetchTrash(){
+      const results = await Promise.all(TRASH_TABLES.map(function(cfg){
+        return sb.from(cfg.table).select('*').not('deleted_at', 'is', null)
+          .then(function(res){ return { cfg: cfg, res: res }; });
+      }));
+      const items = [];
+      results.forEach(function(r){
+        if(r.res.error){
+          console.error('Không tải được thùng rác (' + r.cfg.table + '):', r.res.error);
+          return;
+        }
+        (r.res.data || []).forEach(function(d){ items.push({ cfg: r.cfg, data: d }); });
+      });
+      items.sort(function(a, b){ return new Date(b.data.deleted_at) - new Date(a.data.deleted_at); });
+      return items;
+    }
+
+    function renderTrash(items){
+      trashTbody.textContent = '';
+      if(!items.length){ showMessage('Thùng rác trống.'); return; }
+      items.forEach(function(item){
+        const tr = document.createElement('tr');
+        tr.className = 'hoverable';
+
+        const typeTd = document.createElement('td');
+        typeTd.textContent = item.cfg.label;
+        tr.appendChild(typeTd);
+
+        const descTd = document.createElement('td');
+        descTd.textContent = item.cfg.describe(item.data) || '—';
+        tr.appendChild(descTd);
+
+        const dateTd = document.createElement('td');
+        dateTd.textContent = formatDeletedAt(item.data.deleted_at);
+        tr.appendChild(dateTd);
+
+        const actionsTd = document.createElement('td');
+        actionsTd.className = 'row-actions';
+        const restoreBtn = document.createElement('button');
+        restoreBtn.type = 'button';
+        restoreBtn.className = 'btn-secondary';
+        restoreBtn.style.cssText = 'padding:5px 12px;font-size:12px;margin-right:6px;';
+        restoreBtn.textContent = 'Khôi phục';
+        restoreBtn.addEventListener('click', function(){ restoreItem(item); });
+        actionsTd.appendChild(restoreBtn);
+
+        const purgeBtn = document.createElement('button');
+        purgeBtn.type = 'button';
+        purgeBtn.className = 'btn-danger';
+        purgeBtn.style.cssText = 'padding:5px 12px;font-size:12px;';
+        purgeBtn.textContent = 'Xóa vĩnh viễn';
+        purgeBtn.addEventListener('click', function(){ purgeItem(item); });
+        actionsTd.appendChild(purgeBtn);
+
+        tr.appendChild(actionsTd);
+        trashTbody.appendChild(tr);
+      });
+    }
+
+    async function refreshTrash(){
+      try{
+        const items = await fetchTrash();
+        renderTrash(items);
+      } catch(err){
+        console.error('Không tải được thùng rác:', err);
+        showMessage('Không tải được dữ liệu — kiểm tra kết nối Supabase.', 'var(--red)');
+      }
+    }
+
+    async function restoreItem(item){
+      const label = item.cfg.label + ' "' + item.cfg.describe(item.data) + '"';
+      const ok = await confirmDialog('Khôi phục ' + label + '?', { title: 'Khôi phục', okLabel: 'Khôi phục', danger: false });
+      if(!ok) return;
+      try{
+        const { error } = await sb.from(item.cfg.table).update({ deleted_at: null }).eq('id', item.data.id);
+        if(error) throw error;
+        await refreshTrash();
+        if(item.cfg.notify) item.cfg.notify();
+      } catch(err){
+        alert('Không thể khôi phục: ' + err.message);
+      }
+    }
+
+    async function purgeItem(item){
+      const label = item.cfg.label + ' "' + item.cfg.describe(item.data) + '"';
+      const ok = await confirmDialog('Xóa VĨNH VIỄN ' + label + '? Hành động này không thể hoàn tác, dữ liệu sẽ mất hẳn.', { title: 'Xóa vĩnh viễn', okLabel: 'Xóa vĩnh viễn' });
+      if(!ok) return;
+      try{
+        const { error } = await sb.from(item.cfg.table).delete().eq('id', item.data.id);
+        if(error) throw error;
+        await refreshTrash();
+      } catch(err){
+        alert('Không thể xóa vĩnh viễn: ' + err.message);
+      }
+    }
+
+    showMessage('Đang tải dữ liệu...');
+    refreshTrash();
+  })();
+
   // ---- Ma trận phân quyền (chỉ Admin sửa) ----
   // Đọc/ghi bảng public.module_permissions — RLS thật của từng bảng dữ liệu
   // đọc trực tiếp từ đây qua hàm can_write() (xem
@@ -4698,4 +5334,262 @@ const titles = {
 
     showMessage('Đang tải dữ liệu...');
     refreshPermissions();
+  })();
+
+  // ---- Truy xuất nguồn gốc lô hàng ----
+  // Trang tổng hợp 1 lô hàng trên 1 màn, dựa vào sharedBatchSummaries (đã có
+  // sẵn Nguyên liệu/Sản xuất/PO/hình thức, do module Đánh giá chất lượng xây
+  // dựng) + truy vấn riêng theo batch_code cho QC/Logistics/Chứng từ/Feedback
+  // (không đọc trực tiếp state riêng của các module đó vì chúng đóng kín
+  // trong IIFE của mình, tách biệt module cho gọn).
+  (function(){
+    const selectEl = document.getElementById('trace-batch-select');
+    const bodyEl = document.getElementById('trace-body');
+    if(!selectEl || !bodyEl || !sb) return;
+
+    const EXPORT_STAGES_REF = ['Kho nội địa', 'Cảng đi', 'Trên biển', 'Thông quan', 'Cảng đến', 'Giao khách hàng', 'Khách đã nhận hàng'];
+    const DOMESTIC_STAGES_REF = ['Kho nội địa', 'Khách đã nhận hàng'];
+
+    function fmtDate(v){
+      if(!v) return '—';
+      const p = String(v).split('-');
+      return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : v;
+    }
+    function fmtNum(n){ return (n || 0).toLocaleString('vi-VN'); }
+
+    function populateBatchOptions(){
+      const current = selectEl.value;
+      const batches = Object.keys(sharedBatchSummaries).sort();
+      selectEl.textContent = '';
+      const blank = document.createElement('option');
+      blank.value = '';
+      blank.textContent = '— Chọn lô hàng —';
+      selectEl.appendChild(blank);
+      batches.forEach(function(code){
+        const opt = document.createElement('option');
+        opt.value = code;
+        opt.textContent = code;
+        selectEl.appendChild(opt);
+      });
+      if(current && batches.indexOf(current) !== -1) selectEl.value = current;
+    }
+
+    function showPlaceholder(text){
+      bodyEl.textContent = '';
+      const div = document.createElement('div');
+      div.className = 'card';
+      div.style.cssText = 'text-align:center;color:var(--ink-soft);padding:40px;';
+      div.textContent = text;
+      bodyEl.appendChild(div);
+    }
+
+    const STATE_COLOR = { done: 'var(--green)', active: 'var(--blue)', pending: 'var(--ink-soft)' };
+
+    function stepNode(label, state){
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;width:110px;text-align:center;flex-shrink:0;';
+      const circle = document.createElement('div');
+      const bg = state === 'done' ? 'var(--green)' : (state === 'active' ? 'var(--blue)' : 'var(--surface-2)');
+      const fg = state === 'pending' ? 'var(--ink-soft)' : '#fff';
+      circle.style.cssText = 'width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:' + bg + ';color:' + fg + ';';
+      const icon = document.createElement('i');
+      icon.className = 'ti ' + (state === 'done' ? 'ti-check' : (state === 'active' ? 'ti-clock' : 'ti-circle'));
+      icon.style.fontSize = '15px';
+      circle.appendChild(icon);
+      wrap.appendChild(circle);
+      const p = document.createElement('p');
+      p.textContent = label;
+      p.style.cssText = 'font-size:12px;font-weight:600;margin:8px 0 0;color:' + (state === 'pending' ? 'var(--ink-soft)' : 'var(--ink)') + ';';
+      wrap.appendChild(p);
+      return wrap;
+    }
+
+    function connectorLine(active){
+      const line = document.createElement('div');
+      line.style.cssText = 'height:1px;flex:1;margin-top:15px;background:' + (active ? 'var(--green)' : 'var(--border)') + ';';
+      return line;
+    }
+
+    function infoCard(iconName, title, rows){
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.cssText = 'padding:16px 20px;';
+      const h = document.createElement('p');
+      h.style.cssText = 'font-size:13px;font-weight:700;margin:0 0 10px;display:flex;align-items:center;gap:6px;';
+      const icon = document.createElement('i');
+      icon.className = 'ti ' + iconName;
+      icon.style.cssText = 'font-size:16px;color:var(--ink-soft);';
+      h.appendChild(icon);
+      h.appendChild(document.createTextNode(title));
+      card.appendChild(h);
+      const table = document.createElement('table');
+      table.style.cssText = 'width:100%;font-size:13px;';
+      rows.forEach(function(r){
+        const tr = document.createElement('tr');
+        const tdL = document.createElement('td');
+        tdL.style.cssText = 'color:var(--ink-soft);padding:3px 0;';
+        tdL.textContent = r[0];
+        const tdR = document.createElement('td');
+        tdR.style.cssText = 'text-align:right;padding:3px 0;' + (r[2] ? ('color:' + r[2] + ';') : '');
+        tdR.textContent = r[1];
+        tr.appendChild(tdL); tr.appendChild(tdR);
+        table.appendChild(tr);
+      });
+      card.appendChild(table);
+      return card;
+    }
+
+    function renderBatch(batchCode, b, qcRows, shipRows, docRow, fbRows){
+      bodyEl.textContent = '';
+
+      const header = document.createElement('div');
+      header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;';
+      const h3 = document.createElement('div');
+      h3.style.cssText = 'font-size:18px;font-weight:700;color:var(--ink);';
+      h3.textContent = batchCode;
+      header.appendChild(h3);
+      const badges = document.createElement('div');
+      badges.style.cssText = 'display:flex;gap:8px;';
+      if(b && b.saleType){
+        const badge1 = document.createElement('span');
+        badge1.className = 'badge blue';
+        badge1.textContent = b.saleType;
+        badges.appendChild(badge1);
+      }
+      if(b && b.orderStatus){
+        const badge2 = document.createElement('span');
+        badge2.className = 'badge amber';
+        badge2.textContent = b.orderStatus;
+        badges.appendChild(badge2);
+      }
+      header.appendChild(badges);
+      bodyEl.appendChild(header);
+
+      const finishedQc = qcRows.filter(function(q){ return q.check_type === 'Thành phẩm'; });
+      let qcState = 'pending';
+      if(finishedQc.some(function(q){ return q.result === 'Đạt' || q.result === 'Đạt có điều kiện'; })) qcState = 'done';
+      else if(finishedQc.length) qcState = 'active';
+
+      let xuatKhoState = 'pending';
+      if(b && b.exportedQty) xuatKhoState = 'done';
+      else if(b && b.hasFactory) xuatKhoState = 'active';
+
+      const sanXuatState = (b && b.hasFactory) ? 'done' : 'pending';
+      const nguyenLieuState = (b && b.hasSourceInfo) ? 'done' : 'pending';
+
+      const row1 = document.createElement('div');
+      row1.style.cssText = 'display:flex;align-items:flex-start;overflow-x:auto;margin-bottom:20px;';
+      const steps = [['Nguyên liệu', nguyenLieuState], ['Sản xuất', sanXuatState], ['QC', qcState], ['Xuất kho', xuatKhoState]];
+      steps.forEach(function(s, i){
+        row1.appendChild(stepNode(s[0], s[1]));
+        if(i < steps.length - 1) row1.appendChild(connectorLine(s[1] === 'done'));
+      });
+      bodyEl.appendChild(row1);
+
+      const latestShip = shipRows[0] || null;
+      const stageList = (b && b.saleType === 'Nội địa') ? DOMESTIC_STAGES_REF : EXPORT_STAGES_REF;
+      let logisticsState = 'pending';
+      let logisticsText = 'Chưa bắt đầu';
+      if(latestShip){
+        logisticsText = latestShip.stage || '—';
+        const idx = stageList.indexOf(latestShip.stage);
+        logisticsState = (idx === stageList.length - 1) ? 'done' : 'active';
+      }
+
+      // Chứng từ (C/O, Kiểm dịch...) chỉ áp dụng cho hàng Xuất khẩu — đơn Nội
+      // địa không cần, ẩn hẳn khỏi khối song song thay vì hiện "0/4" gây hiểu
+      // lầm là đang thiếu. Còn 1 mình Logistics thì không còn gì để "song
+      // song" nữa nên cũng bỏ luôn khung viền + nhãn đó.
+      const isDomestic = !!(b && b.saleType === 'Nội địa');
+      const docCount = docRow ? [docRow.contract_ok, docRow.co_ok, docRow.quarantine_ok, docRow.bill_of_lading_ok].filter(Boolean).length : 0;
+      const docsState = docCount === 4 ? 'done' : (docCount > 0 ? 'active' : 'pending');
+
+      const logisticsCard = infoCard('ti-truck', 'Logistics', [
+        ['Giai đoạn', logisticsText, STATE_COLOR[logisticsState]]
+      ]);
+
+      if(isDomestic){
+        logisticsCard.style.marginBottom = '20px';
+        bodyEl.appendChild(logisticsCard);
+      } else {
+        const parallelWrap = document.createElement('div');
+        parallelWrap.style.cssText = 'border:1px dashed var(--border);border-radius:var(--radius);padding:16px;margin-bottom:20px;';
+        const parallelLabel = document.createElement('p');
+        parallelLabel.style.cssText = 'font-size:11.5px;color:var(--ink-soft);margin:0 0 12px;';
+        parallelLabel.innerHTML = '<i class="ti ti-arrow-fork" style="margin-right:5px;" aria-hidden="true"></i>Chạy song song — không chờ nhau';
+        parallelWrap.appendChild(parallelLabel);
+
+        const parallelGrid = document.createElement('div');
+        parallelGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;';
+        parallelGrid.appendChild(logisticsCard);
+        parallelGrid.appendChild(infoCard('ti-file', 'Chứng từ', [
+          ['Đã hoàn tất', docCount + '/4', STATE_COLOR[docsState]]
+        ]));
+        parallelWrap.appendChild(parallelGrid);
+        bodyEl.appendChild(parallelWrap);
+      }
+
+      const detailGrid = document.createElement('div');
+      detailGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;';
+
+      detailGrid.appendChild(infoCard('ti-leaf', 'Nguyên liệu', [
+        ['Đầu mối', b && b.nccSet && b.nccSet.size ? Array.from(b.nccSet).join(', ') : '—'],
+        ['Tổng nhập', b && b.totalQty ? (fmtNum(b.totalQty) + ' trái') : '—'],
+        ['Ngày nhập gần nhất', b ? fmtDate(b.ngayNhap) : '—']
+      ]));
+
+      detailGrid.appendChild(infoCard('ti-building-factory-2', 'Sản xuất — Xưởng Ba Phi', [
+        ['Thành phẩm', b && b.finishedQty ? (fmtNum(b.finishedQty) + ' trái') : '—'],
+        ['Đã xuất kho', b && b.exportedQty ? (fmtNum(b.exportedQty) + ' trái') : '—']
+      ]));
+
+      const qcSummaryRows = finishedQc.length
+        ? [['Kết quả gần nhất', finishedQc[0].result || '—', finishedQc[0].result === 'Đạt' ? 'var(--green)' : null], ['Số lần kiểm', String(qcRows.length)]]
+        : [['Kết quả', 'Chưa có', 'var(--ink-soft)']];
+      detailGrid.appendChild(infoCard('ti-clipboard-check', 'Đánh giá chất lượng', qcSummaryRows));
+
+      const fbSummaryRows = fbRows.length
+        ? [['Đánh giá gần nhất', fbRows[0].rating != null ? (fbRows[0].rating + '/5 sao') : '—'], ['Số phản hồi', String(fbRows.length)]]
+        : [['Phản hồi', 'Chưa có', 'var(--ink-soft)']];
+      detailGrid.appendChild(infoCard('ti-message-star', 'Feedback khách hàng', fbSummaryRows));
+
+      bodyEl.appendChild(detailGrid);
+    }
+
+    async function loadBatch(batchCode){
+      showPlaceholder('Đang tải dữ liệu...');
+      const b = sharedBatchSummaries[batchCode] || null;
+      let qcRows = [], shipRows = [], docRow = null, fbRows = [];
+      try{
+        const [qcRes, shipRes, docRes, fbRes] = await Promise.all([
+          sb.from('qc_checks').select('*').eq('batch_code', batchCode).is('deleted_at', null),
+          sb.from('shipments').select('*').eq('batch_code', batchCode).is('deleted_at', null).order('created_at', { ascending: false }),
+          sb.from('documents_checklist').select('*').eq('batch_code', batchCode).maybeSingle(),
+          sb.from('feedbacks').select('*').eq('batch_code', batchCode).is('deleted_at', null).order('created_at', { ascending: false })
+        ]);
+        qcRows = qcRes.data || [];
+        shipRows = shipRes.data || [];
+        docRow = docRes.data || null;
+        fbRows = fbRes.data || [];
+      } catch(err){
+        console.error('Không tải được dữ liệu truy xuất:', err);
+      }
+      renderBatch(batchCode, b, qcRows, shipRows, docRow, fbRows);
+    }
+
+    selectEl.addEventListener('change', function(){
+      if(selectEl.value) loadBatch(selectEl.value);
+      else showPlaceholder('Chọn 1 lô hàng ở trên để xem toàn bộ hành trình.');
+    });
+
+    onBatchSummaryChanged(populateBatchOptions);
+    populateBatchOptions();
+    showPlaceholder('Chọn 1 lô hàng ở trên để xem toàn bộ hành trình.');
+
+    traceModuleOpen = function(batchCode){
+      if(!batchCode) return;
+      populateBatchOptions();
+      selectEl.value = batchCode;
+      selectEl.dispatchEvent(new Event('change'));
+    };
   })();

@@ -27,6 +27,8 @@
 
   {{TAB_OVERVIEW}}
 
+  {{TAB_TRACE}}
+
   {{TAB_RAW}}
 
   {{TAB_NCC}}
@@ -44,6 +46,21 @@
   {{TAB_USERS}}
 
 </main>
+
+<div class="modal-overlay" id="confirm-overlay">
+  <div class="modal modal-confirm">
+    <div class="modal-header">
+      <div class="modal-title" id="confirm-title">Xác nhận</div>
+    </div>
+    <div class="modal-confirm-body" id="confirm-message"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="confirm-cancel-btn">Hủy</button>
+      <button type="button" class="btn-danger" id="confirm-ok-btn">Xóa</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
