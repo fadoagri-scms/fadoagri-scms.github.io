@@ -685,7 +685,7 @@
           <div class="form-group">
             <label for="f-batch">Lô hàng</label>
             <input type="text" id="f-batch" placeholder="VD: Minh Nhân - 25.26" required>
-            <div class="muted" style="font-size:11px;margin-top:4px;">Định dạng: Tên khách hàng - Số đơn.Năm (2 số cuối)</div>
+            <div class="muted" style="font-size:11px;margin-top:4px;" id="f-batch-hint">Định dạng: Tên khách hàng - Số đơn.Năm (2 số cuối)</div>
           </div>
           <div class="form-group">
             <label for="f-ncc">Đầu mối thu mua</label>
@@ -817,14 +817,6 @@
             <input type="text" id="s-suggestion" placeholder="VD: Nên đặt thêm ~2 tấn cho lô sau">
           </div>
           <div class="form-group">
-            <label for="s-qc">Tỷ lệ đạt QC (%)</label>
-            <input type="text" id="s-qc" placeholder="VD: 92">
-          </div>
-          <div class="form-group">
-            <label for="s-ontime">Giao đúng hẹn (%)</label>
-            <input type="text" id="s-ontime" placeholder="VD: 95">
-          </div>
-          <div class="form-group">
             <label for="s-ranking">Xếp hạng</label>
             <select id="s-ranking">
               <option value="">— Chưa đánh giá —</option>
@@ -866,6 +858,15 @@
           <div class="form-group">
             <label for="po-quantity">Số lượng đặt (thùng)</label>
             <input type="text" id="po-quantity" placeholder="VD: 5000 thùng">
+          </div>
+          <div class="form-group">
+            <label for="po-ngay-hen">Ngày hẹn giao</label>
+            <input type="date" id="po-ngay-hen">
+          </div>
+          <div class="form-group">
+            <label for="po-ngay-giao-thuc-te">Ngày giao thực tế</label>
+            <input type="date" id="po-ngay-giao-thuc-te">
+            <div class="muted" style="font-size:11px;margin-top:4px;">Điền khi NCC đã giao — dùng để tính Tỷ lệ đúng hẹn.</div>
           </div>
           <div class="form-group">
             <label for="po-status">Trạng thái</label>
@@ -1284,6 +1285,7 @@
               <option value="Giao khách hàng">Giao khách hàng</option>
               <option value="Khách đã nhận hàng">Khách đã nhận hàng</option>
             </select>
+            <div id="ship-stage-warning" style="display:none;font-size:11.5px;color:var(--red);margin-top:5px;"></div>
           </div>
           <div class="form-group">
             <label for="ship-location">Vị trí hiện tại</label>
@@ -2309,6 +2311,10 @@ const titles = {
     function openAddModal(){
       editingRow = null;
       form.reset();
+      const batchInput = document.getElementById('f-batch');
+      batchInput.readOnly = false;
+      const batchHint = document.getElementById('f-batch-hint');
+      if(batchHint) batchHint.textContent = 'Định dạng: Tên khách hàng - Số đơn.Năm (2 số cuối)';
       modalTitle.textContent = 'Thêm lô nguyên liệu';
       submitBtn.textContent = 'Thêm lô hàng';
       openModal();
@@ -2316,7 +2322,15 @@ const titles = {
 
     function openEditModal(tr){
       editingRow = tr;
-      document.getElementById('f-batch').value = tr.dataset.batch || '';
+      const batchInput = document.getElementById('f-batch');
+      batchInput.value = tr.dataset.batch || '';
+      // Khóa đổi tên lô sau khi đã tạo — tên lô được tham chiếu bằng text ở
+      // 7 bảng khác (PO, QC, Logistics, Chứng từ, Feedback, Hình thức, Xuất
+      // kho), đổi tự do ở đây sẽ làm mồ côi toàn bộ dữ liệu liên quan vì
+      // không có cơ chế cascade rename.
+      batchInput.readOnly = true;
+      const batchHint = document.getElementById('f-batch-hint');
+      if(batchHint) batchHint.textContent = 'Không đổi được tên lô sau khi tạo (tránh làm mất liên kết dữ liệu QC/Logistics/Chứng từ... của lô này).';
       document.getElementById('f-ncc').value = tr.dataset.ncc || '';
       const loaiRadio = form.querySelector('input[name="f-loai"][value="' + tr.dataset.loai + '"]');
       if(loaiRadio) loaiRadio.checked = true;
@@ -2900,6 +2914,84 @@ const titles = {
     function rankingBadgeClass(r){ return r === 'Tốt' ? 'green' : (r === 'Cần theo dõi' ? 'amber' : 'gray'); }
     function rateClass(n){ return (n !== null && n >= 85) ? 'success' : 'warn-text'; }
 
+    // Tỷ lệ đạt QC / Giao đúng hẹn giờ tự tính thật từ purchase_orders + qc_checks
+    // (giống cách đã làm cho đầu mối thu mua ở Vùng nguyên liệu), không còn gõ
+    // tay — tránh số liệu bị cũ/sai vì không ai nhớ cập nhật.
+    async function renderSupplierRatings(supplierRows){
+      if(!ratingTbody || !sb) return;
+      ratingTbody.textContent = '';
+      let poRows = [], qcRows = [];
+      try{
+        const [poRes, qcRes] = await Promise.all([
+          sb.from('purchase_orders').select('*').is('deleted_at', null),
+          sb.from('qc_checks').select('batch_code,result').is('deleted_at', null)
+        ]);
+        poRows = poRes.data || [];
+        qcRows = qcRes.data || [];
+      } catch(err){
+        console.error('Không tải được dữ liệu đánh giá NCC:', err);
+      }
+
+      const stats = {};
+      function ensure(name){
+        if(!stats[name]) stats[name] = { name: name, batches: new Set(), onTimeConsidered: 0, onTime: 0, ranking: null };
+        return stats[name];
+      }
+      supplierRows.forEach(function(s){ if(s.name){ ensure(s.name).ranking = s.ranking || null; } });
+      poRows.forEach(function(p){
+        if(!p.supplier_name) return;
+        const st = ensure(p.supplier_name);
+        if(p.batch_code) st.batches.add(p.batch_code);
+        if(p.ngay_hen_giao && p.ngay_giao_thuc_te){
+          st.onTimeConsidered += 1;
+          if(p.ngay_giao_thuc_te <= p.ngay_hen_giao) st.onTime += 1;
+        }
+      });
+
+      const list = Object.values(stats).filter(function(s){ return s.batches.size > 0 || s.ranking; });
+      if(!list.length){
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 4;
+        td.style.textAlign = 'center';
+        td.style.color = 'var(--ink-soft)';
+        td.style.padding = '20px';
+        td.textContent = 'Chưa có đánh giá nào.';
+        tr.appendChild(td);
+        ratingTbody.appendChild(tr);
+        return;
+      }
+
+      list.forEach(function(s){
+        const decided = qcRows.filter(function(q){ return s.batches.has(q.batch_code) && q.result && q.result !== 'Chờ xác nhận'; });
+        const passed = decided.filter(function(q){ return q.result === 'Đạt' || q.result === 'Đạt có điều kiện'; });
+        const qcPassRate = decided.length ? Math.round(passed.length / decided.length * 100) : null;
+        const onTimeRate = s.onTimeConsidered ? Math.round(s.onTime / s.onTimeConsidered * 100) : null;
+
+        const tr = document.createElement('tr');
+        tr.className = 'hoverable';
+        const nameTd = document.createElement('td');
+        nameTd.textContent = s.name;
+        const qcTd = document.createElement('td');
+        qcTd.className = rateClass(qcPassRate);
+        qcTd.textContent = qcPassRate != null ? qcPassRate + '%' : '—';
+        const otTd = document.createElement('td');
+        otTd.className = rateClass(onTimeRate);
+        otTd.textContent = onTimeRate != null ? onTimeRate + '%' : '—';
+        const rankTd = document.createElement('td');
+        if(s.ranking){
+          const badge = document.createElement('span');
+          badge.className = 'badge ' + rankingBadgeClass(s.ranking);
+          badge.textContent = s.ranking;
+          rankTd.appendChild(badge);
+        } else {
+          rankTd.textContent = '—';
+        }
+        tr.appendChild(nameTd); tr.appendChild(qcTd); tr.appendChild(otTd); tr.appendChild(rankTd);
+        ratingTbody.appendChild(tr);
+      });
+    }
+
     initCrudModule({
       table: 'suppliers',
       overlayId: 'add-supplier-overlay',
@@ -2924,8 +3016,6 @@ const titles = {
         tr.dataset.category = d.category || '';
         tr.dataset.contact = d.contact || '';
         tr.dataset.suggestion = d.suggestion || '';
-        tr.dataset.qc = d.qc_pass_rate != null ? d.qc_pass_rate : '';
-        tr.dataset.ontime = d.on_time_rate != null ? d.on_time_rate : '';
         tr.dataset.ranking = d.ranking || '';
 
         tr.cells[0].textContent = d.name;
@@ -2938,8 +3028,6 @@ const titles = {
         document.getElementById('s-category').value = tr.dataset.category || '';
         document.getElementById('s-contact').value = tr.dataset.contact || '';
         document.getElementById('s-suggestion').value = tr.dataset.suggestion || '';
-        document.getElementById('s-qc').value = tr.dataset.qc || '';
-        document.getElementById('s-ontime').value = tr.dataset.ontime || '';
         document.getElementById('s-ranking').value = tr.dataset.ranking || '';
       },
       readForm: function(form){
@@ -2948,52 +3036,11 @@ const titles = {
           category: fieldVal('s-category') || null,
           contact: fieldVal('s-contact') || null,
           suggestion: fieldVal('s-suggestion') || null,
-          qc_pass_rate: numOrNull(fieldVal('s-qc')),
-          on_time_rate: numOrNull(fieldVal('s-ontime')),
           ranking: fieldVal('s-ranking') || null
         };
       },
       validate: function(payload){ return !!payload.name; },
-      afterRender: function(rows){
-        if(!ratingTbody) return;
-        ratingTbody.textContent = '';
-        const rated = rows.filter(function(d){ return d.qc_pass_rate != null || d.on_time_rate != null || d.ranking; });
-        if(!rated.length){
-          const tr = document.createElement('tr');
-          const td = document.createElement('td');
-          td.colSpan = 4;
-          td.style.textAlign = 'center';
-          td.style.color = 'var(--ink-soft)';
-          td.style.padding = '20px';
-          td.textContent = 'Chưa có đánh giá nào.';
-          tr.appendChild(td);
-          ratingTbody.appendChild(tr);
-          return;
-        }
-        rated.forEach(function(d){
-          const tr = document.createElement('tr');
-          tr.className = 'hoverable';
-          const nameTd = document.createElement('td');
-          nameTd.textContent = d.name;
-          const qcTd = document.createElement('td');
-          qcTd.className = rateClass(d.qc_pass_rate);
-          qcTd.textContent = d.qc_pass_rate != null ? d.qc_pass_rate + '%' : '—';
-          const otTd = document.createElement('td');
-          otTd.className = rateClass(d.on_time_rate);
-          otTd.textContent = d.on_time_rate != null ? d.on_time_rate + '%' : '—';
-          const rankTd = document.createElement('td');
-          if(d.ranking){
-            const badge = document.createElement('span');
-            badge.className = 'badge ' + rankingBadgeClass(d.ranking);
-            badge.textContent = d.ranking;
-            rankTd.appendChild(badge);
-          } else {
-            rankTd.textContent = '—';
-          }
-          tr.appendChild(nameTd); tr.appendChild(qcTd); tr.appendChild(otTd); tr.appendChild(rankTd);
-          ratingTbody.appendChild(tr);
-        });
-      }
+      afterRender: function(rows){ renderSupplierRatings(rows); }
     });
   })();
 
@@ -3053,6 +3100,8 @@ const titles = {
         tr.dataset.category = d.category || '';
         tr.dataset.quantity = d.quantity || '';
         tr.dataset.status = d.status || '';
+        tr.dataset.ngayHenGiao = d.ngay_hen_giao || '';
+        tr.dataset.ngayGiaoThucTe = d.ngay_giao_thuc_te || '';
 
         tr.cells[0].textContent = d.batch_code || '—';
         tr.cells[1].textContent = d.po_code;
@@ -3071,6 +3120,8 @@ const titles = {
         document.getElementById('po-supplier').value = tr.dataset.supplier || '';
         document.getElementById('po-category').value = tr.dataset.category || '';
         document.getElementById('po-quantity').value = tr.dataset.quantity || '';
+        document.getElementById('po-ngay-hen').value = tr.dataset.ngayHenGiao || '';
+        document.getElementById('po-ngay-giao-thuc-te').value = tr.dataset.ngayGiaoThucTe || '';
         document.getElementById('po-status').value = tr.dataset.status || 'Chờ giao';
       },
       readForm: function(form){
@@ -3080,6 +3131,8 @@ const titles = {
           supplier_name: fieldVal('po-supplier'),
           category: fieldVal('po-category') || null,
           quantity: fieldVal('po-quantity') || null,
+          ngay_hen_giao: fieldVal('po-ngay-hen') || null,
+          ngay_giao_thuc_te: fieldVal('po-ngay-giao-thuc-te') || null,
           status: fieldVal('po-status')
         };
       },
@@ -3603,9 +3656,26 @@ const titles = {
         select.appendChild(opt);
       });
       applySelectColor(select, saleTypeColorName(b.saleType));
-      select.addEventListener('change', function(){
-        applySelectColor(select, saleTypeColorName(select.value));
-        saveSaleType(b.batch, select.value);
+      select.addEventListener('change', async function(){
+        const previous = b.saleType || '';
+        const next = select.value;
+        // Đổi Hình thức sau khi đã chốt trước đó (không phải lần gán đầu
+        // tiên) có thể làm giai đoạn Logistics đang theo dõi không còn hợp
+        // lệ (VD: đang "Trên biển" mà đổi sang Nội địa) — hỏi lại trước khi
+        // lưu thay vì đổi ngay, hạn chế đổi tùy tiện giữa chừng.
+        if(previous && previous !== next){
+          const ok = await confirmDialog(
+            'Đổi Hình thức từ "' + previous + '" sang "' + (next || '— Chưa phân loại —') + '" cho lô này? Nếu Logistics đang ở 1 giai đoạn không còn hợp lệ với Hình thức mới, giai đoạn đó sẽ cần chọn lại.',
+            { title: 'Xác nhận đổi Hình thức', okLabel: 'Đổi', danger: false }
+          );
+          if(!ok){
+            select.value = previous;
+            applySelectColor(select, saleTypeColorName(previous));
+            return;
+          }
+        }
+        applySelectColor(select, saleTypeColorName(next));
+        saveSaleType(b.batch, next);
       });
       return select;
     }
@@ -3665,35 +3735,24 @@ const titles = {
       }
     }
 
+    // Phần tổng quan lô (NCC/số lượng/sản xuất/xuất kho) đã có đầy đủ và cập
+    // nhật hơn ở trang Truy xuất lô hàng — modal này giờ chỉ tập trung vào
+    // việc nhập/sửa kết quả kiểm, tránh tính trùng 2 nơi.
     function renderInfoGrid(b){
       infoGrid.textContent = '';
-      const items = [
-        ['NCC', displayNcc(b)],
-        ['Sản phẩm', b.category || '—'],
-        ['Số lượng', displayQuantity(b)],
-        ['Ngày nhập gần nhất', b.ngayNhap ? fmtDate(b.ngayNhap) : '—']
-      ];
-      if(b.isDua){
-        if(b.duaVarieties.length > 1){
-          items.push(['Chủng loại', b.duaVarieties.map(function(v){ return v.name + ' (' + fmtQty(v.qty) + ')'; }).join(', ')]);
-        }
-        items.push(['Sản xuất (Xưởng Ba Phi)', displayProduction(b)]);
-        items.push(['Đã xuất kho (thực tế)', b.exportedQty != null ? fmtBoxQty(b.exportedQty) : 'Chưa xuất']);
-      }
-      items.forEach(function(pair){
-        const item = document.createElement('div');
-        const label = document.createElement('div');
-        label.className = 'info-label';
-        label.textContent = pair[0];
-        const value = document.createElement('div');
-        value.className = 'info-value';
-        value.textContent = pair[1];
-        item.appendChild(label);
-        item.appendChild(value);
-        infoGrid.appendChild(item);
+      const linkWrap = document.createElement('div');
+      linkWrap.style.gridColumn = '1 / -1';
+      const link = document.createElement('button');
+      link.type = 'button';
+      link.className = 'btn-secondary';
+      link.style.cssText = 'font-size:12.5px;padding:7px 14px;display:inline-flex;align-items:center;gap:6px;';
+      link.innerHTML = 'Xem đầy đủ hành trình lô hàng <i class="ti ti-arrow-right" aria-hidden="true"></i>';
+      link.addEventListener('click', function(){
+        closeBatchModal();
+        goToBatchTrace(b.batch);
       });
-      // Hình thức/Trạng thái đơn hàng giờ sửa trực tiếp ở bảng tổng hợp
-      // (renderSummary), không lặp lại trong modal nữa.
+      linkWrap.appendChild(link);
+      infoGrid.appendChild(linkWrap);
     }
 
     function poStatusBadgeClass(s){
@@ -4155,6 +4214,7 @@ const titles = {
     function updateStageOptions(batchCode, preserveValue){
       const select = document.getElementById('ship-stage');
       if(!select) return;
+      const warningEl = document.getElementById('ship-stage-warning');
       const b = batchCode && sharedBatchSummaries[batchCode];
       const isDomestic = !!(b && b.saleType === 'Nội địa');
       const list = isDomestic ? DOMESTIC_STAGE_OPTIONS : EXPORT_STAGE_OPTIONS;
@@ -4166,9 +4226,19 @@ const titles = {
         opt.textContent = stage;
         select.appendChild(opt);
       });
-      // Giá trị cũ không còn hợp lệ (VD: đang "Trên biển" mà lô vừa đổi
-      // Hình thức sang Nội địa) thì reset về lựa chọn đầu tiên.
-      select.value = list.indexOf(current) !== -1 ? current : list[0];
+      // Giá trị cũ không còn hợp lệ (VD: đang "Trên biển" mà lô vừa đổi Hình
+      // thức sang Nội địa) — báo rõ cho người dùng biết giai đoạn đã bị đổi,
+      // thay vì âm thầm nhảy về bước đầu rồi lỡ tay Lưu đè mất giai đoạn thật.
+      if(current && list.indexOf(current) === -1){
+        select.value = list[0];
+        if(warningEl){
+          warningEl.textContent = 'Giai đoạn "' + current + '" không còn hợp lệ với Hình thức hiện tại của lô này, đã tự chuyển về "' + list[0] + '" — kiểm tra lại trước khi lưu.';
+          warningEl.style.display = 'block';
+        }
+      } else {
+        select.value = current;
+        if(warningEl){ warningEl.style.display = 'none'; warningEl.textContent = ''; }
+      }
     }
     function populateBatchSelect(currentBatch){
       if(!shipBatchSelect) return;
@@ -5991,6 +6061,7 @@ const titles = {
     const recentTbody = document.getElementById('overview-recent-tbody');
     const alertsList = document.getElementById('alerts-list');
     const FEEDBACK_DEADLINE_DAYS = 3;
+    const INVENTORY_STALE_DAYS = 14;
 
     if(!recentTbody || !sb) return;
 
@@ -6017,13 +6088,14 @@ const titles = {
     // "Cần xử lý ngay" — gom các cảnh báo đang nằm rải rác ở từng module
     // (Chứng từ/Feedback KH/Đánh giá chất lượng) thành 1 danh sách ưu tiên
     // ngay đầu Tổng quan, bấm vào 1 dòng sẽ nhảy thẳng tới module đó.
-    function renderAlerts(missingDocsCount, overdueFeedbackCount, qcPendingCount){
+    function renderAlerts(missingDocsCount, overdueFeedbackCount, qcPendingCount, staleInventoryCount){
       if(!alertsList) return;
       alertsList.textContent = '';
       const items = [
         { count: missingDocsCount, icon: 'ti-file-text', chip: 'nic-red', text: 'lô đang thiếu chứng từ trước khi thông quan', sub: 'Chứng từ', tab: 'docs' },
         { count: overdueFeedbackCount, icon: 'ti-message-star', chip: 'nic-amber', text: 'lô đã quá hạn phản hồi khách hàng (quá ' + FEEDBACK_DEADLINE_DAYS + ' ngày)', sub: 'Feedback KH', tab: 'feedback' },
-        { count: qcPendingCount, icon: 'ti-clipboard-check', chip: 'nic-blue', text: 'lượt kiểm QC đang chờ xác nhận kết quả', sub: 'Đánh giá chất lượng', tab: 'qc' }
+        { count: qcPendingCount, icon: 'ti-clipboard-check', chip: 'nic-blue', text: 'lượt kiểm QC đang chờ xác nhận kết quả', sub: 'Đánh giá chất lượng', tab: 'qc' },
+        { count: staleInventoryCount, icon: 'ti-package', chip: 'nic-amber', text: 'lô tồn kho quá ' + INVENTORY_STALE_DAYS + ' ngày chưa xuất hết', sub: 'Xưởng Ba Phi', tab: 'factory' }
       ].filter(function(item){ return item.count > 0; });
 
       if(!items.length){
@@ -6124,7 +6196,19 @@ const titles = {
           const deadline = addDays(d.received_date, FEEDBACK_DEADLINE_DAYS);
           return !!deadline && todayStr() > deadline;
         }).length;
-        renderAlerts(missingDocsCount, overdueFeedbackCount, qcPendingCount);
+        // Đã có thành phẩm, còn tồn kho (thành phẩm > đã xuất) mà nhập nguyên
+        // liệu đã quá lâu vẫn chưa xuất hết — dùng ngayNhap làm mốc vì đây là
+        // ngày sớm nhất chắc chắn đã có trong sharedBatchSummaries.
+        const staleInventoryCount = Object.values(sharedBatchSummaries)
+          .filter(function(b){
+            if(!b.hasFactory || !b.finishedQty) return false;
+            const remaining = b.finishedQty - (b.exportedQty || 0);
+            if(remaining <= 0) return false;
+            if(!b.ngayNhap) return false;
+            const deadline = addDays(b.ngayNhap, INVENTORY_STALE_DAYS);
+            return !!deadline && todayStr() > deadline;
+          }).length;
+        renderAlerts(missingDocsCount, overdueFeedbackCount, qcPendingCount, staleInventoryCount);
 
         recentTbody.textContent = '';
         const recent = shipRows.slice(0, 6);
