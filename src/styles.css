@@ -410,7 +410,11 @@
     font:inherit;color:inherit;padding:4px 6px;border-radius:7px;
     transition:background .15s ease, border-color .15s ease;
   }
-  .table-inline-select{cursor:pointer;font-weight:600;}
+  /* Select co theo bề ngang cột nên khi bảng nhiều cột, giá trị dài bị cắt
+     cụt thành chữ khác nghĩa ("Chưa đóng hàng" -> "Chưa đón"). Giữ đủ chỗ
+     cho giá trị dài nhất đang dùng ("Không đạt 1 phần"); bảng đã bọc trong
+     .table-scroll nên thà cuộn ngang còn hơn đọc sai trạng thái. */
+  .table-inline-select{cursor:pointer;font-weight:600;min-width:154px;}
   .table-inline-select:hover,
   .table-inline-input:hover{background:var(--surface-2);}
   .table-inline-select:focus,

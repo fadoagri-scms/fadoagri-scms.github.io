@@ -1990,7 +1990,7 @@ const titles = {
       summaryTbody.textContent = '';
       const tr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 13;
+      td.colSpan = 10;
       td.style.textAlign = 'center';
       td.style.color = color || 'var(--ink-soft)';
       td.style.padding = '20px';
@@ -2019,12 +2019,26 @@ const titles = {
           // 1 chủng loại lấy tổng đã xuất của cả lô, nhiều chủng loại thì
           // lấy đúng số đã xuất của riêng chủng loại đó.
           const exportedForVariety = multi ? b.exportedByVariety[v.name] : b.exportedQty;
+          // Chưa xuất kho thì vẫn phải thấy được lô này đang có bao nhiêu
+          // hàng — lùi dần về số nhập thô đã cân ở Vùng nguyên liệu, kèm nhãn
+          // nói rõ đang là số nào (trước đây để trống, nhìn như thiếu dữ liệu
+          // dù lô đã có nguyên liệu và đã kiểm QC).
+          let qtyText = '—';
+          let qtyNote = null;
+          if(exportedForVariety != null){
+            qtyText = fmtBoxQty(exportedForVariety);
+            qtyNote = 'đã xuất kho';
+          } else if(v.qty){
+            qtyText = fmtQty(v.qty);
+            qtyNote = 'nhập thô';
+          }
           lines.push({
             ncc: 'Xưởng Ba Phi',
             category: b.sanPhamByVariety[v.name] || (named ? v.name : 'Dừa'),
             qcCategory: 'Dừa',
             chungLoai: named ? v.name : null,
-            qty: exportedForVariety != null ? fmtBoxQty(exportedForVariety) : '—'
+            qty: qtyText,
+            qtyNote: qtyNote
           });
         });
       }
@@ -2095,15 +2109,23 @@ const titles = {
           tr.dataset.batch = b.batch;
 
           if(idx === 0){
+            // Khách hàng nằm ngay dưới tên lô thay vì 1 cột riêng: chỉ đơn
+            // tạo qua "Thêm đơn hàng" mới có dữ liệu này, nên để cột riêng
+            // thì hầu hết dòng chỉ hiện "—"; hơn nữa tên lô vốn đã chứa tên
+            // khách viết tắt ("MINH NHÂN - 23.26").
             const batchTd = document.createElement('td');
             batchTd.rowSpan = rowspan;
-            batchTd.textContent = b.batch;
+            const batchName = document.createElement('div');
+            batchName.textContent = b.batch;
+            batchTd.appendChild(batchName);
+            if(b.khachHang){
+              const khLine = document.createElement('div');
+              khLine.className = 'muted';
+              khLine.style.cssText = 'font-size:11px;margin-top:2px;';
+              khLine.textContent = b.khachHang;
+              batchTd.appendChild(khLine);
+            }
             tr.appendChild(batchTd);
-
-            const khTd = document.createElement('td');
-            khTd.rowSpan = rowspan;
-            khTd.textContent = b.khachHang || '—';
-            tr.appendChild(khTd);
           }
 
           const nccTd = document.createElement('td');
@@ -2125,7 +2147,6 @@ const titles = {
 
           const qtyTd = document.createElement('td');
           qtyTd.className = 'muted';
-          qtyTd.textContent = line.qty !== '—' ? line.qty : (b.soLuongDuKien ? ('Dự kiến: ' + b.soLuongDuKien) : '—');
           // Ở các dòng nối tiếp (idx>0), các ô rowspan (Trạng thái/Ghi chú/
           // Thao tác) không lặp lại nên qtyTd vô tình thành ô cuối cùng
           // trong <tr> đó — CSS "td:last-child{text-align:right}" (dành
@@ -2133,6 +2154,27 @@ const titles = {
           // trái lúc lệch phải không đồng nhất giữa các dòng. Ép rõ
           // text-align:left để tránh.
           qtyTd.style.textAlign = 'left';
+          if(line.qty !== '—'){
+            const qtyValue = document.createElement('div');
+            qtyValue.textContent = line.qty;
+            qtyTd.appendChild(qtyValue);
+            if(line.qtyNote){
+              const qtyNote = document.createElement('div');
+              qtyNote.style.cssText = 'font-size:10.5px;opacity:.75;margin-top:1px;';
+              qtyNote.textContent = line.qtyNote;
+              qtyTd.appendChild(qtyNote);
+            }
+          } else if(b.soLuongDuKien){
+            const qtyValue = document.createElement('div');
+            qtyValue.textContent = b.soLuongDuKien;
+            qtyTd.appendChild(qtyValue);
+            const qtyNote = document.createElement('div');
+            qtyNote.style.cssText = 'font-size:10.5px;opacity:.75;margin-top:1px;';
+            qtyNote.textContent = 'dự kiến';
+            qtyTd.appendChild(qtyNote);
+          } else {
+            qtyTd.textContent = '—';
+          }
           tr.appendChild(qtyTd);
 
           if(idx === 0){
@@ -2142,20 +2184,20 @@ const titles = {
             ngayGiaoTd.textContent = fmtDate(b.ngayGiaoMongMuon);
             tr.appendChild(ngayGiaoTd);
 
-            const materialTd = document.createElement('td');
-            materialTd.rowSpan = rowspan;
+            // Tiến độ = 2 mốc của cùng 1 lô (đã có nguyên liệu chưa → đã đóng
+            // hàng chưa), trước đây tách 2 cột nên chiếm chỗ gấp đôi mà vẫn
+            // phải đọc chéo mới hiểu lô đang ở đâu.
+            const progressTd = document.createElement('td');
+            progressTd.rowSpan = rowspan;
             const materialBadge = document.createElement('span');
             materialBadge.className = 'badge ' + (b.hasSourceInfo ? 'green' : 'amber');
-            materialBadge.textContent = b.hasSourceInfo ? 'Đã có' : 'Chưa có';
-            materialTd.appendChild(materialBadge);
-            tr.appendChild(materialTd);
-
-            const orderStatusTd = document.createElement('td');
-            orderStatusTd.rowSpan = rowspan;
+            materialBadge.textContent = b.hasSourceInfo ? 'Đã có nguyên liệu' : 'Chưa có nguyên liệu';
+            progressTd.appendChild(materialBadge);
             const orderStatusSelect = buildOrderStatusSelect(b);
             orderStatusSelect.className = 'table-inline-select';
-            orderStatusTd.appendChild(orderStatusSelect);
-            tr.appendChild(orderStatusTd);
+            orderStatusSelect.style.marginTop = '4px';
+            progressTd.appendChild(orderStatusSelect);
+            tr.appendChild(progressTd);
           }
 
           // Đánh giá chất lượng sửa trực tiếp ngay trong bảng — select phản
@@ -2163,24 +2205,24 @@ const titles = {
           // (category + chungLoai), chọn lại là lưu ngay (update nếu đã có
           // bản ghi khớp, insert mới nếu chưa) (ép text-align:left như qtyTd
           // để tránh CSS td:last-child bắt nhầm ở dòng nối tiếp).
+          // Kết quả kiểm và % đạt luôn thuộc về cùng 1 lần kiểm nên gộp chung
+          // 1 cột (% hiện ngay dưới ô chọn) — tách 2 cột chỉ làm bảng rộng
+          // thêm mà vẫn phải đọc ghép 2 ô mới đủ nghĩa.
           const statusTd = document.createElement('td');
           statusTd.style.textAlign = 'left';
           const statusSelect = buildQuickResultSelect(b.batch, line.qcCategory, line.chungLoai);
           statusSelect.className = 'table-inline-select';
           statusTd.appendChild(statusSelect);
-          tr.appendChild(statusTd);
-
-          // % đạt lấy từ đúng lần kiểm "Thành phẩm" gần nhất khớp dòng này
-          // (cùng check khớp với statusSelect ở trên) — chưa có số lượng
-          // kiểm/đạt cụ thể thì tạm suy ra từ Kết quả (Đạt/Đạt có điều kiện =
-          // 100%, còn lại = 0%), giống logic ở Lịch sử kiểm QC.
-          const rateTd = document.createElement('td');
-          rateTd.className = 'muted';
-          rateTd.style.textAlign = 'left';
           const matchedCheck = finishedCheck(b.batch, line.qcCategory, line.chungLoai);
           const rate = matchedCheck ? checkPassRate(matchedCheck) : null;
-          rateTd.textContent = rate ? rate.pct + '%' : '—';
-          tr.appendChild(rateTd);
+          if(rate){
+            const rateLine = document.createElement('div');
+            rateLine.className = 'muted';
+            rateLine.style.cssText = 'font-size:11px;margin-top:2px;padding-left:6px;';
+            rateLine.textContent = 'Tỷ lệ đạt ' + rate.pct + '%';
+            statusTd.appendChild(rateLine);
+          }
+          tr.appendChild(statusTd);
 
           if(idx === 0){
             const noteTd = document.createElement('td');
