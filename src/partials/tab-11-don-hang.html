@@ -1,0 +1,65 @@
+<section class="tab-content" id="tab-donhang">
+    <div class="section-header-row">
+      <div class="section-label">Đơn hàng đã chốt</div>
+      <button class="btn-primary" id="btn-open-add-order" type="button" style="display:none;"><i class="ti ti-plus"></i>Thêm đơn hàng</button>
+    </div>
+    <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Ghi nhận đơn ngay khi chốt với khách — trước cả khi có nguyên liệu — để Vùng nguyên liệu/Nhà cung cấp thấy sớm mà chuẩn bị.</div>
+    <div class="card table-scroll">
+      <table>
+        <thead>
+          <tr><th>Đơn hàng</th><th>Khách hàng</th><th>Sản phẩm</th><th>Số lượng dự kiến</th><th>Hình thức</th><th>Ngày giao mong muốn</th><th>Nguyên liệu</th><th>Ghi chú</th><th>Thao tác</th></tr>
+        </thead>
+        <tbody id="order-tbody">
+          <tr><td colspan="9" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="modal-overlay" id="add-order-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="add-order-modal-title">Thêm đơn hàng</div>
+          <button class="modal-close" id="btn-close-add-order" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <form id="form-add-order">
+          <div class="form-group">
+            <label for="ord-batch">Tên đơn / lô hàng</label>
+            <input type="text" id="ord-batch" placeholder="VD: Minh Nhân - 26.26" required>
+            <div class="muted" style="font-size:11px;margin-top:4px;" id="ord-batch-hint">Định dạng: Tên khách hàng - Số đơn.Năm (2 số cuối) — Vùng nguyên liệu sẽ dùng đúng tên này để khớp sau này.</div>
+          </div>
+          <div class="form-group">
+            <label for="ord-khach-hang">Khách hàng</label>
+            <input type="text" id="ord-khach-hang" placeholder="VD: Công ty ABC">
+          </div>
+          <div class="form-group">
+            <label for="ord-san-pham">Sản phẩm</label>
+            <input type="text" id="ord-san-pham" placeholder="VD: Dừa xiêm xanh gọt vỏ">
+          </div>
+          <div class="form-group">
+            <label for="ord-so-luong">Số lượng dự kiến</label>
+            <input type="text" id="ord-so-luong" placeholder="VD: 10.000 trái">
+          </div>
+          <div class="form-group">
+            <label for="ord-hinh-thuc">Hình thức</label>
+            <select id="ord-hinh-thuc">
+              <option value="">— Chưa xác định —</option>
+              <option value="Nội địa">Nội địa</option>
+              <option value="Xuất khẩu">Xuất khẩu</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="ord-ngay-giao">Ngày giao mong muốn</label>
+            <input type="date" id="ord-ngay-giao">
+          </div>
+          <div class="form-group">
+            <label for="ord-ghi-chu">Ghi chú</label>
+            <textarea id="ord-ghi-chu" rows="2" placeholder="Yêu cầu riêng từ khách, lưu ý nội bộ..."></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-order">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-order">Thêm đơn hàng</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>

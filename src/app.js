@@ -1,5 +1,6 @@
 const titles = {
     overview:  ["Tổng quan", "Toàn cảnh hoạt động chuỗi cung ứng hôm nay"],
+    donhang:   ["Đơn hàng", "Đơn đã chốt với khách — ghi nhận sớm để các bộ phận chuẩn bị"],
     trace:     ["Truy xuất lô hàng", "Toàn bộ hành trình 1 lô hàng trên cùng 1 trang"],
     raw:       ["Vùng nguyên liệu", "Thu mua và kiểm tra dừa thô đầu vào"],
     ncc:       ["Nhà cung cấp", "Quản lý nhà cung cấp, tra cứu đơn đặt hàng và đánh giá"],
@@ -185,6 +186,7 @@ const titles = {
   const currentUserRole = document.getElementById('current-user-role');
   const logoutBtn = document.getElementById('btn-logout');
   const navItemUsers = document.getElementById('nav-item-users');
+  const btnOpenAddOrder = document.getElementById('btn-open-add-order');
 
   function setAppVisible(visible){
     // Chọn theo .sidebar/.main (cố định) chứ không phải .gated (là class sẽ
@@ -219,6 +221,10 @@ const titles = {
       if(navBtn) navBtn.style.display = level === 'none' ? 'none' : '';
     });
     if(navItemUsers) navItemUsers.style.display = currentUser.role === 'admin' ? '' : 'none';
+    // Đơn hàng: mọi vai trò XEM được (để chuẩn bị kế hoạch), nhưng chỉ Admin
+    // được thêm/sửa — đơn hàng do nội bộ nghe lại từ sale qua điện thoại/
+    // Zalo... không phải sale tự vào hệ thống nhập.
+    if(btnOpenAddOrder) btnOpenAddOrder.style.display = currentUser.role === 'admin' ? '' : 'none';
     if(currentUserName) currentUserName.textContent = currentUser.full_name || currentUser.email || '—';
     if(currentUserRole) currentUserRole.textContent = ROLE_LABELS[currentUser.role] || currentUser.role;
   }
@@ -581,7 +587,10 @@ const titles = {
     form.addEventListener('submit', async function(e){
       e.preventDefault();
       const payload = opts.readForm(form);
-      if(opts.validate && !opts.validate(payload)) return;
+      if(opts.validate && !opts.validate(payload)){
+        alert(opts.validateMessage || 'Thiếu thông tin bắt buộc — vui lòng kiểm tra lại các trường bắt buộc trong form.');
+        return;
+      }
 
       const originalLabel = submitBtn.textContent;
       submitBtn.disabled = true;
@@ -1178,7 +1187,10 @@ const titles = {
       const trangthai = document.getElementById('f-trangthai').value;
       const ghichu = document.getElementById('f-ghichu').value.trim();
 
-      if(!batch || !ncc) return;
+      if(!batch || !ncc){
+        alert('Vui lòng nhập đủ Lô hàng và Đầu mối thu mua.');
+        return;
+      }
 
       const payload = {
         batch: batch,
@@ -1428,6 +1440,7 @@ const titles = {
         };
       },
       validate: function(payload){ return !!payload.name; },
+      validateMessage: 'Vui lòng nhập Tên nhà cung cấp.',
       afterRender: function(rows){ renderSupplierRatings(rows); }
     });
   })();
@@ -1525,6 +1538,7 @@ const titles = {
         };
       },
       validate: function(payload){ return !!payload.po_code && !!payload.supplier_name; },
+      validateMessage: 'Vui lòng nhập Mã đơn hàng và chọn Nhà cung cấp.',
       afterSave: function(){ notifyPurchaseOrdersChanged(); loadPoYears(); }
     });
 
@@ -2826,6 +2840,7 @@ const titles = {
         };
       },
       validate: function(payload){ return !!payload.batch_code; },
+      validateMessage: 'Vui lòng chọn Lô hàng.',
       afterRender: function(rows){
         allShipments = rows;
         populateLogisticsSelectors(rows);
@@ -3442,7 +3457,10 @@ const titles = {
         feedback_text: fieldVal('fb-text') || null,
         status: form.querySelector('input[name="fb-status"]:checked').value
       };
-      if(!payload.batch_code) return;
+      if(!payload.batch_code){
+        alert('Vui lòng chọn Lô hàng.');
+        return;
+      }
 
       const originalLabel = submitBtn.textContent;
       submitBtn.disabled = true;
@@ -4022,6 +4040,7 @@ const titles = {
         };
       },
       validate: function(payload){ return !!payload.full_name; },
+      validateMessage: 'Vui lòng nhập Họ tên nhân viên.',
       afterRender: function(rows){
         if(statActive) statActive.textContent = String(rows.filter(function(d){ return d.status === 'Đang làm'; }).length);
         if(statOff) statOff.textContent = String(rows.filter(function(d){ return d.status && d.status !== 'Đang làm'; }).length);
