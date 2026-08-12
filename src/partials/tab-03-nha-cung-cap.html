@@ -93,7 +93,8 @@
         <form id="form-add-po">
           <div class="form-group">
             <label for="po-batch">Lô hàng</label>
-            <input type="text" id="po-batch" placeholder="VD: MHR - 03.26">
+            <input type="text" id="po-batch" list="dl-batch-names" placeholder="Gõ vài chữ để chọn đơn đã có...">
+            <div class="muted" style="font-size:11px;margin-top:4px;display:none;color:var(--green);" id="po-batch-order-hint"></div>
           </div>
           <div class="form-group">
             <label for="po-code">Số ĐĐH</label>
@@ -101,7 +102,7 @@
           </div>
           <div class="form-group">
             <label for="po-supplier">NCC</label>
-            <input type="text" id="po-supplier" placeholder="VD: Thương lái Bến Tre" required>
+            <input type="text" id="po-supplier" list="dl-suppliers" placeholder="VD: Thương lái Bến Tre" required>
           </div>
           <div class="form-group">
             <label for="po-category">Sản phẩm</label>

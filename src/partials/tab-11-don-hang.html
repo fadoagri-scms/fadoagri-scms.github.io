@@ -1,31 +1,43 @@
 <section class="tab-content" id="tab-donhang">
-    <div class="section-header-row">
-      <div class="section-label">Đơn hàng đã chốt</div>
-      <button class="btn-primary" id="btn-open-add-order" type="button" style="display:none;"><i class="ti ti-plus"></i>Thêm đơn hàng</button>
+    <div id="order-list-section">
+      <div class="section-header-row">
+        <div class="section-label">Danh sách đơn hàng</div>
+        <div class="chart-filter-row">
+          <input type="text" id="order-search-input" placeholder="Tìm theo tên lô hoặc khách hàng..." style="font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid var(--border);padding:7px 12px;border-radius:20px;box-shadow:var(--shadow-sm);min-width:200px;">
+          <select id="order-month-select" aria-label="Chọn tháng"></select>
+          <select id="order-year-select" aria-label="Chọn năm"></select>
+        </div>
+        <button class="btn-primary" id="btn-open-add-order" type="button" style="display:none;"><i class="ti ti-plus"></i>Thêm đơn hàng</button>
+      </div>
+      <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Toàn bộ đơn hàng — cũ, mới, đang xử lý — gộp từ Nhà cung cấp, Vùng nguyên liệu, Xưởng Ba Phi và Đánh giá chất lượng. Mới nhất hiện trước. Bấm <i class="ti ti-timeline"></i> để xem toàn bộ hành trình, <i class="ti ti-clipboard-check"></i> để nhập/xem kết quả kiểm QC.</div>
+      <div class="card table-scroll">
+        <table>
+          <thead>
+            <tr><th>Lô hàng</th><th>Khách hàng</th><th>NCC</th><th>Sản phẩm</th><th>Hình thức</th><th>Số lượng</th><th>Ngày giao mong muốn</th><th>Nguyên liệu</th><th>Trạng thái đơn hàng</th><th>Đánh giá chất lượng</th><th>Tỷ lệ đạt</th><th>Ghi chú</th><th>Thao tác</th></tr>
+          </thead>
+          <tbody id="qc-summary-tbody">
+            <tr><td colspan="13" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
-    <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Ghi nhận đơn ngay khi chốt với khách — trước cả khi có nguyên liệu — để Vùng nguyên liệu/Nhà cung cấp thấy sớm mà chuẩn bị.</div>
-    <div class="card table-scroll">
-      <table>
-        <thead>
-          <tr><th>Đơn hàng</th><th>Khách hàng</th><th>Sản phẩm</th><th>Số lượng dự kiến</th><th>Hình thức</th><th>Ngày giao mong muốn</th><th>Nguyên liệu</th><th>Ghi chú</th><th>Thao tác</th></tr>
-        </thead>
-        <tbody id="order-tbody">
-          <tr><td colspan="9" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
-        </tbody>
-      </table>
+
+    <div id="order-detail-section" style="display:none;">
+      <button class="btn-secondary" id="order-detail-back" type="button" style="margin-bottom:16px;"><i class="ti ti-arrow-left"></i> Quay lại danh sách</button>
+      <div id="order-detail-body"></div>
     </div>
 
     <div class="modal-overlay" id="add-order-overlay">
       <div class="modal">
         <div class="modal-header">
-          <div class="modal-title" id="add-order-modal-title">Thêm đơn hàng</div>
+          <div class="modal-title">Thêm đơn hàng</div>
           <button class="modal-close" id="btn-close-add-order" type="button" aria-label="Đóng">&times;</button>
         </div>
         <form id="form-add-order">
           <div class="form-group">
             <label for="ord-batch">Tên đơn / lô hàng</label>
             <input type="text" id="ord-batch" placeholder="VD: Minh Nhân - 26.26" required>
-            <div class="muted" style="font-size:11px;margin-top:4px;" id="ord-batch-hint">Định dạng: Tên khách hàng - Số đơn.Năm (2 số cuối) — Vùng nguyên liệu sẽ dùng đúng tên này để khớp sau này.</div>
+            <div class="muted" style="font-size:11px;margin-top:4px;">Định dạng: Tên khách hàng - Số đơn.Năm (2 số cuối) — Vùng nguyên liệu sẽ dùng đúng tên này để khớp về sau.</div>
           </div>
           <div class="form-group">
             <label for="ord-khach-hang">Khách hàng</label>
@@ -50,10 +62,6 @@
           <div class="form-group">
             <label for="ord-ngay-giao">Ngày giao mong muốn</label>
             <input type="date" id="ord-ngay-giao">
-          </div>
-          <div class="form-group">
-            <label for="ord-ghi-chu">Ghi chú</label>
-            <textarea id="ord-ghi-chu" rows="2" placeholder="Yêu cầu riêng từ khách, lưu ý nội bộ..."></textarea>
           </div>
           <div class="modal-actions">
             <button type="button" class="btn-secondary" id="btn-cancel-add-order">Hủy</button>

@@ -14,24 +14,16 @@
       </div>
     </div>
 
-    <div class="section-header-row">
-      <div class="section-label">Tổng hợp lô hàng</div>
-      <div class="chart-filter-row">
-        <select id="qc-month-select" aria-label="Chọn tháng"></select>
-        <select id="qc-year-select" aria-label="Chọn năm"></select>
-      </div>
-      <button class="btn-primary" id="btn-new-qc-batch" type="button"><i class="ti ti-plus"></i>Nhập lô hàng mới</button>
-    </div>
-    <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Gộp thông tin từ Nhà cung cấp, Xưởng Ba Phi và kết quả kiểm QC theo từng lô hàng. Bấm biểu tượng mắt để xem chi tiết và ghi nhận kiểm QC.</div>
+    <div class="section-label">Chọn lô để kiểm</div>
     <div class="card">
-      <table>
-        <thead>
-          <tr><th>Lô hàng</th><th>NCC</th><th>Sản phẩm</th><th>Hình thức</th><th>Số lượng thực tế</th><th>Trạng thái đơn hàng</th><th>Đánh giá chất lượng</th><th>Tỷ lệ đạt</th><th>Ghi chú</th><th>Thao tác</th></tr>
-        </thead>
-        <tbody id="qc-summary-tbody">
-          <tr><td colspan="10" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
-        </tbody>
-      </table>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <i class="ti ti-search" style="font-size:16px;color:var(--ink-soft);" aria-hidden="true"></i>
+        <select id="qc-pick-batch" style="flex:1;font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;">
+          <option value="">— Chọn lô hàng —</option>
+        </select>
+        <button class="btn-primary" id="btn-open-qc-batch" type="button">Mở</button>
+      </div>
+      <div class="muted" style="font-size:11.5px;margin-top:10px;">Chỉ chọn được lô đã có sẵn (từ Vùng nguyên liệu hoặc Đơn hàng) — xem danh sách đầy đủ mọi lô hàng ở tab "Đơn hàng".</div>
     </div>
 
     <div class="modal-overlay" id="qc-batch-overlay">

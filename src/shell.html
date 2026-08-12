@@ -29,8 +29,6 @@
 
   {{TAB_ORDERS}}
 
-  {{TAB_TRACE}}
-
   {{TAB_RAW}}
 
   {{TAB_NCC}}
@@ -63,6 +61,12 @@
 </div>
 
 <div id="toast-container"></div>
+
+<!-- Nguồn gợi ý dùng chung cho các ô hay bị gõ lại tay (xem fillDatalist
+     trong app.js) — đặt ở đây vì nhiều tab cùng tham chiếu 1 danh sách. -->
+<datalist id="dl-batch-names"></datalist>
+<datalist id="dl-raw-suppliers"></datalist>
+<datalist id="dl-suppliers"></datalist>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>

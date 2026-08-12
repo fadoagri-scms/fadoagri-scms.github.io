@@ -42,7 +42,6 @@ def main():
         "{{TOPBAR}}": read(os.path.join(PARTIALS, "topbar.html")),
         "{{TAB_OVERVIEW}}": read(os.path.join(PARTIALS, "tab-01-tong-quan.html")),
         "{{TAB_ORDERS}}": read(os.path.join(PARTIALS, "tab-11-don-hang.html")),
-        "{{TAB_TRACE}}": read(os.path.join(PARTIALS, "tab-10-truy-xuat-nguon-goc.html")),
         "{{TAB_RAW}}": read(os.path.join(PARTIALS, "tab-02-vung-nguyen-lieu.html")),
         "{{TAB_NCC}}": read(os.path.join(PARTIALS, "tab-03-nha-cung-cap.html")),
         "{{TAB_FACTORY}}": read(os.path.join(PARTIALS, "tab-04-xuong-san-xuat.html")),

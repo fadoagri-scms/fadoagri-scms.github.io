@@ -19,6 +19,11 @@
 
     <div class="section-header-row">
       <div class="section-label">Lô nguyên liệu gần đây</div>
+      <div class="chart-filter-row">
+        <input type="text" id="raw-search-input" placeholder="Tìm theo tên lô hoặc đầu mối..." style="font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid var(--border);padding:7px 12px;border-radius:20px;box-shadow:var(--shadow-sm);min-width:200px;">
+        <select id="raw-month-select" aria-label="Chọn tháng"></select>
+        <select id="raw-year-select" aria-label="Chọn năm"></select>
+      </div>
       <button class="btn-primary" id="btn-open-add-batch" type="button"><i class="ti ti-plus"></i>Thêm lô nguyên liệu</button>
     </div>
     <div class="card">
@@ -91,12 +96,13 @@
         <form id="form-add-batch">
           <div class="form-group">
             <label for="f-batch">Lô hàng</label>
-            <input type="text" id="f-batch" placeholder="VD: Minh Nhân - 25.26" required>
-            <div class="muted" style="font-size:11px;margin-top:4px;" id="f-batch-hint">Định dạng: Tên khách hàng - Số đơn.Năm (2 số cuối)</div>
+            <input type="text" id="f-batch" list="dl-batch-names" placeholder="Gõ vài chữ để chọn đơn đã có..." required>
+            <div class="muted" style="font-size:11px;margin-top:4px;display:none;color:var(--green);" id="f-batch-order-hint"></div>
+            <div class="muted" style="font-size:11px;margin-top:4px;" id="f-batch-hint">Chọn từ danh sách đơn đã chốt để khỏi gõ sai — hoặc gõ mới theo mẫu: Tên khách hàng - Số đơn.Năm (2 số cuối)</div>
           </div>
           <div class="form-group">
             <label for="f-ncc">Đầu mối thu mua</label>
-            <input type="text" id="f-ncc" placeholder="VD: Thương lái Bến Tre" required>
+            <input type="text" id="f-ncc" list="dl-raw-suppliers" placeholder="VD: Thương lái Bến Tre" required>
           </div>
           <div class="form-group">
             <label>Loại</label>
