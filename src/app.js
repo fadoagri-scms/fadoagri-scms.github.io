@@ -1734,6 +1734,17 @@ const titles = {
     }
     function fmtQty(n){ return n == null ? '—' : Number(n).toLocaleString('vi-VN') + ' trái'; }
     function fmtBoxQty(n){ return n == null ? '—' : Number(n).toLocaleString('vi-VN') + ' thùng'; }
+    // "Số lượng dự kiến" là ô gõ tay tự do lúc tạo đơn (VD "10.000 trái",
+    // "5.200 cartons chanh + 200 cartons dừa") — chỉ lấy được số để so sánh
+    // tiến độ khi đúng dạng "<số> trái" (đơn vị khớp với số nhập thô thật ở
+    // Vùng nguyên liệu); dạng khác (thùng/cartons/nhiều dòng cộng "+") thì bỏ
+    // qua, không suy đoán bừa ra 1 con số sai đơn vị.
+    function parseLeadingTraiCount(text){
+      const m = String(text || '').trim().match(/^([\d.,]+)\s*trái\s*$/i);
+      if(!m) return null;
+      const n = Number(m[1].replace(/\./g, '').replace(',', '.'));
+      return isNaN(n) ? null : n;
+    }
     // Số lượng thùng của 1 đợt sản xuất = cộng dồn từng dòng Quy cách khai
     // báo sau khi đóng gói (factory_batch_boxes) — 1 đợt có thể đóng nhiều
     // quy cách khác nhau.
@@ -2031,6 +2042,15 @@ const titles = {
           } else if(v.qty){
             qtyText = fmtQty(v.qty);
             qtyNote = 'nhập thô';
+            // Tiến độ thu mua so với dự kiến — chỉ tính khi lô CHỈ 1 chủng
+            // loại (dự kiến ghi cho cả lô, không tách theo từng dòng, nên lô
+            // nhiều chủng loại không biết phần dự kiến này thuộc dòng nào) và
+            // "Số lượng dự kiến" đúng dạng "<số> trái" (cùng đơn vị với số
+            // nhập thô, so sánh khác đơn vị sẽ ra % vô nghĩa).
+            if(!multi){
+              const expectedTrai = parseLeadingTraiCount(b.soLuongDuKien);
+              if(expectedTrai) qtyNote = 'nhập thô — ' + Math.round(v.qty / expectedTrai * 100) + '% so với dự kiến';
+            }
           }
           lines.push({
             ncc: 'Xưởng Ba Phi',
@@ -4238,6 +4258,18 @@ const titles = {
         if(error) throw error;
         renderFactoryRows(data || []);
         updateFactoryStats(data || []);
+        // Gợi ý tên sản phẩm ở ô "Sản phẩm" của từng dòng Quy cách — đây là
+        // ô gõ tay tự do duy nhất còn lại cho tên sản phẩm trong cả app (Tồn
+        // kho/QC đều chọn từ dữ liệu có sẵn), gõ khác nhau 1 chữ sẽ tách lẻ
+        // thành phẩm cùng loại ra nhiều dòng ở bảng Tồn kho/tổng hợp.
+        const sanPhamNames = {};
+        (data || []).forEach(function(r){
+          const fb = r.factory_batches && (Array.isArray(r.factory_batches) ? r.factory_batches[0] : r.factory_batches);
+          if(!fb) return;
+          if(fb.san_pham) sanPhamNames[fb.san_pham] = true;
+          (fb.factory_batch_boxes || []).forEach(function(box){ if(box.san_pham) sanPhamNames[box.san_pham] = true; });
+        });
+        fillDatalist('dl-san-pham', Object.keys(sanPhamNames).sort(function(a, b){ return a.localeCompare(b, 'vi'); }));
       } catch(err){
         console.error('Không tải được dữ liệu Xưởng Ba Phi:', err);
         showFactoryMessage('Không tải được dữ liệu — kiểm tra kết nối Supabase.', 'var(--red)');
@@ -4261,6 +4293,7 @@ const titles = {
       const sanPhamInput = document.createElement('input');
       sanPhamInput.type = 'text';
       sanPhamInput.placeholder = 'Sản phẩm';
+      sanPhamInput.setAttribute('list', 'dl-san-pham');
       // Dòng mới thêm (không truyền sẵn giá trị) mặc định lấy theo dòng
       // ngay trước — đa số các dòng trong 1 đợt vẫn cùng 1 sản phẩm, tiện
       // hơn phải gõ lại, nhưng vẫn sửa được nếu dòng đó là sản phẩm khác.
@@ -4911,6 +4944,7 @@ const titles = {
     const alertsList = document.getElementById('alerts-list');
     const FEEDBACK_DEADLINE_DAYS = 3;
     const INVENTORY_STALE_DAYS = 14;
+    const DELIVERY_WARNING_DAYS = 7;
 
     if(!recentTbody || !sb) return;
 
@@ -4937,10 +4971,11 @@ const titles = {
     // "Cần xử lý ngay" — gom các cảnh báo đang nằm rải rác ở từng module
     // (Chứng từ/Feedback KH/Đánh giá chất lượng) thành 1 danh sách ưu tiên
     // ngay đầu Tổng quan, bấm vào 1 dòng sẽ nhảy thẳng tới module đó.
-    function renderAlerts(missingDocsCount, overdueFeedbackCount, qcPendingCount, staleInventoryCount, pendingOrderCount){
+    function renderAlerts(missingDocsCount, overdueFeedbackCount, qcPendingCount, staleInventoryCount, pendingOrderCount, upcomingDeliveryCount){
       if(!alertsList) return;
       alertsList.textContent = '';
       const items = [
+        { count: upcomingDeliveryCount, icon: 'ti-calendar-exclamation', chip: 'nic-red', text: 'đơn sắp/đã tới hạn giao (trong ' + DELIVERY_WARNING_DAYS + ' ngày) mà chưa đóng hàng', sub: 'Đơn hàng', tab: 'donhang' },
         { count: pendingOrderCount, icon: 'ti-shopping-cart', chip: 'nic-amber', text: 'đơn đã chốt nhưng chưa có nguyên liệu', sub: 'Đơn hàng', tab: 'donhang' },
         { count: missingDocsCount, icon: 'ti-file-text', chip: 'nic-red', text: 'lô đang thiếu chứng từ trước khi thông quan', sub: 'Chứng từ', tab: 'docs' },
         { count: overdueFeedbackCount, icon: 'ti-message-star', chip: 'nic-amber', text: 'lô đã quá hạn phản hồi khách hàng (quá ' + FEEDBACK_DEADLINE_DAYS + ' ngày)', sub: 'Feedback KH', tab: 'feedback' },
@@ -5060,7 +5095,18 @@ const titles = {
           }).length;
         const pendingOrderCount = Object.values(sharedBatchSummaries)
           .filter(function(b){ return b.hasOrderInfo && !b.hasSourceInfo; }).length;
-        renderAlerts(missingDocsCount, overdueFeedbackCount, qcPendingCount, staleInventoryCount, pendingOrderCount);
+        // "Sắp/đã tới hạn" = còn trong DELIVERY_WARNING_DAYS ngày nữa hoặc đã
+        // trễ so với Ngày giao mong muốn — nhưng chỉ tính khi lô CHƯA đóng
+        // hàng (order_status khác "Đã đóng hàng"), vì sau mốc đó việc giao
+        // đúng hạn đã chuyển sang trách nhiệm của Logistics, không còn là
+        // rủi ro "quên chuẩn bị hàng" nữa.
+        const deliveryWarnBy = addDays(todayStr(), DELIVERY_WARNING_DAYS);
+        const upcomingDeliveryCount = Object.values(sharedBatchSummaries)
+          .filter(function(b){
+            if(!b.ngayGiaoMongMuon || b.orderStatus === 'Đã đóng hàng') return false;
+            return !!deliveryWarnBy && b.ngayGiaoMongMuon <= deliveryWarnBy;
+          }).length;
+        renderAlerts(missingDocsCount, overdueFeedbackCount, qcPendingCount, staleInventoryCount, pendingOrderCount, upcomingDeliveryCount);
 
         recentTbody.textContent = '';
         const recent = shipRows.slice(0, 6);
