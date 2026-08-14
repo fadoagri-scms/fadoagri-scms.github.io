@@ -1,8 +1,9 @@
 <section class="tab-content" id="tab-factory">
     <div class="subtab-bar">
       <button class="subtab-item active" id="subtab-btn-production" data-subtab="production" type="button">Sản xuất</button>
+      <button class="subtab-item" id="subtab-btn-export" data-subtab="export" type="button">Xuất hàng</button>
+      <button class="subtab-item" id="subtab-btn-stock" data-subtab="stock" type="button">Tồn kho</button>
       <button class="subtab-item" id="subtab-btn-staff" data-subtab="staff" type="button">Nhân sự</button>
-      <button class="subtab-item" id="subtab-btn-inventory" data-subtab="inventory" type="button">Tồn kho</button>
     </div>
 
     <div class="subtab-panel active" id="subtab-production">
@@ -73,22 +74,11 @@
       </div>
     </div>
 
-    <div class="subtab-panel" id="subtab-inventory">
-      <div class="two-col">
-        <div class="stat-block">
-          <div class="stat-title">Thành phẩm tồn kho</div>
-          <div class="stat-value" id="stat-inventory-remaining">—</div>
-          <div class="muted" style="font-size:12px;">Tổng còn lại, chưa xuất</div>
-        </div>
-        <div class="stat-block">
-          <div class="stat-title">Lô đang có hàng tồn</div>
-          <div class="stat-value" id="stat-inventory-lots">—</div>
-          <div class="muted" style="font-size:12px;">Chưa xuất hết</div>
-        </div>
-      </div>
+    <div class="subtab-panel" id="subtab-export">
+      <div class="muted" style="font-size:11.5px;margin:-4px 0 14px;">Nơi ghi nhận xưởng đã xuất bao nhiêu, ngày nào — xem lô nào sắp hết hạn cần ưu tiên xuất ở tab "Tồn kho".</div>
 
       <div class="section-header-row">
-        <div class="section-label">Tồn kho thành phẩm theo lô</div>
+        <div class="section-label">Ghi nhận xuất hàng theo lô</div>
       </div>
       <div class="card">
         <table>
@@ -97,6 +87,41 @@
           </thead>
           <tbody id="inventory-tbody">
             <tr><td colspan="9" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subtab-panel" id="subtab-stock">
+      <div class="three-col">
+        <div class="stat-block">
+          <div class="stat-title">Thành phẩm tồn kho</div>
+          <div class="stat-value" id="stat-stock-remaining">—</div>
+          <div class="muted" style="font-size:12px;">Tổng còn lại, chưa xuất</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-title">Lô đang có hàng tồn</div>
+          <div class="stat-value" id="stat-stock-lots">—</div>
+          <div class="muted" style="font-size:12px;">Chưa xuất hết</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-title">Cần xuất gấp</div>
+          <div class="stat-value" id="stat-stock-urgent" style="color:var(--red);">—</div>
+          <div class="muted" style="font-size:12px;">Còn dưới 5 ngày hạn dùng</div>
+        </div>
+      </div>
+
+      <div class="section-header-row">
+        <div class="section-label">Tồn kho theo hạn sử dụng (FEFO — sắp hết hạn xuất trước)</div>
+      </div>
+      <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Chỉ để theo dõi — vào tab "Xuất hàng" để ghi nhận đã xuất bao nhiêu.</div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>Lô hàng</th><th>Sản phẩm</th><th>Quy cách</th><th>Tồn kho (trái)</th><th>Ngày sản xuất</th><th>Hạn sử dụng</th><th>Còn lại</th></tr>
+          </thead>
+          <tbody id="stock-tbody">
+            <tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
           </tbody>
         </table>
       </div>
@@ -122,7 +147,7 @@
             <label>Sản phẩm &amp; Quy cách đóng thùng</label>
             <div id="fac-boxes-list"></div>
             <button type="button" class="btn-secondary" id="btn-add-box-row" style="margin-top:4px;">+ Thêm quy cách</button>
-            <div class="muted" style="font-size:11px;margin-top:4px;">Khai báo sau khi đóng gói xong — 1 đợt sản xuất có thể đóng nhiều quy cách thùng khác nhau, kể cả sản phẩm khác nhau (VD: vài thùng làm mẫu cho khách khác).</div>
+            <div class="muted" style="font-size:11px;margin-top:4px;">Khai báo sau khi đóng gói xong — 1 đợt sản xuất có thể đóng nhiều quy cách thùng khác nhau, kể cả sản phẩm khác nhau (VD: vài thùng làm mẫu cho khách khác). "Hạn sử dụng" tính từ Ngày sản xuất ở trên — dùng để xếp thứ tự ưu tiên xuất hàng ở tab Tồn kho, để trống nếu chưa rõ.</div>
           </div>
           <div class="form-group">
             <label for="fac-start">Bắt đầu</label>

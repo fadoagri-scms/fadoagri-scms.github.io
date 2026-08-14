@@ -4285,7 +4285,7 @@ const titles = {
     // Sản phẩm dùng chung cho cả đợt) — 1 đợt có thể vừa ra sản phẩm chính
     // vừa ra vài thùng sản phẩm khác (VD: mẫu cho khách khác) mà không bị
     // gắn nhầm tên sản phẩm cho toàn bộ số thùng.
-    function createBoxRow(sanPham, quyCach, soLuongThung){
+    function createBoxRow(sanPham, quyCach, soLuongThung, hanSuDung){
       if(!boxesListEl) return;
       const row = document.createElement('div');
       row.className = 'box-row';
@@ -4295,13 +4295,16 @@ const titles = {
       sanPhamInput.placeholder = 'Sản phẩm';
       sanPhamInput.setAttribute('list', 'dl-san-pham');
       // Dòng mới thêm (không truyền sẵn giá trị) mặc định lấy theo dòng
-      // ngay trước — đa số các dòng trong 1 đợt vẫn cùng 1 sản phẩm, tiện
-      // hơn phải gõ lại, nhưng vẫn sửa được nếu dòng đó là sản phẩm khác.
-      if(sanPham == null){
+      // ngay trước — đa số các dòng trong 1 đợt vẫn cùng 1 sản phẩm (và cùng
+      // hạn sử dụng), tiện hơn phải gõ lại, nhưng vẫn sửa được nếu dòng đó
+      // là sản phẩm khác.
+      const isNewRow = sanPham == null;
+      if(isNewRow){
         const existingRows = boxesListEl.querySelectorAll('.box-row');
         if(existingRows.length){
           const lastInputs = existingRows[existingRows.length - 1].querySelectorAll('input');
           sanPham = lastInputs[0].value;
+          if(hanSuDung == null) hanSuDung = lastInputs[3].value;
         }
       }
       sanPhamInput.value = sanPham || '';
@@ -4316,6 +4319,14 @@ const titles = {
       soLuongInput.placeholder = 'Số lượng thùng';
       soLuongInput.value = soLuongThung != null ? soLuongThung : '';
       soLuongInput.style.flex = '1';
+      // Hạn sử dụng (ngày) tính từ Ngày sản xuất — dùng để xếp FEFO ở tab Tồn
+      // kho. Không bắt buộc: để trống thì dòng đó chỉ không xếp được theo
+      // hạn, không chặn lưu Quy cách.
+      const hanSuDungInput = document.createElement('input');
+      hanSuDungInput.type = 'text';
+      hanSuDungInput.placeholder = 'Hạn dùng (ngày)';
+      hanSuDungInput.value = hanSuDung != null ? hanSuDung : '';
+      hanSuDungInput.style.flex = '0.8';
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
       removeBtn.className = 'row-delete-btn';
@@ -4325,6 +4336,7 @@ const titles = {
       row.appendChild(sanPhamInput);
       row.appendChild(quyCachInput);
       row.appendChild(soLuongInput);
+      row.appendChild(hanSuDungInput);
       row.appendChild(removeBtn);
       boxesListEl.appendChild(row);
     }
@@ -4333,7 +4345,7 @@ const titles = {
       if(!boxesListEl) return;
       boxesListEl.textContent = '';
       if(boxes && boxes.length){
-        boxes.forEach(function(b){ createBoxRow(b.san_pham, b.quy_cach, b.so_luong_thung); });
+        boxes.forEach(function(b){ createBoxRow(b.san_pham, b.quy_cach, b.so_luong_thung, b.han_su_dung_ngay); });
       } else {
         createBoxRow('');
       }
@@ -4346,7 +4358,8 @@ const titles = {
         return {
           sanPham: (inputs[0].value || '').trim(),
           quyCach: parseQty(inputs[1].value),
-          soLuongThung: parseQty(inputs[2].value)
+          soLuongThung: parseQty(inputs[2].value),
+          hanSuDungNgay: parseQty(inputs[3].value)
         };
       }).filter(function(r){ return r.quyCach && r.soLuongThung; });
     }
@@ -4428,7 +4441,7 @@ const titles = {
           if(delErr) throw delErr;
           if(boxRows.length){
             const { error: insErr } = await sb.from('factory_batch_boxes').insert(boxRows.map(function(r){
-              return { factory_batch_id: factoryBatchId, quy_cach: r.quyCach, so_luong_thung: r.soLuongThung, san_pham: r.sanPham || '' };
+              return { factory_batch_id: factoryBatchId, quy_cach: r.quyCach, so_luong_thung: r.soLuongThung, san_pham: r.sanPham || '', han_su_dung_ngay: r.hanSuDungNgay };
             }));
             if(insErr) throw insErr;
           }
@@ -4530,8 +4543,10 @@ const titles = {
   // lô hàng như trước. factory_finished_stock giờ khoá duy nhất theo
   // (batch, chung_loai) thay vì chỉ (batch).
   (function(){
-    const statRemaining = document.getElementById('stat-inventory-remaining');
-    const statLots = document.getElementById('stat-inventory-lots');
+    const statRemaining = document.getElementById('stat-stock-remaining');
+    const statLots = document.getElementById('stat-stock-lots');
+    const statUrgent = document.getElementById('stat-stock-urgent');
+    const stockTbody = document.getElementById('stock-tbody');
 
     const closeInvBtn = document.getElementById('btn-close-add-inventory');
     const cancelInvBtn = document.getElementById('btn-cancel-add-inventory');
@@ -4541,6 +4556,9 @@ const titles = {
     const inventoryModalBatchInfo = document.getElementById('inventory-modal-batch-info');
     const inventorySubmitBtn = document.getElementById('btn-submit-add-inventory');
     const INVENTORY_COLS = 9;
+    const STOCK_COLS = 7;
+    const URGENT_DAYS = 5;
+    const WARNING_DAYS = 15;
     const UNSPECIFIED_VARIETY = 'Chưa phân loại';
 
     if(!inventoryOverlay || !inventoryForm || !inventoryTbody || !sb) return;
@@ -4573,6 +4591,98 @@ const titles = {
       td.textContent = text;
       tr.appendChild(td);
       inventoryTbody.appendChild(tr);
+    }
+
+    function showStockMessage(text, color){
+      if(!stockTbody) return;
+      stockTbody.textContent = '';
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = STOCK_COLS;
+      td.style.textAlign = 'center';
+      td.style.color = color || 'var(--ink-soft)';
+      td.style.padding = '20px';
+      td.textContent = text;
+      tr.appendChild(td);
+      stockTbody.appendChild(tr);
+    }
+
+    // Tab "Tồn kho" theo FEFO — 1 dòng/tổ hợp (Sản phẩm, Quy cách) đang CÒN
+    // TỒN (remainingTrai > 0), sắp theo Còn lại (ngày) tăng dần: sắp hết hạn
+    // nhất lên đầu, kể cả đã quá hạn (số âm) — càng cần thấy ngay, không
+    // phải thấy ít hơn. Dòng chưa biết Còn lại (thiếu Hạn dùng/Ngày sản
+    // xuất) xếp cuối cùng, không trộn lẫn với dòng đã biết vì không so sánh
+    // được "chưa rõ" với 1 con số cụ thể.
+    function renderStockRows(groups){
+      if(!stockTbody) return;
+      const rows = [];
+      groups.forEach(function(group){
+        group.lines.forEach(function(line){
+          line.quyCachEntries.forEach(function(entry){
+            if(entry.remainingTrai == null || entry.remainingTrai <= 0) return;
+            rows.push({ batch: group.batch, variety: line.variety, entry: entry });
+          });
+        });
+      });
+      rows.sort(function(a, b){
+        const da = a.entry.remainingDays, db = b.entry.remainingDays;
+        if(da == null && db == null) return a.batch.localeCompare(b.batch);
+        if(da == null) return 1;
+        if(db == null) return -1;
+        return da - db;
+      });
+
+      stockTbody.textContent = '';
+      if(!rows.length){ showStockMessage('Không còn hàng tồn kho.'); return; }
+
+      rows.forEach(function(r){
+        const entry = r.entry;
+        const tr = document.createElement('tr');
+        tr.className = 'hoverable';
+
+        const batchTd = document.createElement('td');
+        batchTd.textContent = r.batch;
+        tr.appendChild(batchTd);
+
+        const sanPhamTd = document.createElement('td');
+        sanPhamTd.className = 'muted';
+        sanPhamTd.textContent = entry.sanPham || '—';
+        tr.appendChild(sanPhamTd);
+
+        const quyCachTd = document.createElement('td');
+        quyCachTd.className = 'muted';
+        quyCachTd.textContent = entry.quyCach != null ? (entry.quyCach + ' trái/thùng') : '—';
+        tr.appendChild(quyCachTd);
+
+        const remainingTd = document.createElement('td');
+        remainingTd.textContent = fmtQty(entry.remainingTrai);
+        tr.appendChild(remainingTd);
+
+        const prodDateTd = document.createElement('td');
+        prodDateTd.className = 'muted';
+        prodDateTd.textContent = entry.productionDate ? fmtDate(entry.productionDate) : '—';
+        tr.appendChild(prodDateTd);
+
+        const hanDungTd = document.createElement('td');
+        hanDungTd.className = 'muted';
+        hanDungTd.textContent = entry.hanSuDungNgay != null ? (entry.hanSuDungNgay + ' ngày') : '—';
+        tr.appendChild(hanDungTd);
+
+        const remainingDaysTd = document.createElement('td');
+        if(entry.remainingDays == null){
+          remainingDaysTd.textContent = '—';
+          remainingDaysTd.className = 'muted';
+          remainingDaysTd.title = 'Chưa rõ Ngày sản xuất hoặc Hạn sử dụng của dòng này — khai báo ở Xưởng sản xuất để xếp theo FEFO.';
+        } else {
+          const badge = document.createElement('span');
+          badge.className = 'badge ' + (entry.remainingDays < 0 ? 'red' : (entry.remainingDays < URGENT_DAYS ? 'red' : (entry.remainingDays < WARNING_DAYS ? 'amber' : 'green')));
+          badge.textContent = entry.remainingDays < 0 ? ('Quá hạn ' + Math.abs(entry.remainingDays) + ' ngày') : (entry.remainingDays + ' ngày');
+          remainingDaysTd.appendChild(badge);
+        }
+        tr.appendChild(remainingDaysTd);
+
+        stockTbody.appendChild(tr);
+      });
     }
 
     function renderInventoryRows(groups){
@@ -4702,6 +4812,7 @@ const titles = {
     function updateInventoryStats(groups){
       let totalRemaining = 0;
       let lotsWithStock = 0;
+      let urgentCount = 0;
       groups.forEach(function(group){
         let batchRemaining = 0;
         group.lines.forEach(function(line){
@@ -4710,6 +4821,7 @@ const titles = {
             // tổng — không được coi như 0 hay cộng nhầm số đã đóng gói vào.
             if(entry.remainingTrai == null) return;
             batchRemaining += Math.max(entry.remainingTrai, 0);
+            if(entry.remainingTrai > 0 && entry.remainingDays != null && entry.remainingDays < URGENT_DAYS) urgentCount++;
           });
         });
         totalRemaining += batchRemaining;
@@ -4717,6 +4829,7 @@ const titles = {
       });
       if(statRemaining) statRemaining.textContent = groups.length ? totalRemaining.toLocaleString('vi-VN') + ' trái' : '—';
       if(statLots) statLots.textContent = String(lotsWithStock);
+      if(statUrgent) statUrgent.textContent = String(urgentCount);
     }
 
     function varietyKey(batch, variety){ return batch + '::' + variety; }
@@ -4725,7 +4838,7 @@ const titles = {
     async function refreshInventoryRows(){
       try{
         const [rawRes, stockRes] = await Promise.all([
-          sb.from('raw_batches').select('batch, chung_loai, factory_batches(finished_qty, san_pham, factory_batch_boxes(quy_cach, so_luong_thung, san_pham))').is('deleted_at', null),
+          sb.from('raw_batches').select('batch, chung_loai, factory_batches(finished_qty, san_pham, production_date, factory_batch_boxes(quy_cach, so_luong_thung, san_pham, han_su_dung_ngay))').is('deleted_at', null),
           sb.from('factory_finished_stock').select('*').is('deleted_at', null)
         ]);
         if(rawRes.error) throw rawRes.error;
@@ -4739,13 +4852,13 @@ const titles = {
         const varietyMap = {};
         function ensureVariety(batch, variety){
           const key = varietyKey(batch, variety);
-          if(!varietyMap[key]) varietyMap[key] = { batch: batch, variety: variety, boxesByKey: {} };
+          if(!varietyMap[key]) varietyMap[key] = { batch: batch, variety: variety, boxesByKey: {}, productionDate: null };
           return varietyMap[key];
         }
         function boxKeyOf(sanPham, quyCach){ return (sanPham || '') + '::' + quyCachKeyOf(quyCach); }
         function ensureBox(v, sanPham, quyCach){
           const key = boxKeyOf(sanPham, quyCach);
-          if(!v.boxesByKey[key]) v.boxesByKey[key] = { sanPham: sanPham || '', quyCach: quyCach, produced: 0 };
+          if(!v.boxesByKey[key]) v.boxesByKey[key] = { sanPham: sanPham || '', quyCach: quyCach, produced: 0, hanSuDungNgay: null };
           return v.boxesByKey[key];
         }
         (rawRes.data || []).forEach(function(r){
@@ -4753,11 +4866,17 @@ const titles = {
           if(!fb || fb.finished_qty == null) return;
           const variety = (r.chung_loai || '').trim() || UNSPECIFIED_VARIETY;
           const v = ensureVariety(r.batch, variety);
+          v.productionDate = fb.production_date || null;
           (fb.factory_batch_boxes || []).forEach(function(box){
             // Dữ liệu cũ trước khi tách Sản phẩm theo dòng chưa có
             // box.san_pham riêng — tạm dùng tên đại diện của cả đợt.
             const sanPham = box.san_pham || fb.san_pham || '';
-            ensureBox(v, sanPham, box.quy_cach).produced += (Number(box.so_luong_thung) || 0);
+            const entry = ensureBox(v, sanPham, box.quy_cach);
+            entry.produced += (Number(box.so_luong_thung) || 0);
+            // 1 chủng loại có thể có nhiều đợt sản xuất/nhiều dòng box cùng
+            // 1 tổ hợp (sản phẩm, quy cách) — giữ hạn dùng đã khai báo gần
+            // nhất nếu có, không để dòng sau ghi đè thành trống.
+            if(box.han_su_dung_ngay != null) entry.hanSuDungNgay = Number(box.han_su_dung_ngay);
           });
         });
 
@@ -4774,13 +4893,28 @@ const titles = {
           ensureBox(v, sanPham, s.quy_cach);
         });
 
+        // Số ngày còn lại trước khi hết hạn = Hạn dùng − (Hôm nay − Ngày sản
+        // xuất) — cả 2 vế đều thiếu thì không tính được (null), không suy
+        // đoán bừa. Âm nghĩa là đã quá hạn (vẫn hiện, tô đỏ, KHÔNG ẩn đi —
+        // hàng quá hạn còn tồn kho càng cần thấy ngay, không phải thấy ít
+        // hơn).
+        function daysBetween(fromStr, toStr){
+          const a = new Date(fromStr + 'T00:00:00Z');
+          const b = new Date(toStr + 'T00:00:00Z');
+          return Math.round((b - a) / 86400000);
+        }
+        function computeRemainingDays(productionDate, hanSuDungNgay){
+          if(!productionDate || hanSuDungNgay == null) return null;
+          return hanSuDungNgay - daysBetween(productionDate, todayStr());
+        }
+
         // Gom các dòng chủng loại theo lô để tính Tổng đã xuất (thùng) của
         // cả lô (rowspan cùng cột Lô hàng).
         const byBatch = {};
         Object.values(varietyMap).forEach(function(v){
           const keys = Object.keys(v.boxesByKey);
           const quyCachEntries = (keys.length ? keys : [boxKeyOf('', null)]).map(function(key){
-            const box = v.boxesByKey[key] || { sanPham: '', quyCach: null, produced: 0 };
+            const box = v.boxesByKey[key] || { sanPham: '', quyCach: null, produced: 0, hanSuDungNgay: null };
             const stock = stockByFullKey[varietyKey(v.batch, v.variety) + '::' + key];
             const exportedQty = stock && stock.exported_qty != null ? Number(stock.exported_qty) : null;
             // Biết đúng Quy cách của dòng này nên quy đổi thẳng ra trái,
@@ -4794,7 +4928,10 @@ const titles = {
               exportedQty: exportedQty,
               exportDate: stock ? stock.export_date : null,
               stockId: stock ? stock.id : null,
-              remainingTrai: remainingTrai
+              remainingTrai: remainingTrai,
+              hanSuDungNgay: box.hanSuDungNgay,
+              productionDate: v.productionDate,
+              remainingDays: computeRemainingDays(v.productionDate, box.hanSuDungNgay)
             };
           });
           const line = {
@@ -4823,10 +4960,12 @@ const titles = {
         });
 
         renderInventoryRows(groups);
+        renderStockRows(groups);
         updateInventoryStats(groups);
       } catch(err){
         console.error('Không tải được dữ liệu Tồn kho:', err);
         showInventoryMessage('Không tải được dữ liệu — kiểm tra kết nối Supabase.', 'var(--red)');
+        showStockMessage('Không tải được dữ liệu — kiểm tra kết nối Supabase.', 'var(--red)');
       }
     }
 
