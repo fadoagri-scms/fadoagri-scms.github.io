@@ -33,7 +33,7 @@
           <button class="modal-close" id="btn-close-add-shipment" type="button" aria-label="Đóng">&times;</button>
         </div>
         <form id="form-add-shipment">
-          <div class="form-group">
+          <div class="form-group form-group-full">
             <label for="ship-batch">Lô hàng</label>
             <select id="ship-batch" required>
               <option value="" disabled selected>Chọn lô hàng...</option>
@@ -66,6 +66,17 @@
             <input type="text" id="ship-location" placeholder="VD: Cảng Cát Lái">
           </div>
           <div class="form-group">
+            <label for="ship-vessel-name">Tên tàu (nếu có)</label>
+            <input type="text" id="ship-vessel-name" placeholder="VD: WAN HAI 292">
+            <div class="muted" style="font-size:11px;margin-top:4px;">Ghi ở mục "Vessel/Voyage" trên vận đơn (Bill of Lading).</div>
+          </div>
+          <div class="form-group">
+            <label for="ship-imo">Số IMO tàu (nếu có)</label>
+            <input type="text" id="ship-imo" placeholder="VD: 9506291">
+            <button type="button" class="btn-secondary" id="btn-lookup-imo" style="margin-top:6px;padding:4px 10px;font-size:11.5px;">Tra IMO trên VesselFinder ↗</button>
+            <div class="muted" style="font-size:11px;margin-top:4px;">Không có sẵn trên vận đơn — cần tra theo Tên tàu (nút trên). Điền vào để xem được vị trí tàu sống ngay trong bảng (nút "Xem vị trí tàu").</div>
+          </div>
+          <div class="form-group">
             <label for="ship-etd">ETD</label>
             <input type="date" id="ship-etd">
           </div>
@@ -78,7 +89,7 @@
             <input type="date" id="ship-received-date">
             <div class="muted" style="font-size:11px;margin-top:4px;">Dùng để tính hạn 3 ngày khách phải gửi feedback (module Feedback KH).</div>
           </div>
-          <div class="form-group">
+          <div class="form-group form-group-full">
             <label class="radio-option" style="display:flex;align-items:center;gap:8px;">
               <input type="checkbox" id="ship-featured" style="width:auto;">Hiển thị ở khối "Hành trình lô nổi bật" phía trên
             </label>

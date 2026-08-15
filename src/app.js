@@ -3120,6 +3120,58 @@ const titles = {
       });
     }
 
+    // Vị trí tàu sống (VesselFinder, miễn phí, không cần API key) — CHỈ tải
+    // khi bấm xem, không tự động hiện cho mọi lô, để tránh gửi IP người xem +
+    // số IMO cho bên thứ 3 một cách âm thầm. Tạo thẳng iframe trỏ tới đúng
+    // endpoint mà script nhúng chính thức của họ (aismap.js) sinh ra — không
+    // dùng script đó trực tiếp vì nó dùng document.write, không chạy được
+    // khi chèn động sau khi trang đã tải (chỉ chạy nếu có sẵn từ đầu trang).
+    // Rủi ro: đây không phải API chính thức có cam kết ổn định, VesselFinder
+    // có thể đổi URL này bất cứ lúc nào mà không báo trước.
+    function toggleShipTrack(tr, imo){
+      const existing = tr.nextElementSibling;
+      if(existing && existing.classList.contains('ship-track-row')){
+        existing.remove();
+        return;
+      }
+      const trackTr = document.createElement('tr');
+      trackTr.className = 'ship-track-row';
+      const td = document.createElement('td');
+      td.colSpan = 8;
+      td.style.padding = '10px';
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'btn-secondary';
+      closeBtn.style.cssText = 'margin-bottom:6px;padding:2px 10px;font-size:11px;';
+      closeBtn.textContent = 'Đóng';
+      closeBtn.addEventListener('click', function(){ trackTr.remove(); });
+      td.appendChild(closeBtn);
+      const iframe = document.createElement('iframe');
+      iframe.width = '100%';
+      iframe.height = '360';
+      iframe.style.cssText = 'display:block;border:1px solid var(--border);border-radius:var(--radius-sm);';
+      iframe.src = 'https://www.vesselfinder.com/aismap?width=100%25&height=360&names=true&imo=' + encodeURIComponent(imo) + '&track=true&fleet=false&clicktoact=false&store_pos=true';
+      td.appendChild(iframe);
+      trackTr.appendChild(td);
+      tr.after(trackTr);
+    }
+
+    // VesselFinder không cho gọi chéo miền để tự tra IMO theo tên tàu (CORS
+    // chặn) — mở sẵn đúng trang tìm kiếm của họ ở tab mới cho khỏi phải tự
+    // gõ lại tên tàu, người dùng vẫn phải tự đọc IMO rồi gõ tay vào ô bên
+    // cạnh.
+    const lookupImoBtn = document.getElementById('btn-lookup-imo');
+    if(lookupImoBtn){
+      lookupImoBtn.addEventListener('click', function(){
+        const name = fieldVal('ship-vessel-name');
+        if(!name){
+          alert('Vui lòng nhập Tên tàu trước.');
+          return;
+        }
+        window.open('https://www.vesselfinder.com/vessels?name=' + encodeURIComponent(name), '_blank');
+      });
+    }
+
     const shipmentsModule = initCrudModule({
       table: 'shipments',
       overlayId: 'add-shipment-overlay',
@@ -3148,6 +3200,8 @@ const titles = {
         tr.dataset.product = productDisplay;
         tr.dataset.stage = d.stage || '';
         tr.dataset.location = d.location || '';
+        tr.dataset.vesselName = d.vessel_name || '';
+        tr.dataset.imo = d.imo || '';
         tr.dataset.etd = d.etd || '';
         tr.dataset.eta = d.eta || '';
         tr.dataset.receivedDate = d.received_date || '';
@@ -3163,6 +3217,15 @@ const titles = {
         tr.cells[3].appendChild(badge);
         tr.cells[4].textContent = d.location || '—';
         tr.cells[4].className = 'muted';
+        if(d.imo){
+          const trackBtn = document.createElement('button');
+          trackBtn.type = 'button';
+          trackBtn.className = 'btn-secondary';
+          trackBtn.style.cssText = 'display:inline-flex;align-items:center;margin-top:4px;padding:3px 10px;font-size:11px;line-height:1.6;white-space:nowrap;';
+          trackBtn.textContent = 'Xem vị trí tàu';
+          trackBtn.addEventListener('click', function(){ toggleShipTrack(tr, d.imo); });
+          tr.cells[4].appendChild(trackBtn);
+        }
         tr.cells[5].textContent = fmtDate(d.etd);
         tr.cells[6].textContent = fmtDate(d.eta);
       },
@@ -3172,6 +3235,8 @@ const titles = {
         updateStageOptions(tr.dataset.batch || '', tr.dataset.stage || 'Kho nội địa');
         document.getElementById('ship-pi-po').value = tr.dataset.piPo || '';
         document.getElementById('ship-location').value = tr.dataset.location || '';
+        document.getElementById('ship-vessel-name').value = tr.dataset.vesselName || '';
+        document.getElementById('ship-imo').value = tr.dataset.imo || '';
         document.getElementById('ship-etd').value = tr.dataset.etd || '';
         document.getElementById('ship-eta').value = tr.dataset.eta || '';
         document.getElementById('ship-received-date').value = tr.dataset.receivedDate || '';
@@ -3186,6 +3251,8 @@ const titles = {
           product: fieldVal('ship-product') || null,
           stage: stage,
           location: fieldVal('ship-location') || null,
+          vessel_name: fieldVal('ship-vessel-name') || null,
+          imo: fieldVal('ship-imo') || null,
           etd: fieldVal('ship-etd') || null,
           eta: fieldVal('ship-eta') || null,
           // Chuyển sang "Khách đã nhận hàng" mà không nhập ngày cụ thể thì tự

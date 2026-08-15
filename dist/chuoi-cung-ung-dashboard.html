@@ -313,10 +313,20 @@
   .modal-overlay.active{display:flex;}
   .modal{
     background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);
-    width:100%;max-width:420px;max-height:90vh;overflow-y:auto;
-    padding:22px 24px 24px;
+    width:100%;max-width:640px;max-height:92vh;overflow-y:auto;
+    padding:18px 24px 20px;
   }
   .modal.modal-lg{max-width:680px;}
+  /* Form 2 cột để vừa trong 1 màn hình, đỡ phải cuộn — field ngắn (text/
+     select/date) xếp cạnh nhau, field dài (textarea, nhóm checkbox/radio,
+     danh sách động...) đánh dấu .form-group-full để chiếm cả hàng. */
+  .modal form{display:grid;grid-template-columns:1fr 1fr;column-gap:16px;}
+  .form-group-full{grid-column:1 / -1;}
+  .modal-actions{grid-column:1 / -1;}
+  @media (max-width:640px){
+    .modal{max-width:480px;}
+    .modal form{grid-template-columns:1fr;}
+  }
   .modal-confirm-body{font-size:13.5px;color:var(--ink-soft);line-height:1.5;}
 
   #toast-container{
@@ -352,7 +362,7 @@
     background:var(--surface);border:1px solid var(--border);border-radius:8px;
     padding:4px 8px;cursor:pointer;
   }
-  .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+  .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
   .modal-title{font-size:16px;font-weight:700;color:var(--ink);}
   .modal-close{
     background:none;border:none;font-size:20px;color:var(--ink-soft);
@@ -360,15 +370,15 @@
   }
   .modal-close:hover{color:var(--ink);}
 
-  .form-group{margin-bottom:14px;}
-  .form-group label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;}
+  .form-group{margin-bottom:10px;}
+  .form-group label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;}
   .form-group input[type="text"],
   .form-group input[type="date"],
   .form-group select,
   .form-group textarea{
     width:100%;font-family:inherit;font-size:13.5px;color:var(--ink);
     background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);
-    padding:9px 12px;
+    padding:7px 12px;
   }
   .form-group textarea{resize:vertical;}
   .form-group input:focus,
@@ -381,7 +391,7 @@
   .radio-option{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:500;color:var(--ink);cursor:pointer;}
   .radio-option input{cursor:pointer;}
 
-  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:12px;}
 
   .chart-filter-row{display:flex;gap:8px;}
   .chart-filter-row select{
@@ -1345,7 +1355,7 @@
           <button class="modal-close" id="btn-close-add-shipment" type="button" aria-label="Đóng">&times;</button>
         </div>
         <form id="form-add-shipment">
-          <div class="form-group">
+          <div class="form-group form-group-full">
             <label for="ship-batch">Lô hàng</label>
             <select id="ship-batch" required>
               <option value="" disabled selected>Chọn lô hàng...</option>
@@ -1378,6 +1388,17 @@
             <input type="text" id="ship-location" placeholder="VD: Cảng Cát Lái">
           </div>
           <div class="form-group">
+            <label for="ship-vessel-name">Tên tàu (nếu có)</label>
+            <input type="text" id="ship-vessel-name" placeholder="VD: WAN HAI 292">
+            <div class="muted" style="font-size:11px;margin-top:4px;">Ghi ở mục "Vessel/Voyage" trên vận đơn (Bill of Lading).</div>
+          </div>
+          <div class="form-group">
+            <label for="ship-imo">Số IMO tàu (nếu có)</label>
+            <input type="text" id="ship-imo" placeholder="VD: 9506291">
+            <button type="button" class="btn-secondary" id="btn-lookup-imo" style="margin-top:6px;padding:4px 10px;font-size:11.5px;">Tra IMO trên VesselFinder ↗</button>
+            <div class="muted" style="font-size:11px;margin-top:4px;">Không có sẵn trên vận đơn — cần tra theo Tên tàu (nút trên). Điền vào để xem được vị trí tàu sống ngay trong bảng (nút "Xem vị trí tàu").</div>
+          </div>
+          <div class="form-group">
             <label for="ship-etd">ETD</label>
             <input type="date" id="ship-etd">
           </div>
@@ -1390,7 +1411,7 @@
             <input type="date" id="ship-received-date">
             <div class="muted" style="font-size:11px;margin-top:4px;">Dùng để tính hạn 3 ngày khách phải gửi feedback (module Feedback KH).</div>
           </div>
-          <div class="form-group">
+          <div class="form-group form-group-full">
             <label class="radio-option" style="display:flex;align-items:center;gap:8px;">
               <input type="checkbox" id="ship-featured" style="width:auto;">Hiển thị ở khối "Hành trình lô nổi bật" phía trên
             </label>
@@ -4825,6 +4846,58 @@ const titles = {
       });
     }
 
+    // Vị trí tàu sống (VesselFinder, miễn phí, không cần API key) — CHỈ tải
+    // khi bấm xem, không tự động hiện cho mọi lô, để tránh gửi IP người xem +
+    // số IMO cho bên thứ 3 một cách âm thầm. Tạo thẳng iframe trỏ tới đúng
+    // endpoint mà script nhúng chính thức của họ (aismap.js) sinh ra — không
+    // dùng script đó trực tiếp vì nó dùng document.write, không chạy được
+    // khi chèn động sau khi trang đã tải (chỉ chạy nếu có sẵn từ đầu trang).
+    // Rủi ro: đây không phải API chính thức có cam kết ổn định, VesselFinder
+    // có thể đổi URL này bất cứ lúc nào mà không báo trước.
+    function toggleShipTrack(tr, imo){
+      const existing = tr.nextElementSibling;
+      if(existing && existing.classList.contains('ship-track-row')){
+        existing.remove();
+        return;
+      }
+      const trackTr = document.createElement('tr');
+      trackTr.className = 'ship-track-row';
+      const td = document.createElement('td');
+      td.colSpan = 8;
+      td.style.padding = '10px';
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'btn-secondary';
+      closeBtn.style.cssText = 'margin-bottom:6px;padding:2px 10px;font-size:11px;';
+      closeBtn.textContent = 'Đóng';
+      closeBtn.addEventListener('click', function(){ trackTr.remove(); });
+      td.appendChild(closeBtn);
+      const iframe = document.createElement('iframe');
+      iframe.width = '100%';
+      iframe.height = '360';
+      iframe.style.cssText = 'display:block;border:1px solid var(--border);border-radius:var(--radius-sm);';
+      iframe.src = 'https://www.vesselfinder.com/aismap?width=100%25&height=360&names=true&imo=' + encodeURIComponent(imo) + '&track=true&fleet=false&clicktoact=false&store_pos=true';
+      td.appendChild(iframe);
+      trackTr.appendChild(td);
+      tr.after(trackTr);
+    }
+
+    // VesselFinder không cho gọi chéo miền để tự tra IMO theo tên tàu (CORS
+    // chặn) — mở sẵn đúng trang tìm kiếm của họ ở tab mới cho khỏi phải tự
+    // gõ lại tên tàu, người dùng vẫn phải tự đọc IMO rồi gõ tay vào ô bên
+    // cạnh.
+    const lookupImoBtn = document.getElementById('btn-lookup-imo');
+    if(lookupImoBtn){
+      lookupImoBtn.addEventListener('click', function(){
+        const name = fieldVal('ship-vessel-name');
+        if(!name){
+          alert('Vui lòng nhập Tên tàu trước.');
+          return;
+        }
+        window.open('https://www.vesselfinder.com/vessels?name=' + encodeURIComponent(name), '_blank');
+      });
+    }
+
     const shipmentsModule = initCrudModule({
       table: 'shipments',
       overlayId: 'add-shipment-overlay',
@@ -4853,6 +4926,8 @@ const titles = {
         tr.dataset.product = productDisplay;
         tr.dataset.stage = d.stage || '';
         tr.dataset.location = d.location || '';
+        tr.dataset.vesselName = d.vessel_name || '';
+        tr.dataset.imo = d.imo || '';
         tr.dataset.etd = d.etd || '';
         tr.dataset.eta = d.eta || '';
         tr.dataset.receivedDate = d.received_date || '';
@@ -4868,6 +4943,15 @@ const titles = {
         tr.cells[3].appendChild(badge);
         tr.cells[4].textContent = d.location || '—';
         tr.cells[4].className = 'muted';
+        if(d.imo){
+          const trackBtn = document.createElement('button');
+          trackBtn.type = 'button';
+          trackBtn.className = 'btn-secondary';
+          trackBtn.style.cssText = 'display:inline-flex;align-items:center;margin-top:4px;padding:3px 10px;font-size:11px;line-height:1.6;white-space:nowrap;';
+          trackBtn.textContent = 'Xem vị trí tàu';
+          trackBtn.addEventListener('click', function(){ toggleShipTrack(tr, d.imo); });
+          tr.cells[4].appendChild(trackBtn);
+        }
         tr.cells[5].textContent = fmtDate(d.etd);
         tr.cells[6].textContent = fmtDate(d.eta);
       },
@@ -4877,6 +4961,8 @@ const titles = {
         updateStageOptions(tr.dataset.batch || '', tr.dataset.stage || 'Kho nội địa');
         document.getElementById('ship-pi-po').value = tr.dataset.piPo || '';
         document.getElementById('ship-location').value = tr.dataset.location || '';
+        document.getElementById('ship-vessel-name').value = tr.dataset.vesselName || '';
+        document.getElementById('ship-imo').value = tr.dataset.imo || '';
         document.getElementById('ship-etd').value = tr.dataset.etd || '';
         document.getElementById('ship-eta').value = tr.dataset.eta || '';
         document.getElementById('ship-received-date').value = tr.dataset.receivedDate || '';
@@ -4891,6 +4977,8 @@ const titles = {
           product: fieldVal('ship-product') || null,
           stage: stage,
           location: fieldVal('ship-location') || null,
+          vessel_name: fieldVal('ship-vessel-name') || null,
+          imo: fieldVal('ship-imo') || null,
           etd: fieldVal('ship-etd') || null,
           eta: fieldVal('ship-eta') || null,
           // Chuyển sang "Khách đã nhận hàng" mà không nhập ngày cụ thể thì tự
