@@ -1491,7 +1491,7 @@ const titles = {
 
       list.forEach(function(s){
         const decided = qcRows.filter(function(q){ return s.batches.has(q.batch_code) && q.result && q.result !== 'Chờ xác nhận'; });
-        const passed = decided.filter(function(q){ return q.result === 'Đạt' || q.result === 'Đạt có điều kiện'; });
+        const passed = decided.filter(function(q){ return q.result === 'Đạt'; });
         const qcPassRate = decided.length ? Math.round(passed.length / decided.length * 100) : null;
         const onTimeRate = s.onTimeConsidered ? Math.round(s.onTime / s.onTimeConsidered * 100) : null;
 
@@ -1696,7 +1696,15 @@ const titles = {
     const orderMonthSelect = document.getElementById('order-month-select');
     const orderYearSelect = document.getElementById('order-year-select');
 
-    const overlay = document.getElementById('qc-batch-overlay');
+    // Khối nhập kết quả kiểm nhúng thẳng trên trang (không còn là modal nổi
+    // lên nữa) — bấm 1 dòng trong bảng "Chọn lô để kiểm" là gắn khối này
+    // vào ngay dưới dòng đó (insertDetailPanelAfterRow), bấm dòng đó lần
+    // nữa hoặc bấm "Đóng" thì gỡ ra.
+    const detailPanel = document.getElementById('qc-detail-panel');
+    const pickTbody = document.getElementById('qc-pick-tbody');
+    const pickSearchInput = document.getElementById('qc-pick-search');
+    const pickMonthSelect = document.getElementById('qc-pick-month-select');
+    const pickYearSelect = document.getElementById('qc-pick-year-select');
     const closeBtn = document.getElementById('btn-close-qc-batch');
     const cancelBtn = document.getElementById('btn-cancel-add-qc');
     const form = document.getElementById('form-add-qc');
@@ -1710,10 +1718,10 @@ const titles = {
     const poBreakdownSection = document.getElementById('qc-po-breakdown-section');
     const poBreakdownTbody = document.getElementById('qc-po-breakdown-tbody');
 
-    if(!summaryTbody || !overlay || !form || !sb) return;
+    if(!summaryTbody || !detailPanel || !pickTbody || !form || !sb) return;
 
     function resultBadgeClass(r){
-      return { 'Chờ xác nhận': 'amber', 'Đạt': 'green', 'Đạt có điều kiện': 'amber', 'Không đạt 1 phần': 'red' }[r] || 'gray';
+      return { 'Chờ xác nhận': 'amber', 'Đạt': 'green', 'Không đạt 1 phần': 'red' }[r] || 'gray';
     }
     // Tô màu select sửa trực tiếp trong bảng theo giá trị đang chọn (cùng
     // bảng màu với badge — xem .table-inline-select.select-* trong CSS).
@@ -1855,8 +1863,15 @@ const titles = {
         b.batchInfoCreatedAt = bi.created_at || null;
         // Đơn đã chốt trước khi có nguyên liệu vẫn phải hiện trong bảng —
         // "có thông tin" giờ không chỉ là có nguồn thật (NCC/Vùng nguyên
-        // liệu) mà còn tính cả khi đã đăng ký đơn hàng qua đây.
-        if(bi.khach_hang || bi.san_pham || bi.so_luong_du_kien || bi.ngay_giao_mong_muon) b.hasOrderInfo = true;
+        // liệu) mà còn tính cả khi đã đăng ký đơn hàng qua đây. Trước đây
+        // chỉ tính là "có thông tin" nếu đã điền Khách hàng/Sản phẩm/Số
+        // lượng/Ngày giao — nhưng "Thêm đơn hàng" chỉ BẮT BUỘC mỗi ô Tên
+        // đơn/lô hàng, các ô còn lại đều tùy chọn, nên 1 đơn chỉ mới gõ tên
+        // lô (chưa kịp điền gì khác) sẽ biến mất khỏi mọi nơi — không thấy
+        // ở đây, không gợi ý được ở Vùng nguyên liệu/PO/QC. Có dòng
+        // batch_info khớp đúng lô này là đủ bằng chứng "đã đăng ký", không
+        // cần đợi điền thêm field nào khác mới hiện.
+        b.hasOrderInfo = true;
       });
 
       // factory_finished_stock.exported_qty = số lượng ĐÃ xuất kho/load cont
@@ -1953,7 +1968,7 @@ const titles = {
       }) || null;
     }
 
-    const QUICK_RESULT_OPTIONS = ['Chờ xác nhận', 'Đạt', 'Đạt có điều kiện', 'Không đạt 1 phần'];
+    const QUICK_RESULT_OPTIONS = ['Chờ xác nhận', 'Đạt', 'Không đạt 1 phần'];
 
     async function saveQuickResult(batchCode, qcCategory, chungLoai, value){
       if(!value) return;
@@ -2458,15 +2473,15 @@ const titles = {
 
     // Tỷ lệ đạt của 1 lần kiểm: ưu tiên số lượng kiểm/đạt nếu đã nhập (chính
     // xác theo đúng số lượng thực tế); chưa nhập thì tạm coi Kết quả là
-    // nhị phân (Đạt/Đạt có điều kiện = 100%, còn lại = 0%) để vẫn có số mà
-    // không bắt buộc phải đo số lượng mỗi lần kiểm.
+    // nhị phân (Đạt = 100%, còn lại = 0%) để vẫn có số mà không bắt buộc
+    // phải đo số lượng mỗi lần kiểm.
     function checkPassRate(d){
       if(d.so_luong_kiem != null && Number(d.so_luong_kiem) > 0){
         const dat = d.so_luong_dat != null ? Number(d.so_luong_dat) : 0;
         return { kiem: Number(d.so_luong_kiem), dat: dat, pct: Math.round(dat / Number(d.so_luong_kiem) * 100) };
       }
       if(!d.result || d.result === 'Chờ xác nhận') return null;
-      const pass = d.result === 'Đạt' || d.result === 'Đạt có điều kiện';
+      const pass = d.result === 'Đạt';
       return { kiem: 1, dat: pass ? 1 : 0, pct: pass ? 100 : 0 };
     }
 
@@ -2620,6 +2635,133 @@ const titles = {
       submitBtn.textContent = 'Thêm kết quả';
     }
 
+    // Trạng thái tổng + tỷ lệ đạt của 1 lô cho bảng "Chọn lô để kiểm" — cùng
+    // thứ tự ưu tiên (Không đạt > Chờ xác nhận > Đạt) với batchQcStatus ở
+    // Tổng quan, viết riêng vì khác closure, không gọi chéo được.
+    function pickBatchStatus(batchCode){
+      const checks = allQcRows.filter(function(q){ return q.batch_code === batchCode; });
+      if(!checks.length) return 'Chưa kiểm';
+      if(checks.some(function(q){ return q.result === 'Không đạt 1 phần'; })) return 'Không đạt 1 phần';
+      if(checks.some(function(q){ return !q.result || q.result === 'Chờ xác nhận'; })) return 'Chờ xác nhận';
+      return 'Đạt';
+    }
+    function pickBatchPassRate(batchCode){
+      let kiem = 0, dat = 0;
+      allQcRows.filter(function(q){ return q.batch_code === batchCode; }).forEach(function(q){
+        const rate = checkPassRate(q);
+        if(!rate) return;
+        kiem += rate.kiem; dat += rate.dat;
+      });
+      return kiem ? Math.round(dat / kiem * 100) : null;
+    }
+
+    function matchesPickSearch(b){
+      const q = (pickSearchInput && pickSearchInput.value || '').trim().toLowerCase();
+      return !q || b.batch.toLowerCase().indexOf(q) !== -1;
+    }
+    function matchesPickPeriod(b){
+      if(!pickYearSelect || !pickYearSelect.value) return true;
+      const d = orderRecencyDate(b);
+      const p = d ? periodParts(d) : null;
+      if(!p) return false;
+      if(p.year !== Number(pickYearSelect.value)) return false;
+      if(pickMonthSelect && pickMonthSelect.value && p.month !== Number(pickMonthSelect.value)) return false;
+      return true;
+    }
+    function populatePickPeriodSelect(){
+      if(!pickYearSelect) return;
+      const years = Object.values(batchSummaries)
+        .filter(function(b){ return b.hasSourceInfo || b.hasOrderInfo; })
+        .map(function(b){ const d = orderRecencyDate(b); const p = d ? periodParts(d) : null; return p ? p.year : null; })
+        .filter(Boolean);
+      populateMonthYearSelect(pickMonthSelect, pickYearSelect, years);
+    }
+    function findPickRow(batchCode){
+      return Array.from(pickTbody.querySelectorAll('tr[data-batch]')).find(function(tr){ return tr.dataset.batch === batchCode; }) || null;
+    }
+    function renderPickList(){
+      let batches = Object.values(batchSummaries)
+        .filter(function(b){ return b.hasSourceInfo || b.hasOrderInfo; })
+        .filter(matchesPickSearch)
+        .filter(matchesPickPeriod)
+        .sort(function(a, b){
+          const da = orderRecencyDate(a) || '';
+          const db = orderRecencyDate(b) || '';
+          if(da === db) return a.batch.localeCompare(b.batch);
+          return db.localeCompare(da);
+        });
+      // Lô đang mở khối nhập bên dưới phải LUÔN có mặt trong bảng dù bộ lọc
+      // tìm/tháng/năm đang loại nó ra — không thì khối nhập mất chỗ bám (VD:
+      // mở từ icon QC ở tab Đơn hàng trong khi ở đây đang lọc kỳ khác).
+      if(currentBatch && detailPanel.style.display !== 'none' && !batches.some(function(b){ return b.batch === currentBatch; })){
+        const pinned = batchSummaries[currentBatch];
+        if(pinned) batches = [pinned].concat(batches);
+      }
+
+      pickTbody.textContent = '';
+      if(!batches.length){
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 5;
+        td.style.cssText = 'text-align:center;color:var(--ink-soft);padding:20px;';
+        td.textContent = 'Không có lô nào khớp.';
+        tr.appendChild(td);
+        pickTbody.appendChild(tr);
+        return;
+      }
+      batches.forEach(function(b){
+        const tr = document.createElement('tr');
+        tr.className = 'hoverable';
+        tr.dataset.batch = b.batch;
+
+        const batchTd = document.createElement('td');
+        batchTd.textContent = b.batch;
+        tr.appendChild(batchTd);
+
+        const catTd = document.createElement('td');
+        catTd.className = 'muted';
+        catTd.textContent = b.category || '—';
+        tr.appendChild(catTd);
+
+        const dateTd = document.createElement('td');
+        dateTd.className = 'muted';
+        dateTd.textContent = fmtDate(orderRecencyDate(b));
+        tr.appendChild(dateTd);
+
+        const status = pickBatchStatus(b.batch);
+        const statusTd = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + resultBadgeClass(status);
+        badge.textContent = status;
+        statusTd.appendChild(badge);
+        tr.appendChild(statusTd);
+
+        const rate = pickBatchPassRate(b.batch);
+        const rateTd = document.createElement('td');
+        rateTd.className = 'muted';
+        rateTd.textContent = rate != null ? rate + '%' : '—';
+        tr.appendChild(rateTd);
+
+        pickTbody.appendChild(tr);
+      });
+      if(currentBatch && detailPanel.style.display !== 'none') insertDetailPanelAfterRow(currentBatch);
+    }
+
+    function insertDetailPanelAfterRow(batchCode){
+      const oldExpando = pickTbody.querySelector('.qc-detail-row');
+      if(oldExpando) oldExpando.remove();
+      const row = findPickRow(batchCode);
+      if(!row) return;
+      const expandoTr = document.createElement('tr');
+      expandoTr.className = 'qc-detail-row';
+      const td = document.createElement('td');
+      td.colSpan = 5;
+      td.style.cssText = 'padding:16px;background:var(--surface-2);';
+      td.appendChild(detailPanel);
+      expandoTr.appendChild(td);
+      row.after(expandoTr);
+    }
+
     function openBatchModal(batchCode){
       currentBatch = batchCode;
       const b = batchSummaries[batchCode] || {
@@ -2632,11 +2774,18 @@ const titles = {
       renderPoBreakdown(b);
       renderHistory(batchCode);
       resetForm();
-      overlay.classList.add('active');
+      detailPanel.style.display = '';
+      // Gọi từ tab khác (VD: icon QC ở bảng Đơn hàng) thì chuyển qua tab
+      // Đánh giá chất lượng trước, rồi mới gắn khối nhập vào đúng dòng.
+      const tabQc = document.getElementById('tab-qc');
+      if(tabQc && !tabQc.classList.contains('active')) goTab('qc');
+      renderPickList();
     }
 
     function closeBatchModal(){
-      overlay.classList.remove('active');
+      detailPanel.style.display = 'none';
+      const oldExpando = pickTbody.querySelector('.qc-detail-row');
+      if(oldExpando) oldExpando.remove();
       currentBatch = null;
       resetForm();
     }
@@ -2654,40 +2803,19 @@ const titles = {
       if(tr && tr.dataset.batch) openBatchModal(tr.dataset.batch);
     });
 
-    closeBtn.addEventListener('click', closeBatchModal);
-    overlay.addEventListener('click', function(e){ if(e.target === overlay) closeBatchModal(); });
-    cancelBtn.addEventListener('click', resetForm);
+    pickTbody.addEventListener('click', function(e){
+      const tr = e.target.closest('tr[data-batch]');
+      if(!tr) return;
+      const batchCode = tr.dataset.batch;
+      if(currentBatch === batchCode && detailPanel.style.display !== 'none') closeBatchModal();
+      else openBatchModal(batchCode);
+    });
 
-    // Chọn lô để kiểm — chỉ liệt kê lô ĐÃ CÓ (nguồn thật hoặc đơn đã đăng ký
-    // qua tab Đơn hàng), không tự tạo lô mới ở đây nữa (giống cách Logistics/
-    // Chứng từ/Feedback KH chỉ chọn từ danh sách có sẵn).
-    const pickBatchSelect = document.getElementById('qc-pick-batch');
-    const pickBatchBtn = document.getElementById('btn-open-qc-batch');
-    function populatePickBatch(){
-      if(!pickBatchSelect) return;
-      const current = pickBatchSelect.value;
-      const batches = Object.values(batchSummaries)
-        .filter(function(b){ return b.hasSourceInfo || b.hasOrderInfo; })
-        .map(function(b){ return b.batch; })
-        .sort();
-      pickBatchSelect.textContent = '';
-      const blank = document.createElement('option');
-      blank.value = '';
-      blank.textContent = '— Chọn lô hàng —';
-      pickBatchSelect.appendChild(blank);
-      batches.forEach(function(code){
-        const opt = document.createElement('option');
-        opt.value = code;
-        opt.textContent = code;
-        pickBatchSelect.appendChild(opt);
-      });
-      if(current && batches.indexOf(current) !== -1) pickBatchSelect.value = current;
-    }
-    if(pickBatchBtn){
-      pickBatchBtn.addEventListener('click', function(){
-        if(pickBatchSelect && pickBatchSelect.value) openBatchModal(pickBatchSelect.value);
-      });
-    }
+    closeBtn.addEventListener('click', closeBatchModal);
+    cancelBtn.addEventListener('click', resetForm);
+    if(pickSearchInput) pickSearchInput.addEventListener('input', renderPickList);
+    if(pickMonthSelect) pickMonthSelect.addEventListener('change', renderPickList);
+    if(pickYearSelect) pickYearSelect.addEventListener('change', renderPickList);
 
     // Lọc tháng/năm cho bảng Đơn hàng — dựa theo cùng mốc ngày dùng để sắp
     // xếp (orderRecencyDate), không phải periodDate (đó là mốc SỚM NHẤT,
@@ -2771,10 +2899,11 @@ const titles = {
         notifyBatchSummaryChanged();
         populateOrderPeriodSelect();
         renderSummary();
-        populatePickBatch();
+        populatePickPeriodSelect();
+        renderPickList();
         updateStats();
 
-        if(currentBatch && overlay.classList.contains('active')){
+        if(currentBatch && detailPanel.style.display !== 'none'){
           const b = batchSummaries[currentBatch];
           if(b){ renderInfoGrid(b); renderPoBreakdown(b); }
           renderHistory(currentBatch);
@@ -5256,7 +5385,7 @@ const titles = {
           .length;
         const activeShipments = shipRows.filter(function(d){ return d.stage !== 'Khách đã nhận hàng'; }).length;
         const decidedQc = qcRows.filter(function(d){ return d.result && d.result !== 'Chờ xác nhận'; });
-        const passedQc = decidedQc.filter(function(d){ return d.result === 'Đạt' || d.result === 'Đạt có điều kiện'; });
+        const passedQc = decidedQc.filter(function(d){ return d.result === 'Đạt'; });
         const ratings = fbRows.filter(function(d){ return d.rating != null; }).map(function(d){ return d.rating; });
         const avgRating = ratings.length ? ratings.reduce(function(a, b){ return a + b; }, 0) / ratings.length : null;
 
@@ -6247,7 +6376,7 @@ const titles = {
 
       const finishedQc = qcRows.filter(function(q){ return q.check_type === 'Thành phẩm'; });
       let qcState = 'pending';
-      if(finishedQc.some(function(q){ return q.result === 'Đạt' || q.result === 'Đạt có điều kiện'; })) qcState = 'done';
+      if(finishedQc.some(function(q){ return q.result === 'Đạt'; })) qcState = 'done';
       else if(finishedQc.length) qcState = 'active';
 
       let xuatKhoState = 'pending';

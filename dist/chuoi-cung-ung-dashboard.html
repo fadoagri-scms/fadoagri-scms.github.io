@@ -313,21 +313,50 @@
   .modal-overlay.active{display:flex;}
   .modal{
     background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);
-    width:100%;max-width:640px;max-height:92vh;overflow-y:auto;
+    width:100%;max-width:420px;max-height:92vh;overflow-y:auto;
     padding:18px 24px 20px;
   }
   .modal.modal-lg{max-width:680px;}
-  /* Form 2 cột để vừa trong 1 màn hình, đỡ phải cuộn — field ngắn (text/
-     select/date) xếp cạnh nhau, field dài (textarea, nhóm checkbox/radio,
-     danh sách động...) đánh dấu .form-group-full để chiếm cả hàng. */
-  .modal form{display:grid;grid-template-columns:1fr 1fr;column-gap:16px;}
+  /* Form 2 cột CHỈ áp dụng cho form chủ động đánh dấu .form-grid (nhiều
+     trường — VD Logistics, hoặc bảng kiểm QC dạng nhúng thẳng trên trang
+     chứ không riêng trong modal) để vừa trong 1 màn hình, đỡ phải cuộn.
+     Form ít trường (Thêm NCC, Thêm nhân sự...) mặc định vẫn 1 cột dọc như
+     trước — ép 2 cột cho form ngắn chỉ làm nó trông rời rạc, không giúp
+     gì. Field dài trong form 2 cột (textarea, nhóm checkbox/radio, danh
+     sách động...) đánh dấu .form-group-full để chiếm cả hàng. Không giới
+     hạn trong .modal vì cùng 1 kiểu form-grid này còn dùng cho khối nhập
+     liệu nhúng thẳng trên trang (không phải modal). */
+  .modal.modal-wide{max-width:640px;}
+  form.form-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:16px;}
   .form-group-full{grid-column:1 / -1;}
-  .modal-actions{grid-column:1 / -1;}
+  form.form-grid .modal-actions{grid-column:1 / -1;}
   @media (max-width:640px){
-    .modal{max-width:480px;}
-    .modal form{grid-template-columns:1fr;}
+    .modal.modal-wide{max-width:480px;}
+    form.form-grid{grid-template-columns:1fr;}
   }
   .modal-confirm-body{font-size:13.5px;color:var(--ink-soft);line-height:1.5;}
+
+  /* Màn đăng nhập — thẻ riêng (không dùng .modal) nên không bị cuốn vào CSS
+     2 cột của form trong modal thường; nền gradient trùng màu sidebar cho
+     đồng bộ thương hiệu thay vì lớp phủ xám mặc định. */
+  .login-overlay{background:var(--forest-deep);background-image:linear-gradient(165deg, var(--forest-deep), #0B5F68 88%);}
+  .login-card{
+    background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);
+    width:100%;max-width:380px;padding:34px 32px 30px;text-align:center;
+  }
+  .login-logo{
+    width:60px;height:60px;margin:0 auto 14px;border-radius:16px;
+    background:#fff;box-shadow:var(--shadow-sm);padding:6px;
+  }
+  .login-logo img{display:block;width:100%;height:100%;object-fit:contain;border-radius:10px;}
+  .login-brand-title{font-size:19px;font-weight:800;letter-spacing:.4px;color:var(--ink);font-family:'Manrope',sans-serif;}
+  .login-brand-sub{font-size:12px;color:var(--ink-soft);margin-top:4px;}
+  .login-divider{height:1px;background:var(--border);margin:22px 0 20px;}
+  .login-form{text-align:left;}
+  .login-form .form-group label{font-size:12px;}
+  .input-icon-wrap{position:relative;display:flex;align-items:center;}
+  .input-icon-wrap i{position:absolute;left:13px;font-size:15px;color:var(--ink-mute);pointer-events:none;}
+  .input-icon-wrap input{padding-left:38px !important;}
 
   #toast-container{
     position:fixed;bottom:24px;right:24px;z-index:200;
@@ -374,6 +403,8 @@
   .form-group label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;}
   .form-group input[type="text"],
   .form-group input[type="date"],
+  .form-group input[type="email"],
+  .form-group input[type="password"],
   .form-group select,
   .form-group textarea{
     width:100%;font-family:inherit;font-size:13.5px;color:var(--ink);
@@ -458,22 +489,28 @@
 </head>
 <body>
 
-<div class="modal-overlay active" id="login-overlay">
-    <div class="modal" style="max-width:380px;">
-      <div class="modal-header">
-        <div class="modal-title">Đăng nhập</div>
-      </div>
-      <div class="muted" style="font-size:12.5px;margin:-8px 0 16px;">FADO AGRI — Chuỗi cung ứng xuất khẩu</div>
-      <form id="form-login">
-        <div class="form-group">
+<div class="modal-overlay login-overlay active" id="login-overlay">
+    <div class="login-card">
+      <div class="login-logo"><img src="assets/logo-fadoagri-cropped.png" alt="FADO Agri"></div>
+      <div class="login-brand-title">FADO AGRI</div>
+      <div class="login-brand-sub">Chuỗi cung ứng xuất khẩu</div>
+      <div class="login-divider"></div>
+      <form id="form-login" class="login-form">
+        <div class="form-group form-group-full">
           <label for="login-email">Email</label>
-          <input type="email" id="login-email" placeholder="ban@fadoagri.com" required autocomplete="username">
+          <div class="input-icon-wrap">
+            <i class="ti ti-mail"></i>
+            <input type="email" id="login-email" placeholder="ban@fadogroup.com.au" required autocomplete="username">
+          </div>
         </div>
-        <div class="form-group">
+        <div class="form-group form-group-full">
           <label for="login-password">Mật khẩu</label>
-          <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
+          <div class="input-icon-wrap">
+            <i class="ti ti-lock"></i>
+            <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
+          </div>
         </div>
-        <div id="login-error" style="font-size:12.5px;color:var(--red);min-height:16px;margin-bottom:10px;"></div>
+        <div id="login-error" style="font-size:12.5px;color:var(--red);min-height:16px;margin-bottom:2px;"></div>
         <div class="modal-actions" style="justify-content:stretch;">
           <button type="submit" class="btn-primary" id="btn-submit-login" style="width:100%;justify-content:center;">Đăng nhập</button>
         </div>
@@ -753,13 +790,13 @@
     </div>
 
     <div class="modal-overlay" id="add-batch-overlay">
-      <div class="modal">
+      <div class="modal modal-wide">
         <div class="modal-header">
           <div class="modal-title" id="add-batch-modal-title">Thêm lô nguyên liệu</div>
           <button class="modal-close" id="btn-close-add-batch" type="button" aria-label="Đóng">&times;</button>
         </div>
-        <form id="form-add-batch">
-          <div class="form-group">
+        <form id="form-add-batch" class="form-grid">
+          <div class="form-group form-group-full">
             <label for="f-batch">Lô hàng</label>
             <input type="text" id="f-batch" list="dl-batch-names" placeholder="Gõ vài chữ để chọn đơn đã có..." required>
             <div class="muted" style="font-size:11px;margin-top:4px;display:none;color:var(--green);" id="f-batch-order-hint"></div>
@@ -811,7 +848,7 @@
               <option value="Từ chối một phần">Từ chối một phần</option>
             </select>
           </div>
-          <div class="form-group">
+          <div class="form-group form-group-full">
             <label for="f-ghichu">Ghi chú</label>
             <textarea id="f-ghichu" rows="2" placeholder="Ghi chú thêm (nếu có)"></textarea>
           </div>
@@ -1218,105 +1255,110 @@
       </div>
     </div>
 
-    <div class="section-label">Chọn lô để kiểm</div>
-    <div class="card">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <i class="ti ti-search" style="font-size:16px;color:var(--ink-soft);" aria-hidden="true"></i>
-        <select id="qc-pick-batch" style="flex:1;font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;">
-          <option value="">— Chọn lô hàng —</option>
-        </select>
-        <button class="btn-primary" id="btn-open-qc-batch" type="button">Mở</button>
+    <div class="section-header-row">
+      <div class="section-label">Chọn lô để kiểm</div>
+      <div class="chart-filter-row">
+        <input type="text" id="qc-pick-search" placeholder="Tìm theo tên lô..." style="font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid var(--border);padding:7px 12px;border-radius:20px;box-shadow:var(--shadow-sm);min-width:180px;">
+        <select id="qc-pick-month-select" aria-label="Chọn tháng"></select>
+        <select id="qc-pick-year-select" aria-label="Chọn năm"></select>
       </div>
-      <div class="muted" style="font-size:11.5px;margin-top:10px;">Chỉ chọn được lô đã có sẵn (từ Vùng nguyên liệu hoặc Đơn hàng) — xem danh sách đầy đủ mọi lô hàng ở tab "Đơn hàng".</div>
+    </div>
+    <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Bấm vào 1 lô để nhập/xem kết quả kiểm ngay bên dưới — không cần mở cửa sổ riêng.</div>
+    <div class="card table-scroll">
+      <table>
+        <thead>
+          <tr><th>Lô hàng</th><th>Sản phẩm</th><th>Ngày</th><th>Trạng thái</th><th>Tỷ lệ đạt</th></tr>
+        </thead>
+        <tbody id="qc-pick-tbody">
+          <tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
     </div>
 
-    <div class="modal-overlay" id="qc-batch-overlay">
-      <div class="modal modal-lg">
-        <div class="modal-header">
-          <div class="modal-title" id="qc-batch-modal-title">Lô hàng</div>
-          <button class="modal-close" id="btn-close-qc-batch" type="button" aria-label="Đóng">&times;</button>
-        </div>
+    <div id="qc-detail-panel" style="display:none;">
+      <div class="modal-header">
+        <div class="modal-title" id="qc-batch-modal-title">Lô hàng</div>
+        <button class="modal-close" id="btn-close-qc-batch" type="button" aria-label="Đóng">&times;</button>
+      </div>
 
-        <div class="info-grid" id="qc-batch-info-grid"></div>
+      <div class="info-grid" id="qc-batch-info-grid"></div>
 
-        <div id="qc-po-breakdown-section" style="display:none;">
-          <div class="section-header-row" style="margin-top:0;">
-            <div class="section-label" style="margin:0;">Chi tiết đơn hàng ghép (cont ghép)</div>
-          </div>
-          <div class="card" style="margin-bottom:20px;">
-            <table>
-              <thead>
-                <tr><th>Số ĐĐH</th><th>NCC</th><th>Sản phẩm</th><th>Số lượng</th><th>Trạng thái</th></tr>
-              </thead>
-              <tbody id="qc-po-breakdown-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-
+      <div id="qc-po-breakdown-section" style="display:none;">
         <div class="section-header-row" style="margin-top:0;">
-          <div class="section-label" style="margin:0;">Lịch sử kiểm QC</div>
+          <div class="section-label" style="margin:0;">Chi tiết đơn hàng ghép (cont ghép)</div>
         </div>
         <div class="card" style="margin-bottom:20px;">
           <table>
             <thead>
-              <tr><th>Loại kiểm</th><th>Chủng loại</th><th>Kết quả</th><th>Tỷ lệ đạt</th><th>Người kiểm</th><th>Ghi chú</th><th>Thao tác</th></tr>
+              <tr><th>Số ĐĐH</th><th>NCC</th><th>Sản phẩm</th><th>Số lượng</th><th>Trạng thái</th></tr>
             </thead>
-            <tbody id="qc-tbody">
-              <tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:20px;">Chưa có kết quả kiểm nào.</td></tr>
-            </tbody>
+            <tbody id="qc-po-breakdown-tbody"></tbody>
           </table>
         </div>
-
-        <div class="section-label" style="margin-top:0;">Thêm / sửa kết quả kiểm</div>
-        <form id="form-add-qc">
-          <div class="form-group">
-            <label for="qc-category">Sản phẩm</label>
-            <select id="qc-category">
-              <option value="Dừa">Dừa</option>
-              <option value="Chanh">Chanh</option>
-              <option value="Thanh long">Thanh long</option>
-              <option value="Khác">Khác</option>
-            </select>
-          </div>
-          <div class="form-group" id="qc-chungloai-group">
-            <label for="qc-chungloai">Chủng loại</label>
-            <select id="qc-chungloai">
-              <option value="">— Không tách theo chủng loại —</option>
-            </select>
-            <div class="muted" style="font-size:11px;margin-top:4px;">Lô có nhiều chủng loại dừa thì phải chọn đúng chủng loại đang kiểm, để kết quả gắn đúng vào dòng đó.</div>
-          </div>
-          <div class="form-group">
-            <label for="qc-result">Kết quả</label>
-            <select id="qc-result">
-              <option value="Chờ xác nhận">Chờ xác nhận</option>
-              <option value="Đạt">Đạt</option>
-              <option value="Đạt có điều kiện">Đạt có điều kiện</option>
-              <option value="Không đạt 1 phần">Không đạt 1 phần</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="qc-so-luong-kiem">Số lượng kiểm</label>
-            <input type="text" id="qc-so-luong-kiem" placeholder="VD: 185">
-          </div>
-          <div class="form-group">
-            <label for="qc-so-luong-dat">Số lượng đạt</label>
-            <input type="text" id="qc-so-luong-dat" placeholder="VD: 170">
-            <div class="muted" style="font-size:11px;margin-top:4px;">Để trống nếu chưa đo được số lượng cụ thể — Tỷ lệ đạt sẽ tạm tính theo Kết quả (Đạt/Không đạt).</div>
-          </div>
-          <div class="form-group">
-            <label for="qc-inspector">Người kiểm</label>
-            <input type="text" id="qc-inspector" placeholder="VD: Hạnh">
-          </div>
-          <div class="form-group">
-            <label for="qc-note">Ghi chú</label>
-            <textarea id="qc-note" rows="2" placeholder="Ghi chú thêm (nếu có)"></textarea>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn-secondary" id="btn-cancel-add-qc">Hủy</button>
-            <button type="submit" class="btn-primary" id="btn-submit-add-qc">Thêm kết quả</button>
-          </div>
-        </form>
       </div>
+
+      <div class="section-header-row" style="margin-top:0;">
+        <div class="section-label" style="margin:0;">Lịch sử kiểm QC</div>
+      </div>
+      <div class="card" style="margin-bottom:20px;">
+        <table>
+          <thead>
+            <tr><th>Loại kiểm</th><th>Chủng loại</th><th>Kết quả</th><th>Tỷ lệ đạt</th><th>Người kiểm</th><th>Ghi chú</th><th>Thao tác</th></tr>
+          </thead>
+          <tbody id="qc-tbody">
+            <tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:20px;">Chưa có kết quả kiểm nào.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="section-label" style="margin-top:0;">Thêm / sửa kết quả kiểm</div>
+      <form id="form-add-qc" class="form-grid">
+        <div class="form-group">
+          <label for="qc-category">Sản phẩm</label>
+          <select id="qc-category">
+            <option value="Dừa">Dừa</option>
+            <option value="Chanh">Chanh</option>
+            <option value="Thanh long">Thanh long</option>
+            <option value="Khác">Khác</option>
+          </select>
+        </div>
+        <div class="form-group" id="qc-chungloai-group">
+          <label for="qc-chungloai">Chủng loại</label>
+          <select id="qc-chungloai">
+            <option value="">— Không tách theo chủng loại —</option>
+          </select>
+          <div class="muted" style="font-size:11px;margin-top:4px;">Lô có nhiều chủng loại dừa thì phải chọn đúng chủng loại đang kiểm, để kết quả gắn đúng vào dòng đó.</div>
+        </div>
+        <div class="form-group">
+          <label for="qc-result">Kết quả</label>
+          <select id="qc-result">
+            <option value="Chờ xác nhận">Chờ xác nhận</option>
+            <option value="Đạt">Đạt</option>
+            <option value="Không đạt 1 phần">Không đạt 1 phần</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="qc-so-luong-kiem">Số lượng kiểm</label>
+          <input type="text" id="qc-so-luong-kiem" placeholder="VD: 185">
+        </div>
+        <div class="form-group">
+          <label for="qc-so-luong-dat">Số lượng đạt</label>
+          <input type="text" id="qc-so-luong-dat" placeholder="VD: 170">
+          <div class="muted" style="font-size:11px;margin-top:4px;">Để trống nếu chưa đo được số lượng cụ thể — Tỷ lệ đạt sẽ tạm tính theo Kết quả (Đạt/Không đạt).</div>
+        </div>
+        <div class="form-group">
+          <label for="qc-inspector">Người kiểm</label>
+          <input type="text" id="qc-inspector" placeholder="VD: Hạnh">
+        </div>
+        <div class="form-group form-group-full">
+          <label for="qc-note">Ghi chú</label>
+          <textarea id="qc-note" rows="2" placeholder="Ghi chú thêm (nếu có)"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="btn-cancel-add-qc">Hủy</button>
+          <button type="submit" class="btn-primary" id="btn-submit-add-qc">Thêm kết quả</button>
+        </div>
+      </form>
     </div>
   </section>
 
@@ -1349,12 +1391,12 @@
     </div>
 
     <div class="modal-overlay" id="add-shipment-overlay">
-      <div class="modal">
+      <div class="modal modal-wide">
         <div class="modal-header">
           <div class="modal-title" id="add-shipment-modal-title">Thêm lô vận chuyển</div>
           <button class="modal-close" id="btn-close-add-shipment" type="button" aria-label="Đóng">&times;</button>
         </div>
-        <form id="form-add-shipment">
+        <form id="form-add-shipment" class="form-grid">
           <div class="form-group form-group-full">
             <label for="ship-batch">Lô hàng</label>
             <select id="ship-batch" required>
@@ -3217,7 +3259,7 @@ const titles = {
 
       list.forEach(function(s){
         const decided = qcRows.filter(function(q){ return s.batches.has(q.batch_code) && q.result && q.result !== 'Chờ xác nhận'; });
-        const passed = decided.filter(function(q){ return q.result === 'Đạt' || q.result === 'Đạt có điều kiện'; });
+        const passed = decided.filter(function(q){ return q.result === 'Đạt'; });
         const qcPassRate = decided.length ? Math.round(passed.length / decided.length * 100) : null;
         const onTimeRate = s.onTimeConsidered ? Math.round(s.onTime / s.onTimeConsidered * 100) : null;
 
@@ -3422,7 +3464,15 @@ const titles = {
     const orderMonthSelect = document.getElementById('order-month-select');
     const orderYearSelect = document.getElementById('order-year-select');
 
-    const overlay = document.getElementById('qc-batch-overlay');
+    // Khối nhập kết quả kiểm nhúng thẳng trên trang (không còn là modal nổi
+    // lên nữa) — bấm 1 dòng trong bảng "Chọn lô để kiểm" là gắn khối này
+    // vào ngay dưới dòng đó (insertDetailPanelAfterRow), bấm dòng đó lần
+    // nữa hoặc bấm "Đóng" thì gỡ ra.
+    const detailPanel = document.getElementById('qc-detail-panel');
+    const pickTbody = document.getElementById('qc-pick-tbody');
+    const pickSearchInput = document.getElementById('qc-pick-search');
+    const pickMonthSelect = document.getElementById('qc-pick-month-select');
+    const pickYearSelect = document.getElementById('qc-pick-year-select');
     const closeBtn = document.getElementById('btn-close-qc-batch');
     const cancelBtn = document.getElementById('btn-cancel-add-qc');
     const form = document.getElementById('form-add-qc');
@@ -3436,10 +3486,10 @@ const titles = {
     const poBreakdownSection = document.getElementById('qc-po-breakdown-section');
     const poBreakdownTbody = document.getElementById('qc-po-breakdown-tbody');
 
-    if(!summaryTbody || !overlay || !form || !sb) return;
+    if(!summaryTbody || !detailPanel || !pickTbody || !form || !sb) return;
 
     function resultBadgeClass(r){
-      return { 'Chờ xác nhận': 'amber', 'Đạt': 'green', 'Đạt có điều kiện': 'amber', 'Không đạt 1 phần': 'red' }[r] || 'gray';
+      return { 'Chờ xác nhận': 'amber', 'Đạt': 'green', 'Không đạt 1 phần': 'red' }[r] || 'gray';
     }
     // Tô màu select sửa trực tiếp trong bảng theo giá trị đang chọn (cùng
     // bảng màu với badge — xem .table-inline-select.select-* trong CSS).
@@ -3581,8 +3631,15 @@ const titles = {
         b.batchInfoCreatedAt = bi.created_at || null;
         // Đơn đã chốt trước khi có nguyên liệu vẫn phải hiện trong bảng —
         // "có thông tin" giờ không chỉ là có nguồn thật (NCC/Vùng nguyên
-        // liệu) mà còn tính cả khi đã đăng ký đơn hàng qua đây.
-        if(bi.khach_hang || bi.san_pham || bi.so_luong_du_kien || bi.ngay_giao_mong_muon) b.hasOrderInfo = true;
+        // liệu) mà còn tính cả khi đã đăng ký đơn hàng qua đây. Trước đây
+        // chỉ tính là "có thông tin" nếu đã điền Khách hàng/Sản phẩm/Số
+        // lượng/Ngày giao — nhưng "Thêm đơn hàng" chỉ BẮT BUỘC mỗi ô Tên
+        // đơn/lô hàng, các ô còn lại đều tùy chọn, nên 1 đơn chỉ mới gõ tên
+        // lô (chưa kịp điền gì khác) sẽ biến mất khỏi mọi nơi — không thấy
+        // ở đây, không gợi ý được ở Vùng nguyên liệu/PO/QC. Có dòng
+        // batch_info khớp đúng lô này là đủ bằng chứng "đã đăng ký", không
+        // cần đợi điền thêm field nào khác mới hiện.
+        b.hasOrderInfo = true;
       });
 
       // factory_finished_stock.exported_qty = số lượng ĐÃ xuất kho/load cont
@@ -3679,7 +3736,7 @@ const titles = {
       }) || null;
     }
 
-    const QUICK_RESULT_OPTIONS = ['Chờ xác nhận', 'Đạt', 'Đạt có điều kiện', 'Không đạt 1 phần'];
+    const QUICK_RESULT_OPTIONS = ['Chờ xác nhận', 'Đạt', 'Không đạt 1 phần'];
 
     async function saveQuickResult(batchCode, qcCategory, chungLoai, value){
       if(!value) return;
@@ -4184,15 +4241,15 @@ const titles = {
 
     // Tỷ lệ đạt của 1 lần kiểm: ưu tiên số lượng kiểm/đạt nếu đã nhập (chính
     // xác theo đúng số lượng thực tế); chưa nhập thì tạm coi Kết quả là
-    // nhị phân (Đạt/Đạt có điều kiện = 100%, còn lại = 0%) để vẫn có số mà
-    // không bắt buộc phải đo số lượng mỗi lần kiểm.
+    // nhị phân (Đạt = 100%, còn lại = 0%) để vẫn có số mà không bắt buộc
+    // phải đo số lượng mỗi lần kiểm.
     function checkPassRate(d){
       if(d.so_luong_kiem != null && Number(d.so_luong_kiem) > 0){
         const dat = d.so_luong_dat != null ? Number(d.so_luong_dat) : 0;
         return { kiem: Number(d.so_luong_kiem), dat: dat, pct: Math.round(dat / Number(d.so_luong_kiem) * 100) };
       }
       if(!d.result || d.result === 'Chờ xác nhận') return null;
-      const pass = d.result === 'Đạt' || d.result === 'Đạt có điều kiện';
+      const pass = d.result === 'Đạt';
       return { kiem: 1, dat: pass ? 1 : 0, pct: pass ? 100 : 0 };
     }
 
@@ -4346,6 +4403,133 @@ const titles = {
       submitBtn.textContent = 'Thêm kết quả';
     }
 
+    // Trạng thái tổng + tỷ lệ đạt của 1 lô cho bảng "Chọn lô để kiểm" — cùng
+    // thứ tự ưu tiên (Không đạt > Chờ xác nhận > Đạt) với batchQcStatus ở
+    // Tổng quan, viết riêng vì khác closure, không gọi chéo được.
+    function pickBatchStatus(batchCode){
+      const checks = allQcRows.filter(function(q){ return q.batch_code === batchCode; });
+      if(!checks.length) return 'Chưa kiểm';
+      if(checks.some(function(q){ return q.result === 'Không đạt 1 phần'; })) return 'Không đạt 1 phần';
+      if(checks.some(function(q){ return !q.result || q.result === 'Chờ xác nhận'; })) return 'Chờ xác nhận';
+      return 'Đạt';
+    }
+    function pickBatchPassRate(batchCode){
+      let kiem = 0, dat = 0;
+      allQcRows.filter(function(q){ return q.batch_code === batchCode; }).forEach(function(q){
+        const rate = checkPassRate(q);
+        if(!rate) return;
+        kiem += rate.kiem; dat += rate.dat;
+      });
+      return kiem ? Math.round(dat / kiem * 100) : null;
+    }
+
+    function matchesPickSearch(b){
+      const q = (pickSearchInput && pickSearchInput.value || '').trim().toLowerCase();
+      return !q || b.batch.toLowerCase().indexOf(q) !== -1;
+    }
+    function matchesPickPeriod(b){
+      if(!pickYearSelect || !pickYearSelect.value) return true;
+      const d = orderRecencyDate(b);
+      const p = d ? periodParts(d) : null;
+      if(!p) return false;
+      if(p.year !== Number(pickYearSelect.value)) return false;
+      if(pickMonthSelect && pickMonthSelect.value && p.month !== Number(pickMonthSelect.value)) return false;
+      return true;
+    }
+    function populatePickPeriodSelect(){
+      if(!pickYearSelect) return;
+      const years = Object.values(batchSummaries)
+        .filter(function(b){ return b.hasSourceInfo || b.hasOrderInfo; })
+        .map(function(b){ const d = orderRecencyDate(b); const p = d ? periodParts(d) : null; return p ? p.year : null; })
+        .filter(Boolean);
+      populateMonthYearSelect(pickMonthSelect, pickYearSelect, years);
+    }
+    function findPickRow(batchCode){
+      return Array.from(pickTbody.querySelectorAll('tr[data-batch]')).find(function(tr){ return tr.dataset.batch === batchCode; }) || null;
+    }
+    function renderPickList(){
+      let batches = Object.values(batchSummaries)
+        .filter(function(b){ return b.hasSourceInfo || b.hasOrderInfo; })
+        .filter(matchesPickSearch)
+        .filter(matchesPickPeriod)
+        .sort(function(a, b){
+          const da = orderRecencyDate(a) || '';
+          const db = orderRecencyDate(b) || '';
+          if(da === db) return a.batch.localeCompare(b.batch);
+          return db.localeCompare(da);
+        });
+      // Lô đang mở khối nhập bên dưới phải LUÔN có mặt trong bảng dù bộ lọc
+      // tìm/tháng/năm đang loại nó ra — không thì khối nhập mất chỗ bám (VD:
+      // mở từ icon QC ở tab Đơn hàng trong khi ở đây đang lọc kỳ khác).
+      if(currentBatch && detailPanel.style.display !== 'none' && !batches.some(function(b){ return b.batch === currentBatch; })){
+        const pinned = batchSummaries[currentBatch];
+        if(pinned) batches = [pinned].concat(batches);
+      }
+
+      pickTbody.textContent = '';
+      if(!batches.length){
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 5;
+        td.style.cssText = 'text-align:center;color:var(--ink-soft);padding:20px;';
+        td.textContent = 'Không có lô nào khớp.';
+        tr.appendChild(td);
+        pickTbody.appendChild(tr);
+        return;
+      }
+      batches.forEach(function(b){
+        const tr = document.createElement('tr');
+        tr.className = 'hoverable';
+        tr.dataset.batch = b.batch;
+
+        const batchTd = document.createElement('td');
+        batchTd.textContent = b.batch;
+        tr.appendChild(batchTd);
+
+        const catTd = document.createElement('td');
+        catTd.className = 'muted';
+        catTd.textContent = b.category || '—';
+        tr.appendChild(catTd);
+
+        const dateTd = document.createElement('td');
+        dateTd.className = 'muted';
+        dateTd.textContent = fmtDate(orderRecencyDate(b));
+        tr.appendChild(dateTd);
+
+        const status = pickBatchStatus(b.batch);
+        const statusTd = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + resultBadgeClass(status);
+        badge.textContent = status;
+        statusTd.appendChild(badge);
+        tr.appendChild(statusTd);
+
+        const rate = pickBatchPassRate(b.batch);
+        const rateTd = document.createElement('td');
+        rateTd.className = 'muted';
+        rateTd.textContent = rate != null ? rate + '%' : '—';
+        tr.appendChild(rateTd);
+
+        pickTbody.appendChild(tr);
+      });
+      if(currentBatch && detailPanel.style.display !== 'none') insertDetailPanelAfterRow(currentBatch);
+    }
+
+    function insertDetailPanelAfterRow(batchCode){
+      const oldExpando = pickTbody.querySelector('.qc-detail-row');
+      if(oldExpando) oldExpando.remove();
+      const row = findPickRow(batchCode);
+      if(!row) return;
+      const expandoTr = document.createElement('tr');
+      expandoTr.className = 'qc-detail-row';
+      const td = document.createElement('td');
+      td.colSpan = 5;
+      td.style.cssText = 'padding:16px;background:var(--surface-2);';
+      td.appendChild(detailPanel);
+      expandoTr.appendChild(td);
+      row.after(expandoTr);
+    }
+
     function openBatchModal(batchCode){
       currentBatch = batchCode;
       const b = batchSummaries[batchCode] || {
@@ -4358,11 +4542,18 @@ const titles = {
       renderPoBreakdown(b);
       renderHistory(batchCode);
       resetForm();
-      overlay.classList.add('active');
+      detailPanel.style.display = '';
+      // Gọi từ tab khác (VD: icon QC ở bảng Đơn hàng) thì chuyển qua tab
+      // Đánh giá chất lượng trước, rồi mới gắn khối nhập vào đúng dòng.
+      const tabQc = document.getElementById('tab-qc');
+      if(tabQc && !tabQc.classList.contains('active')) goTab('qc');
+      renderPickList();
     }
 
     function closeBatchModal(){
-      overlay.classList.remove('active');
+      detailPanel.style.display = 'none';
+      const oldExpando = pickTbody.querySelector('.qc-detail-row');
+      if(oldExpando) oldExpando.remove();
       currentBatch = null;
       resetForm();
     }
@@ -4380,40 +4571,19 @@ const titles = {
       if(tr && tr.dataset.batch) openBatchModal(tr.dataset.batch);
     });
 
-    closeBtn.addEventListener('click', closeBatchModal);
-    overlay.addEventListener('click', function(e){ if(e.target === overlay) closeBatchModal(); });
-    cancelBtn.addEventListener('click', resetForm);
+    pickTbody.addEventListener('click', function(e){
+      const tr = e.target.closest('tr[data-batch]');
+      if(!tr) return;
+      const batchCode = tr.dataset.batch;
+      if(currentBatch === batchCode && detailPanel.style.display !== 'none') closeBatchModal();
+      else openBatchModal(batchCode);
+    });
 
-    // Chọn lô để kiểm — chỉ liệt kê lô ĐÃ CÓ (nguồn thật hoặc đơn đã đăng ký
-    // qua tab Đơn hàng), không tự tạo lô mới ở đây nữa (giống cách Logistics/
-    // Chứng từ/Feedback KH chỉ chọn từ danh sách có sẵn).
-    const pickBatchSelect = document.getElementById('qc-pick-batch');
-    const pickBatchBtn = document.getElementById('btn-open-qc-batch');
-    function populatePickBatch(){
-      if(!pickBatchSelect) return;
-      const current = pickBatchSelect.value;
-      const batches = Object.values(batchSummaries)
-        .filter(function(b){ return b.hasSourceInfo || b.hasOrderInfo; })
-        .map(function(b){ return b.batch; })
-        .sort();
-      pickBatchSelect.textContent = '';
-      const blank = document.createElement('option');
-      blank.value = '';
-      blank.textContent = '— Chọn lô hàng —';
-      pickBatchSelect.appendChild(blank);
-      batches.forEach(function(code){
-        const opt = document.createElement('option');
-        opt.value = code;
-        opt.textContent = code;
-        pickBatchSelect.appendChild(opt);
-      });
-      if(current && batches.indexOf(current) !== -1) pickBatchSelect.value = current;
-    }
-    if(pickBatchBtn){
-      pickBatchBtn.addEventListener('click', function(){
-        if(pickBatchSelect && pickBatchSelect.value) openBatchModal(pickBatchSelect.value);
-      });
-    }
+    closeBtn.addEventListener('click', closeBatchModal);
+    cancelBtn.addEventListener('click', resetForm);
+    if(pickSearchInput) pickSearchInput.addEventListener('input', renderPickList);
+    if(pickMonthSelect) pickMonthSelect.addEventListener('change', renderPickList);
+    if(pickYearSelect) pickYearSelect.addEventListener('change', renderPickList);
 
     // Lọc tháng/năm cho bảng Đơn hàng — dựa theo cùng mốc ngày dùng để sắp
     // xếp (orderRecencyDate), không phải periodDate (đó là mốc SỚM NHẤT,
@@ -4497,10 +4667,11 @@ const titles = {
         notifyBatchSummaryChanged();
         populateOrderPeriodSelect();
         renderSummary();
-        populatePickBatch();
+        populatePickPeriodSelect();
+        renderPickList();
         updateStats();
 
-        if(currentBatch && overlay.classList.contains('active')){
+        if(currentBatch && detailPanel.style.display !== 'none'){
           const b = batchSummaries[currentBatch];
           if(b){ renderInfoGrid(b); renderPoBreakdown(b); }
           renderHistory(currentBatch);
@@ -6982,7 +7153,7 @@ const titles = {
           .length;
         const activeShipments = shipRows.filter(function(d){ return d.stage !== 'Khách đã nhận hàng'; }).length;
         const decidedQc = qcRows.filter(function(d){ return d.result && d.result !== 'Chờ xác nhận'; });
-        const passedQc = decidedQc.filter(function(d){ return d.result === 'Đạt' || d.result === 'Đạt có điều kiện'; });
+        const passedQc = decidedQc.filter(function(d){ return d.result === 'Đạt'; });
         const ratings = fbRows.filter(function(d){ return d.rating != null; }).map(function(d){ return d.rating; });
         const avgRating = ratings.length ? ratings.reduce(function(a, b){ return a + b; }, 0) / ratings.length : null;
 
@@ -7973,7 +8144,7 @@ const titles = {
 
       const finishedQc = qcRows.filter(function(q){ return q.check_type === 'Thành phẩm'; });
       let qcState = 'pending';
-      if(finishedQc.some(function(q){ return q.result === 'Đạt' || q.result === 'Đạt có điều kiện'; })) qcState = 'done';
+      if(finishedQc.some(function(q){ return q.result === 'Đạt'; })) qcState = 'done';
       else if(finishedQc.length) qcState = 'active';
 
       let xuatKhoState = 'pending';

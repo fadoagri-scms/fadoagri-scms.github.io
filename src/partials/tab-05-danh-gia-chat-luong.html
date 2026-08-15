@@ -14,104 +14,109 @@
       </div>
     </div>
 
-    <div class="section-label">Chọn lô để kiểm</div>
-    <div class="card">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <i class="ti ti-search" style="font-size:16px;color:var(--ink-soft);" aria-hidden="true"></i>
-        <select id="qc-pick-batch" style="flex:1;font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;">
-          <option value="">— Chọn lô hàng —</option>
-        </select>
-        <button class="btn-primary" id="btn-open-qc-batch" type="button">Mở</button>
+    <div class="section-header-row">
+      <div class="section-label">Chọn lô để kiểm</div>
+      <div class="chart-filter-row">
+        <input type="text" id="qc-pick-search" placeholder="Tìm theo tên lô..." style="font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid var(--border);padding:7px 12px;border-radius:20px;box-shadow:var(--shadow-sm);min-width:180px;">
+        <select id="qc-pick-month-select" aria-label="Chọn tháng"></select>
+        <select id="qc-pick-year-select" aria-label="Chọn năm"></select>
       </div>
-      <div class="muted" style="font-size:11.5px;margin-top:10px;">Chỉ chọn được lô đã có sẵn (từ Vùng nguyên liệu hoặc Đơn hàng) — xem danh sách đầy đủ mọi lô hàng ở tab "Đơn hàng".</div>
+    </div>
+    <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Bấm vào 1 lô để nhập/xem kết quả kiểm ngay bên dưới — không cần mở cửa sổ riêng.</div>
+    <div class="card table-scroll">
+      <table>
+        <thead>
+          <tr><th>Lô hàng</th><th>Sản phẩm</th><th>Ngày</th><th>Trạng thái</th><th>Tỷ lệ đạt</th></tr>
+        </thead>
+        <tbody id="qc-pick-tbody">
+          <tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
     </div>
 
-    <div class="modal-overlay" id="qc-batch-overlay">
-      <div class="modal modal-lg">
-        <div class="modal-header">
-          <div class="modal-title" id="qc-batch-modal-title">Lô hàng</div>
-          <button class="modal-close" id="btn-close-qc-batch" type="button" aria-label="Đóng">&times;</button>
-        </div>
+    <div id="qc-detail-panel" style="display:none;">
+      <div class="modal-header">
+        <div class="modal-title" id="qc-batch-modal-title">Lô hàng</div>
+        <button class="modal-close" id="btn-close-qc-batch" type="button" aria-label="Đóng">&times;</button>
+      </div>
 
-        <div class="info-grid" id="qc-batch-info-grid"></div>
+      <div class="info-grid" id="qc-batch-info-grid"></div>
 
-        <div id="qc-po-breakdown-section" style="display:none;">
-          <div class="section-header-row" style="margin-top:0;">
-            <div class="section-label" style="margin:0;">Chi tiết đơn hàng ghép (cont ghép)</div>
-          </div>
-          <div class="card" style="margin-bottom:20px;">
-            <table>
-              <thead>
-                <tr><th>Số ĐĐH</th><th>NCC</th><th>Sản phẩm</th><th>Số lượng</th><th>Trạng thái</th></tr>
-              </thead>
-              <tbody id="qc-po-breakdown-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-
+      <div id="qc-po-breakdown-section" style="display:none;">
         <div class="section-header-row" style="margin-top:0;">
-          <div class="section-label" style="margin:0;">Lịch sử kiểm QC</div>
+          <div class="section-label" style="margin:0;">Chi tiết đơn hàng ghép (cont ghép)</div>
         </div>
         <div class="card" style="margin-bottom:20px;">
           <table>
             <thead>
-              <tr><th>Loại kiểm</th><th>Chủng loại</th><th>Kết quả</th><th>Tỷ lệ đạt</th><th>Người kiểm</th><th>Ghi chú</th><th>Thao tác</th></tr>
+              <tr><th>Số ĐĐH</th><th>NCC</th><th>Sản phẩm</th><th>Số lượng</th><th>Trạng thái</th></tr>
             </thead>
-            <tbody id="qc-tbody">
-              <tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:20px;">Chưa có kết quả kiểm nào.</td></tr>
-            </tbody>
+            <tbody id="qc-po-breakdown-tbody"></tbody>
           </table>
         </div>
-
-        <div class="section-label" style="margin-top:0;">Thêm / sửa kết quả kiểm</div>
-        <form id="form-add-qc">
-          <div class="form-group">
-            <label for="qc-category">Sản phẩm</label>
-            <select id="qc-category">
-              <option value="Dừa">Dừa</option>
-              <option value="Chanh">Chanh</option>
-              <option value="Thanh long">Thanh long</option>
-              <option value="Khác">Khác</option>
-            </select>
-          </div>
-          <div class="form-group" id="qc-chungloai-group">
-            <label for="qc-chungloai">Chủng loại</label>
-            <select id="qc-chungloai">
-              <option value="">— Không tách theo chủng loại —</option>
-            </select>
-            <div class="muted" style="font-size:11px;margin-top:4px;">Lô có nhiều chủng loại dừa thì phải chọn đúng chủng loại đang kiểm, để kết quả gắn đúng vào dòng đó.</div>
-          </div>
-          <div class="form-group">
-            <label for="qc-result">Kết quả</label>
-            <select id="qc-result">
-              <option value="Chờ xác nhận">Chờ xác nhận</option>
-              <option value="Đạt">Đạt</option>
-              <option value="Đạt có điều kiện">Đạt có điều kiện</option>
-              <option value="Không đạt 1 phần">Không đạt 1 phần</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="qc-so-luong-kiem">Số lượng kiểm</label>
-            <input type="text" id="qc-so-luong-kiem" placeholder="VD: 185">
-          </div>
-          <div class="form-group">
-            <label for="qc-so-luong-dat">Số lượng đạt</label>
-            <input type="text" id="qc-so-luong-dat" placeholder="VD: 170">
-            <div class="muted" style="font-size:11px;margin-top:4px;">Để trống nếu chưa đo được số lượng cụ thể — Tỷ lệ đạt sẽ tạm tính theo Kết quả (Đạt/Không đạt).</div>
-          </div>
-          <div class="form-group">
-            <label for="qc-inspector">Người kiểm</label>
-            <input type="text" id="qc-inspector" placeholder="VD: Hạnh">
-          </div>
-          <div class="form-group">
-            <label for="qc-note">Ghi chú</label>
-            <textarea id="qc-note" rows="2" placeholder="Ghi chú thêm (nếu có)"></textarea>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn-secondary" id="btn-cancel-add-qc">Hủy</button>
-            <button type="submit" class="btn-primary" id="btn-submit-add-qc">Thêm kết quả</button>
-          </div>
-        </form>
       </div>
+
+      <div class="section-header-row" style="margin-top:0;">
+        <div class="section-label" style="margin:0;">Lịch sử kiểm QC</div>
+      </div>
+      <div class="card" style="margin-bottom:20px;">
+        <table>
+          <thead>
+            <tr><th>Loại kiểm</th><th>Chủng loại</th><th>Kết quả</th><th>Tỷ lệ đạt</th><th>Người kiểm</th><th>Ghi chú</th><th>Thao tác</th></tr>
+          </thead>
+          <tbody id="qc-tbody">
+            <tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:20px;">Chưa có kết quả kiểm nào.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="section-label" style="margin-top:0;">Thêm / sửa kết quả kiểm</div>
+      <form id="form-add-qc" class="form-grid">
+        <div class="form-group">
+          <label for="qc-category">Sản phẩm</label>
+          <select id="qc-category">
+            <option value="Dừa">Dừa</option>
+            <option value="Chanh">Chanh</option>
+            <option value="Thanh long">Thanh long</option>
+            <option value="Khác">Khác</option>
+          </select>
+        </div>
+        <div class="form-group" id="qc-chungloai-group">
+          <label for="qc-chungloai">Chủng loại</label>
+          <select id="qc-chungloai">
+            <option value="">— Không tách theo chủng loại —</option>
+          </select>
+          <div class="muted" style="font-size:11px;margin-top:4px;">Lô có nhiều chủng loại dừa thì phải chọn đúng chủng loại đang kiểm, để kết quả gắn đúng vào dòng đó.</div>
+        </div>
+        <div class="form-group">
+          <label for="qc-result">Kết quả</label>
+          <select id="qc-result">
+            <option value="Chờ xác nhận">Chờ xác nhận</option>
+            <option value="Đạt">Đạt</option>
+            <option value="Không đạt 1 phần">Không đạt 1 phần</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="qc-so-luong-kiem">Số lượng kiểm</label>
+          <input type="text" id="qc-so-luong-kiem" placeholder="VD: 185">
+        </div>
+        <div class="form-group">
+          <label for="qc-so-luong-dat">Số lượng đạt</label>
+          <input type="text" id="qc-so-luong-dat" placeholder="VD: 170">
+          <div class="muted" style="font-size:11px;margin-top:4px;">Để trống nếu chưa đo được số lượng cụ thể — Tỷ lệ đạt sẽ tạm tính theo Kết quả (Đạt/Không đạt).</div>
+        </div>
+        <div class="form-group">
+          <label for="qc-inspector">Người kiểm</label>
+          <input type="text" id="qc-inspector" placeholder="VD: Hạnh">
+        </div>
+        <div class="form-group form-group-full">
+          <label for="qc-note">Ghi chú</label>
+          <textarea id="qc-note" rows="2" placeholder="Ghi chú thêm (nếu có)"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="btn-cancel-add-qc">Hủy</button>
+          <button type="submit" class="btn-primary" id="btn-submit-add-qc">Thêm kết quả</button>
+        </div>
+      </form>
     </div>
   </section>

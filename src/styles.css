@@ -303,21 +303,50 @@
   .modal-overlay.active{display:flex;}
   .modal{
     background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);
-    width:100%;max-width:640px;max-height:92vh;overflow-y:auto;
+    width:100%;max-width:420px;max-height:92vh;overflow-y:auto;
     padding:18px 24px 20px;
   }
   .modal.modal-lg{max-width:680px;}
-  /* Form 2 cột để vừa trong 1 màn hình, đỡ phải cuộn — field ngắn (text/
-     select/date) xếp cạnh nhau, field dài (textarea, nhóm checkbox/radio,
-     danh sách động...) đánh dấu .form-group-full để chiếm cả hàng. */
-  .modal form{display:grid;grid-template-columns:1fr 1fr;column-gap:16px;}
+  /* Form 2 cột CHỈ áp dụng cho form chủ động đánh dấu .form-grid (nhiều
+     trường — VD Logistics, hoặc bảng kiểm QC dạng nhúng thẳng trên trang
+     chứ không riêng trong modal) để vừa trong 1 màn hình, đỡ phải cuộn.
+     Form ít trường (Thêm NCC, Thêm nhân sự...) mặc định vẫn 1 cột dọc như
+     trước — ép 2 cột cho form ngắn chỉ làm nó trông rời rạc, không giúp
+     gì. Field dài trong form 2 cột (textarea, nhóm checkbox/radio, danh
+     sách động...) đánh dấu .form-group-full để chiếm cả hàng. Không giới
+     hạn trong .modal vì cùng 1 kiểu form-grid này còn dùng cho khối nhập
+     liệu nhúng thẳng trên trang (không phải modal). */
+  .modal.modal-wide{max-width:640px;}
+  form.form-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:16px;}
   .form-group-full{grid-column:1 / -1;}
-  .modal-actions{grid-column:1 / -1;}
+  form.form-grid .modal-actions{grid-column:1 / -1;}
   @media (max-width:640px){
-    .modal{max-width:480px;}
-    .modal form{grid-template-columns:1fr;}
+    .modal.modal-wide{max-width:480px;}
+    form.form-grid{grid-template-columns:1fr;}
   }
   .modal-confirm-body{font-size:13.5px;color:var(--ink-soft);line-height:1.5;}
+
+  /* Màn đăng nhập — thẻ riêng (không dùng .modal) nên không bị cuốn vào CSS
+     2 cột của form trong modal thường; nền gradient trùng màu sidebar cho
+     đồng bộ thương hiệu thay vì lớp phủ xám mặc định. */
+  .login-overlay{background:var(--forest-deep);background-image:linear-gradient(165deg, var(--forest-deep), #0B5F68 88%);}
+  .login-card{
+    background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);
+    width:100%;max-width:380px;padding:34px 32px 30px;text-align:center;
+  }
+  .login-logo{
+    width:60px;height:60px;margin:0 auto 14px;border-radius:16px;
+    background:#fff;box-shadow:var(--shadow-sm);padding:6px;
+  }
+  .login-logo img{display:block;width:100%;height:100%;object-fit:contain;border-radius:10px;}
+  .login-brand-title{font-size:19px;font-weight:800;letter-spacing:.4px;color:var(--ink);font-family:'Manrope',sans-serif;}
+  .login-brand-sub{font-size:12px;color:var(--ink-soft);margin-top:4px;}
+  .login-divider{height:1px;background:var(--border);margin:22px 0 20px;}
+  .login-form{text-align:left;}
+  .login-form .form-group label{font-size:12px;}
+  .input-icon-wrap{position:relative;display:flex;align-items:center;}
+  .input-icon-wrap i{position:absolute;left:13px;font-size:15px;color:var(--ink-mute);pointer-events:none;}
+  .input-icon-wrap input{padding-left:38px !important;}
 
   #toast-container{
     position:fixed;bottom:24px;right:24px;z-index:200;
@@ -364,6 +393,8 @@
   .form-group label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;}
   .form-group input[type="text"],
   .form-group input[type="date"],
+  .form-group input[type="email"],
+  .form-group input[type="password"],
   .form-group select,
   .form-group textarea{
     width:100%;font-family:inherit;font-size:13.5px;color:var(--ink);
