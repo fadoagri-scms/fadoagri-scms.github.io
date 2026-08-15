@@ -6372,7 +6372,10 @@ const titles = {
 
     factoryForm.addEventListener('submit', async function(e){
       e.preventDefault();
-      if(!editingRawBatchId) return;
+      if(!editingRawBatchId){
+        alert('Không xác định được đang cập nhật sản xuất cho lô nào — đóng cửa sổ này rồi bấm lại nút sửa ở đúng dòng lô hàng.');
+        return;
+      }
       const startVal = fieldVal('fac-start') || null;
       const finishVal = fieldVal('fac-finish') || null;
       const boxRows = readBoxRows();
