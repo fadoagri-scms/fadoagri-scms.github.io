@@ -5474,7 +5474,7 @@ const titles = {
         // cũ/đã đổi tên không còn tồn tại trong sharedBatchSummaries, khiến
         // 2 module hiện số khác nhau.
         const missingDocsCount = Object.values(sharedBatchSummaries)
-          .filter(function(b){ return b.hasSourceInfo; })
+          .filter(function(b){ return b.hasSourceInfo && b.saleType !== 'Nội địa' && b.orderStatus === 'Đã đóng hàng'; })
           .filter(function(b){
             const d = docRows.find(function(r){ return r.batch_code === b.batch; });
             return !d || !d.contract_ok || !d.co_ok || !d.quarantine_ok || !d.bill_of_lading_ok;
@@ -5542,12 +5542,22 @@ const titles = {
           badge.textContent = d.stage || '—';
           stageTd.appendChild(badge);
 
-          const doc = docRows.find(function(x){ return x.batch_code === d.batch_code; });
-          const docOk = !!doc && doc.contract_ok && doc.co_ok && doc.quarantine_ok && doc.bill_of_lading_ok;
+          // Lô "Nội địa" không cần chứng từ xuất khẩu (giống điều kiện ẩn ở
+          // module Chứng từ) — không được báo cảnh báo thiếu chứng từ cho lô
+          // vốn dĩ không bao giờ có bản ghi chứng từ nào cả.
+          const b = sharedBatchSummaries[d.batch_code];
+          const isDomesticBatch = !!(b && b.saleType === 'Nội địa');
           const docTd = document.createElement('td');
-          const docIcon = document.createElement('i');
-          docIcon.className = docOk ? 'ti ti-check icon-ok' : 'ti ti-alert-triangle icon-warn';
-          docTd.appendChild(docIcon);
+          if(isDomesticBatch){
+            docTd.textContent = '—';
+            docTd.className = 'muted';
+          } else {
+            const doc = docRows.find(function(x){ return x.batch_code === d.batch_code; });
+            const docOk = !!doc && doc.contract_ok && doc.co_ok && doc.quarantine_ok && doc.bill_of_lading_ok;
+            const docIcon = document.createElement('i');
+            docIcon.className = docOk ? 'ti ti-check icon-ok' : 'ti ti-alert-triangle icon-warn';
+            docTd.appendChild(docIcon);
+          }
 
           const lastTd = document.createElement('td');
           if(d.stage === 'Giao khách hàng'){
