@@ -3157,18 +3157,15 @@ const titles = {
       const b = sharedBatchSummaries[batchCode];
       return b ? (b.category || '') : '';
     }
-    // Lô "Nội địa" không qua thủ tục xuất khẩu (hải quan, tàu biển...) nên
-    // chỉ cần 2 giai đoạn: Kho nội địa → Khách đã nhận hàng. Lô "Xuất khẩu"
-    // (hoặc chưa phân loại Hình thức) vẫn đủ các giai đoạn như cũ.
-    const EXPORT_STAGE_OPTIONS = ['Kho nội địa', 'Cảng đi', 'Trên biển', 'Thông quan', 'Cảng đến', 'Giao khách hàng', 'Khách đã nhận hàng'];
-    const DOMESTIC_STAGE_OPTIONS = ['Kho nội địa', 'Khách đã nhận hàng'];
-    function updateStageOptions(batchCode, preserveValue){
+    // Cùng 1 danh sách giai đoạn cho mọi lô, không phân biệt Hình thức
+    // (Nội địa/Xuất khẩu) nữa — kể cả đơn "Nội địa" cũng có thể cần theo dõi
+    // đủ các bước (VD: bán cho broker để họ tự xuất khẩu vẫn qua cảng, biển).
+    const STAGE_OPTIONS = ['Kho nội địa', 'Cảng đi', 'Trên biển', 'Thông quan', 'Cảng đến', 'Giao khách hàng', 'Khách đã nhận hàng'];
+    function updateStageOptions(preserveValue){
       const select = document.getElementById('ship-stage');
       if(!select) return;
       const warningEl = document.getElementById('ship-stage-warning');
-      const b = batchCode && sharedBatchSummaries[batchCode];
-      const isDomestic = !!(b && b.saleType === 'Nội địa');
-      const list = isDomestic ? DOMESTIC_STAGE_OPTIONS : EXPORT_STAGE_OPTIONS;
+      const list = STAGE_OPTIONS;
       const current = preserveValue !== undefined ? preserveValue : select.value;
       select.textContent = '';
       list.forEach(function(stage){
@@ -3177,13 +3174,13 @@ const titles = {
         opt.textContent = stage;
         select.appendChild(opt);
       });
-      // Giá trị cũ không còn hợp lệ (VD: đang "Trên biển" mà lô vừa đổi Hình
-      // thức sang Nội địa) — báo rõ cho người dùng biết giai đoạn đã bị đổi,
-      // thay vì âm thầm nhảy về bước đầu rồi lỡ tay Lưu đè mất giai đoạn thật.
+      // Giá trị cũ không còn hợp lệ (VD: dữ liệu cũ lưu sai chính tả tên giai
+      // đoạn) — báo rõ cho người dùng biết giai đoạn đã bị đổi, thay vì âm
+      // thầm nhảy về bước đầu rồi lỡ tay Lưu đè mất giai đoạn thật.
       if(current && list.indexOf(current) === -1){
         select.value = list[0];
         if(warningEl){
-          warningEl.textContent = 'Giai đoạn "' + current + '" không còn hợp lệ với Hình thức hiện tại của lô này, đã tự chuyển về "' + list[0] + '" — kiểm tra lại trước khi lưu.';
+          warningEl.textContent = 'Giai đoạn "' + current + '" không hợp lệ, đã tự chuyển về "' + list[0] + '" — kiểm tra lại trước khi lưu.';
           warningEl.style.display = 'block';
         }
       } else {
@@ -3432,7 +3429,7 @@ const titles = {
       fillForm: function(form, tr){
         populateBatchSelect(tr.dataset.batch || '');
         syncProductField(tr.dataset.product);
-        updateStageOptions(tr.dataset.batch || '', tr.dataset.stage || 'Kho nội địa');
+        updateStageOptions(tr.dataset.stage || 'Kho nội địa');
         document.getElementById('ship-pi-po').value = tr.dataset.piPo || '';
         document.getElementById('ship-location').value = tr.dataset.location || '';
         document.getElementById('ship-container').value = tr.dataset.containerNo || '';
@@ -3490,13 +3487,13 @@ const titles = {
       shipOpenBtn.addEventListener('click', function(){
         populateBatchSelect(null);
         syncProductField();
-        updateStageOptions(null);
+        updateStageOptions();
       });
     }
     if(shipBatchSelect){
       shipBatchSelect.addEventListener('change', function(){
         syncProductField();
-        updateStageOptions(shipBatchSelect.value);
+        updateStageOptions();
       });
     }
     // Vừa chọn "Khách đã nhận hàng" trong modal thì tự điền ngay ngày hôm nay
@@ -3516,7 +3513,7 @@ const titles = {
     onBatchSummaryChanged(function(){
       populateBatchSelect(shipBatchSelect ? shipBatchSelect.value : null);
       syncProductField();
-      updateStageOptions(shipBatchSelect ? shipBatchSelect.value : null);
+      updateStageOptions();
       if(shipmentsModule) shipmentsModule.refreshRows();
     });
   })();
@@ -6347,8 +6344,7 @@ const titles = {
     const bodyEl = document.getElementById('order-detail-body');
     if(!bodyEl || !sb) return;
 
-    const EXPORT_STAGES_REF = ['Kho nội địa', 'Cảng đi', 'Trên biển', 'Thông quan', 'Cảng đến', 'Giao khách hàng', 'Khách đã nhận hàng'];
-    const DOMESTIC_STAGES_REF = ['Kho nội địa', 'Khách đã nhận hàng'];
+    const STAGES_REF = ['Kho nội địa', 'Cảng đi', 'Trên biển', 'Thông quan', 'Cảng đến', 'Giao khách hàng', 'Khách đã nhận hàng'];
 
     function fmtDate(v){
       if(!v) return '—';
@@ -6470,7 +6466,7 @@ const titles = {
       bodyEl.appendChild(row1);
 
       const latestShip = shipRows[0] || null;
-      const stageList = (b && b.saleType === 'Nội địa') ? DOMESTIC_STAGES_REF : EXPORT_STAGES_REF;
+      const stageList = STAGES_REF;
       let logisticsState = 'pending';
       let logisticsText = 'Chưa bắt đầu';
       if(latestShip){
