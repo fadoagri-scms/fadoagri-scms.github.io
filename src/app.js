@@ -3333,6 +3333,7 @@ const titles = {
       'zim': 'https://www.zim.com/tools/track-a-shipment',
       'hmm': 'https://www.hmm21.com/e-service/general/trackNTrace/TrackNTrace.do',
       'oocl': 'https://www.oocl.com/eng/ourservices/eservices/cargotracking/Pages/cargotracking.aspx',
+      'kmtc': 'https://www.ekmtc.com/index.html#/cargo-tracking',
       // "Khác"/không chọn hãng tàu — trang đa hãng của SeaRates tự nhận diện
       // hãng tàu theo 4 ký tự đầu số cont.
       'khac': 'https://www.searates.com/container/tracking/'
