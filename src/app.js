@@ -3338,26 +3338,37 @@ const titles = {
       // hãng tàu theo 4 ký tự đầu số cont.
       'khac': 'https://www.searates.com/container/tracking/'
     };
-    function openContainerTracking(containerNo, line, btn){
+    // navigator.clipboard.writeText() yêu cầu document đang có focus tại
+    // thời điểm ghi — nếu gọi window.open() ngay sau đó (không đợi promise
+    // xong), tab mới cướp focus trước khi lệnh copy kịp chạy, khiến clipboard
+    // âm thầm KHÔNG được ghi (lỗi NotAllowedError bị nuốt bởi catch rỗng) dù
+    // giao diện vẫn báo "đã copy". Phải await xong rồi mới window.open, và
+    // báo bằng alert (chặn luồng, chắc chắn người dùng thấy) thay vì chỉ đổi
+    // chữ trên nút — nút nằm ở tab cũ đã mất focus nên dễ bị bỏ qua.
+    async function openContainerTracking(containerNo, line){
       if(!containerNo){
         alert('Vui lòng nhập Số container trước.');
         return;
       }
       const url = SHIPPING_LINE_URLS[line] || SHIPPING_LINE_URLS['khac'];
+      let copied = false;
       if(navigator.clipboard && navigator.clipboard.writeText){
-        navigator.clipboard.writeText(containerNo).catch(function(){});
+        try{
+          await navigator.clipboard.writeText(containerNo);
+          copied = true;
+        } catch(err){
+          copied = false;
+        }
       }
+      alert(copied
+        ? ('Đã copy số cont "' + containerNo + '" — dán (Ctrl+V) vào ô tìm kiếm ở trang vừa mở.')
+        : ('Không tự copy được — tự chép số cont này: ' + containerNo));
       window.open(url, '_blank');
-      if(btn){
-        const original = btn.textContent;
-        btn.textContent = 'Đã copy số cont — dán vào ô tìm kiếm bên tab mới';
-        setTimeout(function(){ btn.textContent = original; }, 3000);
-      }
     }
     const lookupContainerBtn = document.getElementById('btn-lookup-container');
     if(lookupContainerBtn){
       lookupContainerBtn.addEventListener('click', function(){
-        openContainerTracking(fieldVal('ship-container'), fieldVal('ship-line'), lookupContainerBtn);
+        openContainerTracking(fieldVal('ship-container'), fieldVal('ship-line'));
       });
     }
 
@@ -3412,7 +3423,7 @@ const titles = {
           containerBtn.className = 'btn-secondary';
           containerBtn.style.cssText = 'display:inline-flex;align-items:center;margin-top:4px;margin-left:4px;padding:3px 10px;font-size:11px;line-height:1.6;white-space:nowrap;';
           containerBtn.textContent = 'Tra vị trí cont ↗';
-          containerBtn.addEventListener('click', function(){ openContainerTracking(d.container_no, d.shipping_line, containerBtn); });
+          containerBtn.addEventListener('click', function(){ openContainerTracking(d.container_no, d.shipping_line); });
           tr.cells[4].appendChild(containerBtn);
         }
         tr.cells[5].textContent = fmtDate(d.etd);
