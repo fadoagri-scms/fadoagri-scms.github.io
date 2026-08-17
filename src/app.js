@@ -349,6 +349,32 @@ const titles = {
     if(parts.length === 3) return parts[2] + '/' + parts[1] + '/' + parts[0];
     return value;
   }
+  // Xuất Excel dùng chung cho mọi nút "Xuất Excel" — nhân bản bảng ra ngoài
+  // DOM rồi thay <select>/<input> (ô sửa nhanh inline) bằng chữ đúng giá trị
+  // đang hiển thị, bỏ hẳn <button> (nút thao tác) trước khi đưa cho SheetJS,
+  // để giữ nguyên khả năng đọc đúng rowSpan/colSpan có sẵn của thư viện mà
+  // không bị lẫn text thao tác/rỗng vào dữ liệu xuất ra.
+  function exportTableToExcel(tableEl, filename, sheetName, opts){
+    if(!tableEl) return;
+    if(typeof XLSX === 'undefined'){
+      alert('Không tải được thư viện xuất Excel — kiểm tra kết nối mạng rồi thử lại.');
+      return;
+    }
+    const clone = tableEl.cloneNode(true);
+    if(opts && opts.skipSelector){
+      Array.prototype.forEach.call(clone.querySelectorAll(opts.skipSelector), function(row){ row.remove(); });
+    }
+    Array.prototype.forEach.call(clone.querySelectorAll('select'), function(sel){
+      const text = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+      sel.replaceWith(document.createTextNode(text));
+    });
+    Array.prototype.forEach.call(clone.querySelectorAll('input'), function(inp){
+      inp.replaceWith(document.createTextNode(inp.value || ''));
+    });
+    Array.prototype.forEach.call(clone.querySelectorAll('button'), function(btn){ btn.remove(); });
+    const wb = XLSX.utils.table_to_book(clone, { sheet: (sheetName || 'Sheet1').slice(0, 31), raw: false });
+    XLSX.writeFile(wb, filename);
+  }
   function addDays(dateStr, days){
     if(!dateStr) return null;
     const parts = dateStr.split('-').map(Number);
@@ -1399,6 +1425,13 @@ const titles = {
         rsForm.reset();
         rsNameInput.readOnly = false;
       };
+
+      const exportRawSupplierBtn = document.getElementById('btn-export-raw-supplier');
+      if(exportRawSupplierBtn){
+        exportRawSupplierBtn.addEventListener('click', function(){
+          exportTableToExcel(supplierTbody.closest('table'), 'dau-moi-thu-mua-' + todayStr() + '.xlsx', 'Đầu mối thu mua');
+        });
+      }
 
       if(rsOpenBtn) rsOpenBtn.addEventListener('click', openAddRawSupplierModal);
       rsCloseBtn.addEventListener('click', closeRawSupplierModal);
@@ -3025,6 +3058,13 @@ const titles = {
     // nguyên liệu/Nhà cung cấp thấy ngay khi bắt đầu nhập đúng tên lô này.
     // Không có ô Ghi chú riêng ở đây — dùng chung đúng 1 ô Ghi chú inline
     // trong bảng (tránh 2 nơi cùng sửa 1 trường gây đè lẫn nhau).
+    const exportOrdersBtn = document.getElementById('btn-export-orders');
+    if(exportOrdersBtn){
+      exportOrdersBtn.addEventListener('click', function(){
+        exportTableToExcel(summaryTbody.closest('table'), 'danh-sach-don-hang-' + todayStr() + '.xlsx', 'Đơn hàng');
+      });
+    }
+
     const orderOverlay = document.getElementById('add-order-overlay');
     const orderOpenBtn = document.getElementById('btn-open-add-order');
     const orderCloseBtn = document.getElementById('btn-close-add-order');
@@ -3481,6 +3521,13 @@ const titles = {
 
     if(logisticsMonthSelect) logisticsMonthSelect.addEventListener('change', function(){ if(shipmentsModule) shipmentsModule.refreshRows(); });
     if(logisticsYearSelect) logisticsYearSelect.addEventListener('change', function(){ if(shipmentsModule) shipmentsModule.refreshRows(); });
+
+    const exportShipmentsBtn = document.getElementById('btn-export-shipments');
+    if(exportShipmentsBtn && shipmentTbody){
+      exportShipmentsBtn.addEventListener('click', function(){
+        exportTableToExcel(shipmentTbody.closest('table'), 'lo-van-chuyen-' + todayStr() + '.xlsx', 'Logistics');
+      });
+    }
 
     const shipOpenBtn = document.getElementById('btn-open-add-shipment');
     if(shipOpenBtn){
@@ -4727,6 +4774,15 @@ const titles = {
     if(factoryMonthSelect) factoryMonthSelect.addEventListener('change', refreshFactoryRows);
     if(factoryYearSelect) factoryYearSelect.addEventListener('change', refreshFactoryRows);
 
+    const exportFactoryBtn = document.getElementById('btn-export-factory');
+    if(exportFactoryBtn){
+      exportFactoryBtn.addEventListener('click', function(){
+        // Bỏ các dòng tổng hợp accordion (batch-summary-row) — dòng chi tiết
+        // bên dưới đã có đủ dữ liệu từng đợt/quy cách, giữ cả 2 sẽ trùng lặp.
+        exportTableToExcel(factoryTbody.closest('table'), 'san-xuat-hao-hut-' + todayStr() + '.xlsx', 'Sản xuất', { skipSelector: '.batch-summary-row' });
+      });
+    }
+
     showFactoryMessage('Đang tải dữ liệu...');
     loadFactoryYears().then(refreshFactoryRows);
 
@@ -5338,6 +5394,13 @@ const titles = {
 
     onRawBatchesChanged(refreshInventoryRows);
     onFactoryProductionChanged(refreshInventoryRows);
+
+    const exportStockBtn = document.getElementById('btn-export-stock');
+    if(exportStockBtn && stockTbody){
+      exportStockBtn.addEventListener('click', function(){
+        exportTableToExcel(stockTbody.closest('table'), 'ton-kho-' + todayStr() + '.xlsx', 'Tồn kho');
+      });
+    }
   })();
 
   // ---- Tổng quan (tổng hợp read-only từ các bảng khác) ----
@@ -5351,6 +5414,7 @@ const titles = {
     const FEEDBACK_DEADLINE_DAYS = 3;
     const INVENTORY_STALE_DAYS = 14;
     const DELIVERY_WARNING_DAYS = 7;
+    const ETA_WARNING_DAYS = 5;
 
     if(!recentTbody || !sb) return;
 
@@ -5377,11 +5441,12 @@ const titles = {
     // "Cần xử lý ngay" — gom các cảnh báo đang nằm rải rác ở từng module
     // (Chứng từ/Feedback KH/Đánh giá chất lượng) thành 1 danh sách ưu tiên
     // ngay đầu Tổng quan, bấm vào 1 dòng sẽ nhảy thẳng tới module đó.
-    function renderAlerts(missingDocsCount, overdueFeedbackCount, qcPendingCount, staleInventoryCount, pendingOrderCount, upcomingDeliveryCount){
+    function renderAlerts(missingDocsCount, overdueFeedbackCount, qcPendingCount, staleInventoryCount, pendingOrderCount, upcomingDeliveryCount, upcomingContainerEtaCount){
       if(!alertsList) return;
       alertsList.textContent = '';
       const items = [
         { count: upcomingDeliveryCount, icon: 'ti-calendar-exclamation', chip: 'nic-red', text: 'đơn sắp/đã tới hạn giao (trong ' + DELIVERY_WARNING_DAYS + ' ngày) mà chưa đóng hàng', sub: 'Đơn hàng', tab: 'donhang' },
+        { count: upcomingContainerEtaCount, icon: 'ti-ship', chip: 'nic-blue', text: 'container sắp/đã tới ETA (trong ' + ETA_WARNING_DAYS + ' ngày) mà chưa ghi nhận khách nhận hàng', sub: 'Logistics', tab: 'logistics' },
         { count: pendingOrderCount, icon: 'ti-shopping-cart', chip: 'nic-amber', text: 'đơn đã chốt nhưng chưa có nguyên liệu', sub: 'Đơn hàng', tab: 'donhang' },
         { count: missingDocsCount, icon: 'ti-file-text', chip: 'nic-red', text: 'lô đang thiếu chứng từ trước khi thông quan', sub: 'Chứng từ', tab: 'docs' },
         { count: overdueFeedbackCount, icon: 'ti-message-star', chip: 'nic-amber', text: 'lô đã quá hạn phản hồi khách hàng (quá ' + FEEDBACK_DEADLINE_DAYS + ' ngày)', sub: 'Feedback KH', tab: 'feedback' },
@@ -5512,7 +5577,16 @@ const titles = {
             if(!b.ngayGiaoMongMuon || b.orderStatus === 'Đã đóng hàng') return false;
             return !!deliveryWarnBy && b.ngayGiaoMongMuon <= deliveryWarnBy;
           }).length;
-        renderAlerts(missingDocsCount, overdueFeedbackCount, qcPendingCount, staleInventoryCount, pendingOrderCount, upcomingDeliveryCount);
+        // Container sắp/đã tới ETA mà lô vẫn chưa chuyển sang "Khách đã nhận
+        // hàng" — cần chuẩn bị chứng từ/thanh toán trước khi hàng cập cảng,
+        // kể cả ETA đã qua (chưa cập nhật trạng thái càng cần thấy ngay, y
+        // hệt cách tính "sắp/đã tới hạn giao" ở trên).
+        const etaWarnBy = addDays(todayStr(), ETA_WARNING_DAYS);
+        const upcomingContainerEtaCount = shipRows.filter(function(d){
+          if(!d.eta || d.stage === 'Khách đã nhận hàng') return false;
+          return !!etaWarnBy && d.eta <= etaWarnBy;
+        }).length;
+        renderAlerts(missingDocsCount, overdueFeedbackCount, qcPendingCount, staleInventoryCount, pendingOrderCount, upcomingDeliveryCount, upcomingContainerEtaCount);
 
         recentTbody.textContent = '';
         const recent = shipRows.slice(0, 6);
@@ -5618,6 +5692,9 @@ const titles = {
     const yearSelect = document.getElementById('chart-year-select');
     const categoryContainer = document.getElementById('chart-category');
     const trendContainer = document.getElementById('chart-trend');
+    const volumeContainer = document.getElementById('chart-volume');
+    const lossContainer = document.getElementById('chart-loss');
+    const qcRateContainer = document.getElementById('chart-qc-rate');
     if(!monthSelect || !yearSelect || !categoryContainer || !trendContainer) return;
 
     const CATEGORY_COLORS = { 'Dừa': 'var(--forest)', 'Chanh': 'var(--amber)', 'Thanh long': 'var(--blue)' };
@@ -5672,6 +5749,11 @@ const titles = {
       const chartW = width - padding.left - padding.right;
       const chartH = height - padding.top - padding.bottom;
       const maxVal = Math.max(1, items.reduce(function(m, i){ return i.value > m ? i.value : m; }, 0));
+      // Có hiện số trên đầu cột (showValues) thì cột cao nhất chỉ được chiếm
+      // tối đa 82% chiều cao biểu đồ — chừa khoảng trống phía trên cho chữ
+      // số, tránh dính sát/chồng lên viền trên của card khi giá trị đó đúng
+      // bằng mức cao nhất (cột cao 100%).
+      const usableH = opts.showValues ? chartH * 0.82 : chartH;
       const n = items.length;
       const gap = opts.gap != null ? opts.gap : 10;
       const barW = Math.max(6, (chartW - gap * (n - 1)) / n);
@@ -5693,7 +5775,7 @@ const titles = {
 
       items.forEach(function(item, i){
         const x = padding.left + i * (barW + gap);
-        const h = (item.value / maxVal) * chartH;
+        const h = (item.value / maxVal) * usableH;
         const y = height - padding.bottom - h;
         const barColor = item.muted ? 'var(--border)' : item.color;
 
@@ -5809,14 +5891,127 @@ const titles = {
         gap: 6,
         emptyText: 'Chưa có lô hàng nào trong năm ' + year + '.'
       });
+
+      // Sản lượng/hao hụt chỉ tính được cho Dừa (đi qua Xưởng Ba Phi) — Chanh/
+      // Thanh long mua ngoài qua NCC không có totalQty/finishedQty theo cùng
+      // 1 cách, giống hệt phạm vi của thẻ "Hao hụt gọt vỏ trung bình" đã có
+      // sẵn ở tab Xưởng Ba Phi.
+      if(volumeContainer){
+        const volumeByMonth = new Array(12).fill(0);
+        batches.forEach(function(b){
+          if(!b.isDua || !b.totalQty) return;
+          const p = periodParts(b.periodDate);
+          if(!p || p.year !== year) return;
+          volumeByMonth[p.month - 1] += b.totalQty;
+        });
+        const volumeItems = volumeByMonth.map(function(qty, i){
+          return {
+            label: MONTH_NAMES[i],
+            value: qty,
+            color: 'var(--blue)',
+            muted: monthFilter ? (i + 1 !== monthFilter) : false,
+            tooltip: 'Tháng ' + (i + 1) + '/' + year + ': ' + qty.toLocaleString('vi-VN') + ' trái'
+          };
+        });
+        renderBarChart(volumeContainer, volumeItems, {
+          height: 190,
+          gap: 6,
+          emptyText: 'Chưa có dữ liệu sản lượng trong năm ' + year + '.'
+        });
+      }
+
+      // Hao hụt trung bình theo THÁNG tính theo trọng số sản lượng (tổng
+      // thành phẩm / tổng nguyên liệu của cả tháng) — cùng cách tính với ô
+      // "Hao hụt trung bình" ở bảng gộp theo lô (Xưởng Ba Phi), không lấy
+      // trung bình cộng % từng lô để tránh lô nhỏ kéo lệch số liệu.
+      if(lossContainer){
+        const lossInputByMonth = new Array(12).fill(0);
+        const lossOutputByMonth = new Array(12).fill(0);
+        const lossHasDataByMonth = new Array(12).fill(false);
+        batches.forEach(function(b){
+          if(!b.isDua || !b.totalQty || b.finishedQty == null) return;
+          const p = periodParts(b.periodDate);
+          if(!p || p.year !== year) return;
+          lossInputByMonth[p.month - 1] += b.totalQty;
+          lossOutputByMonth[p.month - 1] += b.finishedQty;
+          lossHasDataByMonth[p.month - 1] = true;
+        });
+        const lossItems = lossInputByMonth.map(function(input, i){
+          const hasData = lossHasDataByMonth[i] && input > 0;
+          const pct = hasData ? Math.round((1 - lossOutputByMonth[i] / input) * 100) : 0;
+          return {
+            label: MONTH_NAMES[i],
+            value: hasData ? Math.max(pct, 0) : 0,
+            color: pct > 15 ? 'var(--red)' : 'var(--amber)',
+            muted: monthFilter ? (i + 1 !== monthFilter) : false,
+            tooltip: hasData ? ('Tháng ' + (i + 1) + '/' + year + ': hao hụt ' + pct + '%') : ('Tháng ' + (i + 1) + '/' + year + ': chưa có dữ liệu')
+          };
+        });
+        renderBarChart(lossContainer, lossItems, {
+          height: 190,
+          gap: 6,
+          showValues: true,
+          emptyText: 'Chưa có dữ liệu hao hụt trong năm ' + year + '.'
+        });
+      }
+
+      // Tỷ lệ đạt QC theo tháng — gộp mọi ngành hàng (không riêng Dừa), tính
+      // trên số lượt kiểm ĐÃ có kết quả (bỏ "Chờ xác nhận"), giống hệt cách
+      // module Đánh giá chất lượng tự tính tỷ lệ đạt tổng.
+      if(qcRateContainer){
+        const qcDecidedByMonth = new Array(12).fill(0);
+        const qcPassedByMonth = new Array(12).fill(0);
+        qcCheckRows.forEach(function(q){
+          if(!q.result || q.result === 'Chờ xác nhận') return;
+          const p = periodParts(q.created_at);
+          if(!p || p.year !== year) return;
+          qcDecidedByMonth[p.month - 1] += 1;
+          if(q.result === 'Đạt') qcPassedByMonth[p.month - 1] += 1;
+        });
+        const qcRateItems = qcDecidedByMonth.map(function(decided, i){
+          const pct = decided > 0 ? Math.round(qcPassedByMonth[i] / decided * 100) : 0;
+          return {
+            label: MONTH_NAMES[i],
+            value: pct,
+            color: 'var(--forest)',
+            muted: monthFilter ? (i + 1 !== monthFilter) : false,
+            tooltip: decided > 0 ? ('Tháng ' + (i + 1) + '/' + year + ': đạt ' + pct + '% (' + qcPassedByMonth[i] + '/' + decided + ' lượt)') : ('Tháng ' + (i + 1) + '/' + year + ': chưa có lượt kiểm')
+          };
+        });
+        renderBarChart(qcRateContainer, qcRateItems, {
+          height: 190,
+          gap: 6,
+          showValues: true,
+          emptyText: 'Chưa có lượt kiểm QC trong năm ' + year + '.'
+        });
+      }
+    }
+
+    // Tỷ lệ đạt QC theo tháng cần qc_checks (không có sẵn trong
+    // sharedBatchSummaries) — tự tải riêng, cache lại để đổi tháng/năm không
+    // phải tải lại; tải mới mỗi khi sharedBatchSummaries đổi (bao gồm cả sau
+    // khi lưu kết quả QC mới, vì module Đánh giá chất lượng luôn gọi
+    // notifyBatchSummaryChanged() sau khi tự tải lại qc_checks).
+    let qcCheckRows = [];
+    async function refreshQcChecksCache(){
+      if(!qcRateContainer) { renderCharts(); return; }
+      try{
+        const { data, error } = await sb.from('qc_checks').select('batch_code,result,created_at').is('deleted_at', null);
+        if(error) throw error;
+        qcCheckRows = data || [];
+      } catch(err){
+        console.error('Không tải được dữ liệu QC cho biểu đồ:', err);
+        qcCheckRows = [];
+      }
+      renderCharts();
     }
 
     populateSelectors();
-    renderCharts();
+    refreshQcChecksCache();
 
     monthSelect.addEventListener('change', renderCharts);
     yearSelect.addEventListener('change', function(){ renderCharts(); });
-    onBatchSummaryChanged(function(){ populateSelectors(); renderCharts(); });
+    onBatchSummaryChanged(function(){ populateSelectors(); refreshQcChecksCache(); });
   })();
 
   // ---- Quản lý tài khoản (chỉ Admin) ----
