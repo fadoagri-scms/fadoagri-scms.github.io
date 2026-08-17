@@ -1244,7 +1244,12 @@ const titles = {
       return true;
     }
     function applyRawFilters(rows){
-      return rows.filter(function(d){ return matchesRawSearch(d) && matchesRawPeriod(d); });
+      // Có từ khóa tìm kiếm thì bỏ qua bộ lọc tháng/năm — nếu không, lô nào
+      // thiếu ngày nhập hàng (ngay_nhap null, VD: nhập lô mà bỏ trống ngày)
+      // sẽ vĩnh viễn không khớp bộ lọc kỳ nào cả, ẩn mất khỏi tìm kiếm dù
+      // gõ đúng tên/mã lô.
+      const hasSearch = !!(rawSearchInput && rawSearchInput.value.trim());
+      return rows.filter(function(d){ return matchesRawSearch(d) && (hasSearch || matchesRawPeriod(d)); });
     }
     function populateRawPeriodSelect(rows){
       if(!rawYearSelect) return;
