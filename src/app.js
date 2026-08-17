@@ -2239,6 +2239,7 @@ const titles = {
           qtyTd.style.textAlign = 'left';
           if(line.qty !== '—'){
             const qtyValue = document.createElement('div');
+            qtyValue.style.whiteSpace = 'nowrap';
             qtyValue.textContent = line.qty;
             qtyTd.appendChild(qtyValue);
             if(line.qtyNote){
@@ -2249,6 +2250,7 @@ const titles = {
             }
           } else if(b.soLuongDuKien){
             const qtyValue = document.createElement('div');
+            qtyValue.style.whiteSpace = 'nowrap';
             qtyValue.textContent = b.soLuongDuKien;
             qtyTd.appendChild(qtyValue);
             const qtyNote = document.createElement('div');
