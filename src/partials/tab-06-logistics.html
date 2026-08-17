@@ -66,15 +66,29 @@
             <input type="text" id="ship-location" placeholder="VD: Cảng Cát Lái">
           </div>
           <div class="form-group">
-            <label for="ship-vessel-name">Tên tàu (nếu có)</label>
-            <input type="text" id="ship-vessel-name" placeholder="VD: WAN HAI 292">
-            <div class="muted" style="font-size:11px;margin-top:4px;">Ghi ở mục "Vessel/Voyage" trên vận đơn (Bill of Lading).</div>
+            <label for="ship-container">Số container</label>
+            <input type="text" id="ship-container" placeholder="VD: MSCU1234567">
           </div>
           <div class="form-group">
-            <label for="ship-imo">Số IMO tàu (nếu có)</label>
-            <input type="text" id="ship-imo" placeholder="VD: 9506291">
-            <button type="button" class="btn-secondary" id="btn-lookup-imo" style="margin-top:6px;padding:4px 10px;font-size:11.5px;">Tra IMO trên VesselFinder ↗</button>
-            <div class="muted" style="font-size:11px;margin-top:4px;">Không có sẵn trên vận đơn — cần tra theo Tên tàu (nút trên). Điền vào để xem được vị trí tàu sống ngay trong bảng (nút "Xem vị trí tàu").</div>
+            <label for="ship-line">Hãng tàu</label>
+            <select id="ship-line">
+              <option value="">-- Chọn hãng tàu --</option>
+              <option value="maersk">Maersk</option>
+              <option value="msc">MSC</option>
+              <option value="cma-cgm">CMA CGM</option>
+              <option value="one">ONE (Ocean Network Express)</option>
+              <option value="evergreen">Evergreen</option>
+              <option value="cosco">COSCO Shipping</option>
+              <option value="hapag-lloyd">Hapag-Lloyd</option>
+              <option value="wan-hai">Wan Hai</option>
+              <option value="yang-ming">Yang Ming</option>
+              <option value="zim">ZIM</option>
+              <option value="hmm">HMM</option>
+              <option value="oocl">OOCL</option>
+              <option value="khac">Khác / không chắc</option>
+            </select>
+            <button type="button" class="btn-secondary" id="btn-lookup-container" style="margin-top:6px;padding:4px 10px;font-size:11.5px;">Tra vị trí container ↗</button>
+            <div class="muted" style="font-size:11px;margin-top:4px;">Hãng tàu không cho nhúng lại trang của họ vào đây — nút này mở đúng trang tra cứu của hãng ở tab mới và tự copy sẵn số cont, bạn chỉ cần dán (Ctrl+V) vào ô tìm kiếm bên đó.</div>
           </div>
           <div class="form-group">
             <label for="ship-etd">ETD</label>

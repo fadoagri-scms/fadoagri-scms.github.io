@@ -1859,6 +1859,7 @@ const titles = {
         if(!bi.batch) return;
         const b = ensure(bi.batch);
         b.saleType = bi.sale_type || null;
+        b.domesticType = bi.domestic_type || null;
         b.orderStatus = bi.order_status || null;
         b.note = bi.note || '';
         b.khachHang = bi.khach_hang || null;
@@ -2182,6 +2183,15 @@ const titles = {
             const saleTypeSelect = buildSaleTypeSelect(b);
             saleTypeSelect.className = 'table-inline-select';
             saleTypeTd.appendChild(saleTypeSelect);
+            // Chỉ có nghĩa với "Nội địa" — đa số đơn Nội địa thực ra bán cho
+            // broker để họ tự xuất khẩu, chỉ số ít mới tiêu thụ thật trong
+            // nước, nên tách riêng để phân biệt 2 trường hợp này.
+            if(b.saleType === 'Nội địa'){
+              const domesticTypeSelect = buildDomesticTypeSelect(b);
+              domesticTypeSelect.className = 'table-inline-select';
+              domesticTypeSelect.style.marginTop = '4px';
+              saleTypeTd.appendChild(domesticTypeSelect);
+            }
             tr.appendChild(saleTypeTd);
           }
 
@@ -2347,6 +2357,39 @@ const titles = {
         }
         applySelectColor(select, saleTypeColorName(next));
         saveSaleType(b.batch, next);
+      });
+      return select;
+    }
+
+    async function saveDomesticType(batchCode, value){
+      try{
+        const { error } = await sb.from('batch_info').upsert({ batch: batchCode, domestic_type: value || null }, { onConflict: 'batch' });
+        if(error) throw error;
+        await loadAll();
+      } catch(err){
+        alert('Không thể lưu Loại đơn Nội địa: ' + err.message);
+      }
+    }
+
+    function domesticTypeColorName(v){
+      return { 'Bán cho broker (họ tự xuất khẩu)': 'blue', 'Tiêu thụ nội địa (Việt Nam)': 'gray' }[v] || 'amber';
+    }
+    // Chỉ hiện khi Hình thức = Nội địa (xem điểm gọi ở renderSummary) — phân
+    // biệt bán cho broker (họ tự lo xuất khẩu) với tiêu thụ nội địa thật, 2
+    // luồng khác hẳn nhau dù cùng gắn nhãn "Nội địa".
+    function buildDomesticTypeSelect(b){
+      const select = document.createElement('select');
+      [['', '— Chưa phân loại —'], ['Bán cho broker (họ tự xuất khẩu)', 'Bán cho broker (họ tự xuất khẩu)'], ['Tiêu thụ nội địa (Việt Nam)', 'Tiêu thụ nội địa (Việt Nam)']].forEach(function(o){
+        const opt = document.createElement('option');
+        opt.value = o[0];
+        opt.textContent = o[1];
+        if((b.domesticType || '') === o[0]) opt.selected = true;
+        select.appendChild(opt);
+      });
+      applySelectColor(select, domesticTypeColorName(b.domesticType));
+      select.addEventListener('change', function(){
+        applySelectColor(select, domesticTypeColorName(select.value));
+        saveDomesticType(b.batch, select.value);
       });
       return select;
     }
@@ -2993,16 +3036,31 @@ const titles = {
       const closeOrderModal = function(){
         orderOverlay.classList.remove('active');
         orderForm.reset();
+        const group = document.getElementById('ord-loai-noi-dia-group');
+        if(group) group.style.display = 'none';
       };
       if(orderOpenBtn){
         orderOpenBtn.addEventListener('click', function(){
           orderForm.reset();
+          const group = document.getElementById('ord-loai-noi-dia-group');
+          if(group) group.style.display = 'none';
           orderOverlay.classList.add('active');
         });
       }
       if(orderCloseBtn) orderCloseBtn.addEventListener('click', closeOrderModal);
       if(orderCancelBtn) orderCancelBtn.addEventListener('click', closeOrderModal);
       orderOverlay.addEventListener('click', function(e){ if(e.target === orderOverlay) closeOrderModal(); });
+
+      // "Loại đơn Nội địa" chỉ có nghĩa khi Hình thức = Nội địa — đa số đơn
+      // Nội địa thực ra là bán cho broker để họ tự xuất khẩu, chỉ số ít mới
+      // tiêu thụ thật trong nước, nên tách riêng để phân biệt 2 trường hợp.
+      const ordHinhThucSelect = document.getElementById('ord-hinh-thuc');
+      const ordLoaiNoiDiaGroup = document.getElementById('ord-loai-noi-dia-group');
+      if(ordHinhThucSelect && ordLoaiNoiDiaGroup){
+        ordHinhThucSelect.addEventListener('change', function(){
+          ordLoaiNoiDiaGroup.style.display = ordHinhThucSelect.value === 'Nội địa' ? '' : 'none';
+        });
+      }
 
       orderForm.addEventListener('submit', async function(e){
         e.preventDefault();
@@ -3011,12 +3069,14 @@ const titles = {
           alert('Vui lòng nhập Tên đơn / lô hàng.');
           return;
         }
+        const hinhThuc = document.getElementById('ord-hinh-thuc').value || null;
         const payload = {
           batch: batch,
           khach_hang: document.getElementById('ord-khach-hang').value.trim() || null,
           san_pham: document.getElementById('ord-san-pham').value.trim() || null,
           so_luong_du_kien: document.getElementById('ord-so-luong').value.trim() || null,
-          sale_type: document.getElementById('ord-hinh-thuc').value || null,
+          sale_type: hinhThuc,
+          domestic_type: hinhThuc === 'Nội địa' ? (document.getElementById('ord-loai-noi-dia').value || null) : null,
           ngay_giao_mong_muon: document.getElementById('ord-ngay-giao').value || null
         };
         const originalLabel = orderSubmitBtn.textContent;
@@ -3254,55 +3314,49 @@ const titles = {
       });
     }
 
-    // Vị trí tàu sống (VesselFinder, miễn phí, không cần API key) — CHỈ tải
-    // khi bấm xem, không tự động hiện cho mọi lô, để tránh gửi IP người xem +
-    // số IMO cho bên thứ 3 một cách âm thầm. Tạo thẳng iframe trỏ tới đúng
-    // endpoint mà script nhúng chính thức của họ (aismap.js) sinh ra — không
-    // dùng script đó trực tiếp vì nó dùng document.write, không chạy được
-    // khi chèn động sau khi trang đã tải (chỉ chạy nếu có sẵn từ đầu trang).
-    // Rủi ro: đây không phải API chính thức có cam kết ổn định, VesselFinder
-    // có thể đổi URL này bất cứ lúc nào mà không báo trước.
-    function toggleShipTrack(tr, imo){
-      const existing = tr.nextElementSibling;
-      if(existing && existing.classList.contains('ship-track-row')){
-        existing.remove();
+    // Tra vị trí container theo hãng tàu — không hãng tàu nào cho nhúng
+    // trang tra cứu của họ vào đây (đã kiểm tra: MSC/CMA CGM chặn bot, mở
+    // trực tiếp qua URL cũng bị họ redirect về trang chủ), nên chỉ mở đúng
+    // trang tra cứu ở tab mới và tự copy sẵn số cont vào clipboard cho khỏi
+    // phải gõ lại. Danh sách URL bên dưới là trang tra cứu gốc của từng
+    // hãng — có thể đổi bất cứ lúc nào mà không báo trước.
+    const SHIPPING_LINE_URLS = {
+      'maersk': 'https://www.maersk.com/tracking/',
+      'msc': 'https://www.msc.com/en/track-a-shipment',
+      'cma-cgm': 'https://www.cma-cgm.com/ebusiness/tracking',
+      'one': 'https://ecomm.one-line.com/one-ecom/manage-shipment/cargo-tracking',
+      'evergreen': 'https://ct.shipmentlink.com/servlet/TDB1_CargoTracking.do',
+      'cosco': 'https://elines.coscoshipping.com/ebusiness/cargoTracking',
+      'hapag-lloyd': 'https://www.hapag-lloyd.com/en/online-business/track/track-by-container-solution.html',
+      'wan-hai': 'https://www.wanhai.com/views/cargoTrack/CargoTrack.xhtml',
+      'yang-ming': 'https://www.yangming.com/e-service/Track_Trace/track_trace_cargo_tracking.aspx',
+      'zim': 'https://www.zim.com/tools/track-a-shipment',
+      'hmm': 'https://www.hmm21.com/e-service/general/trackNTrace/TrackNTrace.do',
+      'oocl': 'https://www.oocl.com/eng/ourservices/eservices/cargotracking/Pages/cargotracking.aspx',
+      // "Khác"/không chọn hãng tàu — trang đa hãng của SeaRates tự nhận diện
+      // hãng tàu theo 4 ký tự đầu số cont.
+      'khac': 'https://www.searates.com/container/tracking/'
+    };
+    function openContainerTracking(containerNo, line, btn){
+      if(!containerNo){
+        alert('Vui lòng nhập Số container trước.');
         return;
       }
-      const trackTr = document.createElement('tr');
-      trackTr.className = 'ship-track-row';
-      const td = document.createElement('td');
-      td.colSpan = 8;
-      td.style.padding = '10px';
-      const closeBtn = document.createElement('button');
-      closeBtn.type = 'button';
-      closeBtn.className = 'btn-secondary';
-      closeBtn.style.cssText = 'margin-bottom:6px;padding:2px 10px;font-size:11px;';
-      closeBtn.textContent = 'Đóng';
-      closeBtn.addEventListener('click', function(){ trackTr.remove(); });
-      td.appendChild(closeBtn);
-      const iframe = document.createElement('iframe');
-      iframe.width = '100%';
-      iframe.height = '360';
-      iframe.style.cssText = 'display:block;border:1px solid var(--border);border-radius:var(--radius-sm);';
-      iframe.src = 'https://www.vesselfinder.com/aismap?width=100%25&height=360&names=true&imo=' + encodeURIComponent(imo) + '&track=true&fleet=false&clicktoact=false&store_pos=true';
-      td.appendChild(iframe);
-      trackTr.appendChild(td);
-      tr.after(trackTr);
+      const url = SHIPPING_LINE_URLS[line] || SHIPPING_LINE_URLS['khac'];
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(containerNo).catch(function(){});
+      }
+      window.open(url, '_blank');
+      if(btn){
+        const original = btn.textContent;
+        btn.textContent = 'Đã copy số cont — dán vào ô tìm kiếm bên tab mới';
+        setTimeout(function(){ btn.textContent = original; }, 3000);
+      }
     }
-
-    // VesselFinder không cho gọi chéo miền để tự tra IMO theo tên tàu (CORS
-    // chặn) — mở sẵn đúng trang tìm kiếm của họ ở tab mới cho khỏi phải tự
-    // gõ lại tên tàu, người dùng vẫn phải tự đọc IMO rồi gõ tay vào ô bên
-    // cạnh.
-    const lookupImoBtn = document.getElementById('btn-lookup-imo');
-    if(lookupImoBtn){
-      lookupImoBtn.addEventListener('click', function(){
-        const name = fieldVal('ship-vessel-name');
-        if(!name){
-          alert('Vui lòng nhập Tên tàu trước.');
-          return;
-        }
-        window.open('https://www.vesselfinder.com/vessels?name=' + encodeURIComponent(name), '_blank');
+    const lookupContainerBtn = document.getElementById('btn-lookup-container');
+    if(lookupContainerBtn){
+      lookupContainerBtn.addEventListener('click', function(){
+        openContainerTracking(fieldVal('ship-container'), fieldVal('ship-line'), lookupContainerBtn);
       });
     }
 
@@ -3334,8 +3388,8 @@ const titles = {
         tr.dataset.product = productDisplay;
         tr.dataset.stage = d.stage || '';
         tr.dataset.location = d.location || '';
-        tr.dataset.vesselName = d.vessel_name || '';
-        tr.dataset.imo = d.imo || '';
+        tr.dataset.containerNo = d.container_no || '';
+        tr.dataset.shippingLine = d.shipping_line || '';
         tr.dataset.etd = d.etd || '';
         tr.dataset.eta = d.eta || '';
         tr.dataset.receivedDate = d.received_date || '';
@@ -3351,14 +3405,14 @@ const titles = {
         tr.cells[3].appendChild(badge);
         tr.cells[4].textContent = d.location || '—';
         tr.cells[4].className = 'muted';
-        if(d.imo){
-          const trackBtn = document.createElement('button');
-          trackBtn.type = 'button';
-          trackBtn.className = 'btn-secondary';
-          trackBtn.style.cssText = 'display:inline-flex;align-items:center;margin-top:4px;padding:3px 10px;font-size:11px;line-height:1.6;white-space:nowrap;';
-          trackBtn.textContent = 'Xem vị trí tàu';
-          trackBtn.addEventListener('click', function(){ toggleShipTrack(tr, d.imo); });
-          tr.cells[4].appendChild(trackBtn);
+        if(d.container_no){
+          const containerBtn = document.createElement('button');
+          containerBtn.type = 'button';
+          containerBtn.className = 'btn-secondary';
+          containerBtn.style.cssText = 'display:inline-flex;align-items:center;margin-top:4px;margin-left:4px;padding:3px 10px;font-size:11px;line-height:1.6;white-space:nowrap;';
+          containerBtn.textContent = 'Tra vị trí cont ↗';
+          containerBtn.addEventListener('click', function(){ openContainerTracking(d.container_no, d.shipping_line, containerBtn); });
+          tr.cells[4].appendChild(containerBtn);
         }
         tr.cells[5].textContent = fmtDate(d.etd);
         tr.cells[6].textContent = fmtDate(d.eta);
@@ -3369,8 +3423,8 @@ const titles = {
         updateStageOptions(tr.dataset.batch || '', tr.dataset.stage || 'Kho nội địa');
         document.getElementById('ship-pi-po').value = tr.dataset.piPo || '';
         document.getElementById('ship-location').value = tr.dataset.location || '';
-        document.getElementById('ship-vessel-name').value = tr.dataset.vesselName || '';
-        document.getElementById('ship-imo').value = tr.dataset.imo || '';
+        document.getElementById('ship-container').value = tr.dataset.containerNo || '';
+        document.getElementById('ship-line').value = tr.dataset.shippingLine || '';
         document.getElementById('ship-etd').value = tr.dataset.etd || '';
         document.getElementById('ship-eta').value = tr.dataset.eta || '';
         document.getElementById('ship-received-date').value = tr.dataset.receivedDate || '';
@@ -3385,8 +3439,8 @@ const titles = {
           product: fieldVal('ship-product') || null,
           stage: stage,
           location: fieldVal('ship-location') || null,
-          vessel_name: fieldVal('ship-vessel-name') || null,
-          imo: fieldVal('ship-imo') || null,
+          container_no: fieldVal('ship-container') || null,
+          shipping_line: fieldVal('ship-line') || null,
           etd: fieldVal('ship-etd') || null,
           eta: fieldVal('ship-eta') || null,
           // Chuyển sang "Khách đã nhận hàng" mà không nhập ngày cụ thể thì tự
