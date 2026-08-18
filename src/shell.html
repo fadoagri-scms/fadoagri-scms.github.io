@@ -71,18 +71,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script type="module">
-  // docxtemplater/pizzip bản mới không còn kèm bundle UMD cho <script> thường
-  // (chỉ còn CommonJS nội bộ, gán thẳng vào <script> sẽ lỗi "require is not
-  // defined") — dùng endpoint /+esm của jsdelivr để nó tự chuyển sang ES
-  // module, rồi gán ra window cho app.js (script thường, không phải module)
-  // dùng được như biến toàn cục bình thường.
-  import Docxtemplater from 'https://cdn.jsdelivr.net/npm/docxtemplater@3.69.3/+esm';
-  import PizZip from 'https://cdn.jsdelivr.net/npm/pizzip@3.1.7/+esm';
-  window.Docxtemplater = Docxtemplater;
-  window.PizZip = PizZip;
-</script>
-<script src="https://cdn.jsdelivr.net/npm/docxtemplater-image-module-free@1.1.1/build/imagemodule.js"></script>
 <script>
 {{APP_JS}}
 </script>
