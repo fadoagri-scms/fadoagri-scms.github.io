@@ -2338,6 +2338,23 @@ const titles = {
             traceBtn.setAttribute('aria-label', 'Xem hành trình đầy đủ');
             traceBtn.innerHTML = '<i class="ti ti-timeline"></i>';
             actionsTd.appendChild(traceBtn);
+            // "Ghi nhận đóng cont" + "Xuất báo cáo QC" chỉ có ý nghĩa khi lô
+            // đã đóng hàng — trước đó chưa chắc đã có đủ Thành phẩm/Quy cách
+            // để điền vào báo cáo.
+            if(b.orderStatus === 'Đã đóng hàng'){
+              const closingBtn = document.createElement('button');
+              closingBtn.type = 'button';
+              closingBtn.className = 'row-edit-btn qcc-open-btn';
+              closingBtn.setAttribute('aria-label', 'Ghi nhận đóng cont');
+              closingBtn.innerHTML = '<i class="ti ti-clipboard-list"></i>';
+              actionsTd.appendChild(closingBtn);
+              const reportBtn = document.createElement('button');
+              reportBtn.type = 'button';
+              reportBtn.className = 'row-edit-btn qc-report-btn';
+              reportBtn.setAttribute('aria-label', 'Xuất báo cáo QC (đóng cont)');
+              reportBtn.innerHTML = '<i class="ti ti-file-export"></i>';
+              actionsTd.appendChild(reportBtn);
+            }
             tr.appendChild(actionsTd);
           }
 
@@ -2873,11 +2890,542 @@ const titles = {
       resetForm();
     }
 
+    // Xuất báo cáo QC (mẫu Word "Bảng kiểm tra chất lượng hàng hóa xuất
+    // khẩu", dùng lúc đóng cont) — chỉ tự điền được phần dữ liệu ĐÃ CÓ SẴN
+    // trong hệ thống (khách hàng, ngày, số cont, Loại hàng/Quy cách/Số
+    // lượng đã đóng gói, kết quả QC). Các mục còn lại (tình trạng bao bì,
+    // tình trạng container, ảnh, sơ đồ load hàng, chữ ký) BẮT BUỘC quan sát
+    // trực tiếp lúc đóng hàng, không có dữ liệu để tự điền — QC vẫn phải mở
+    // file .docx tải về gõ tiếp/dán ảnh như cũ, chỉ đỡ phần đã có sẵn.
+    // 11 chỉ tiêu kiểm tra container, ĐÚNG THỨ TỰ với bảng trong file mẫu
+    // Word (Mục 5) — đổi thứ tự ở đây sẽ làm lệch dữ liệu khi xuất báo cáo.
+    const CONT_CHECKPOINTS = [
+      'Hệ thống làm lạnh', 'Hệ thống thông gió', 'Vỏ cont bên ngoài', 'Màu sơn', 'Cửa cont', 'Độ rỉ sét',
+      'Độ kín (đóng cửa cont xem tia sáng)', 'Mùi hôi', 'Vệ sinh sàn', 'Vỏ cont bên trong', 'Hệ thống thoát nước'
+    ];
+
+    // Gộp Sản phẩm+Quy cách trên mọi đợt sản xuất của 1 lô lại (1 lô có thể
+    // có nhiều đợt/nhiều dòng box) — cùng cách tính với tab Xuất hàng ở
+    // Xưởng Ba Phi. Dùng chung cho cả modal "Ghi nhận đóng cont" lẫn hàm xuất
+    // báo cáo, để 2 nơi luôn khớp đúng 1 danh sách Loại hàng.
+    async function getBoxItemsForBatch(batchCode){
+      const { data, error } = await sb.from('raw_batches').select('batch, factory_batches(factory_batch_boxes(san_pham,quy_cach,so_luong_thung))').eq('batch', batchCode).is('deleted_at', null);
+      if(error) throw error;
+      const boxMap = {};
+      (data || []).forEach(function(r){
+        const fb = r.factory_batches && (Array.isArray(r.factory_batches) ? r.factory_batches[0] : r.factory_batches);
+        if(!fb) return;
+        (fb.factory_batch_boxes || []).forEach(function(box){
+          const key = (box.san_pham || '') + '::' + (box.quy_cach == null ? '' : box.quy_cach);
+          if(!boxMap[key]) boxMap[key] = { sanPham: box.san_pham || '', quyCach: box.quy_cach, soLuong: 0 };
+          boxMap[key].soLuong += Number(box.so_luong_thung) || 0;
+        });
+      });
+      return Object.values(boxMap);
+    }
+
+    async function generateQcReport(batchCode, btn){
+      const originalHtml = btn ? btn.innerHTML : null;
+      if(btn){ btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2"></i>'; }
+      try{
+        if(typeof PizZip === 'undefined' || typeof Docxtemplater === 'undefined'){
+          alert('Không tải được thư viện xuất Word — kiểm tra kết nối mạng rồi thử lại.');
+          return;
+        }
+        const b = batchSummaries[batchCode] || {};
+
+        const [shipRes, qcRes, closingRes, boxItems] = await Promise.all([
+          sb.from('shipments').select('container_no').eq('batch_code', batchCode).is('deleted_at', null).order('created_at', { ascending: false }).limit(1),
+          sb.from('qc_checks').select('category,chung_loai,result,note').eq('batch_code', batchCode).is('deleted_at', null).order('created_at', { ascending: true }),
+          sb.from('qc_closing_records').select('*').eq('batch', batchCode).is('deleted_at', null).maybeSingle(),
+          getBoxItemsForBatch(batchCode)
+        ]);
+        if(shipRes.error) throw shipRes.error;
+        if(qcRes.error) throw qcRes.error;
+        if(closingRes.error && closingRes.error.code !== 'PGRST116') throw closingRes.error;
+
+        const closing = closingRes.data || {};
+        const baoBi = closing.bao_bi || [];
+        const chatLuong = closing.chat_luong || {};
+        const soLuongThucTe = closing.so_luong_thuc_te || {};
+        const contCheck = closing.container_check || {};
+        const soDoRows = closing.so_do_load_hang || [];
+        const photoPaths = closing.photo_paths || [];
+
+        const tongThung = boxItems.reduce(function(sum, it){ return sum + it.soLuong; }, 0);
+
+        const qcItems = (qcRes.data || []).map(function(q){
+          return {
+            loaiHang: q.category + (q.chung_loai ? ' - ' + q.chung_loai : ''),
+            ketQua: q.result || '',
+            ghiChu: q.note || ''
+          };
+        });
+
+        function get(arr, i, field, fallback){
+          return arr[i] ? (arr[i][field] != null ? String(arr[i][field]) : (fallback || '')) : (fallback || '');
+        }
+        function qtyLabel(item){ return item ? item.soLuong.toLocaleString('vi-VN') + ' thùng' : ''; }
+        function quyCachLabel(item){ return item ? (item.quyCach != null ? item.quyCach + ' trái/thùng' : '') : ''; }
+        function bb(i, field){ return (baoBi[i] && baoBi[i][field]) || ''; }
+        function cl(item, field){ return item ? ((chatLuong[item.sanPham] && chatLuong[item.sanPham][field]) || '') : ''; }
+        function sl(item){ return item ? (soLuongThucTe[item.sanPham] || '') : ''; }
+        function cc(i, field){ const rec = contCheck[CONT_CHECKPOINTS[i]] || {}; return rec[field] || ''; }
+
+        const data = {
+          khach_hang: b.khachHang || '',
+          ngay_dong_hang: fmtDate(todayStr()),
+          so_cont: (shipRes.data && shipRes.data[0] && shipRes.data[0].container_no) || '',
+          nguoi_kiem_hang: (currentUser && (currentUser.full_name || currentUser.email)) || '',
+
+          loai_hang_1: get(boxItems, 0, 'sanPham'), quy_cach_1: quyCachLabel(boxItems[0]), so_luong_1: qtyLabel(boxItems[0]),
+          loai_hang_2: get(boxItems, 1, 'sanPham'), quy_cach_2: quyCachLabel(boxItems[1]), so_luong_2: qtyLabel(boxItems[1]),
+          loai_hang_3: get(boxItems, 2, 'sanPham'), quy_cach_3: quyCachLabel(boxItems[2]), so_luong_3: qtyLabel(boxItems[2]),
+          tong_so_luong_1: tongThung ? tongThung.toLocaleString('vi-VN') + ' thùng' : '',
+
+          sl_loai_hang_1: get(boxItems, 0, 'sanPham'), sl_quy_cach_1: quyCachLabel(boxItems[0]), sl_so_luong_1: qtyLabel(boxItems[0]), sl_ghi_chu_1: sl(boxItems[0]) || 'Số lượng thực tế',
+          sl_loai_hang_2: get(boxItems, 1, 'sanPham'), sl_quy_cach_2: quyCachLabel(boxItems[1]), sl_so_luong_2: qtyLabel(boxItems[1]), sl_ghi_chu_2: sl(boxItems[1]) || 'Số lượng thực tế',
+          sl_loai_hang_3: get(boxItems, 2, 'sanPham'), sl_quy_cach_3: quyCachLabel(boxItems[2]), sl_so_luong_3: qtyLabel(boxItems[2]), sl_ghi_chu_3: sl(boxItems[2]) || 'Số lượng thực tế',
+          tong_so_luong_2: tongThung ? tongThung.toLocaleString('vi-VN') + ' thùng' : '', sl_ghi_chu_tong: soLuongThucTe._tong || 'Số lượng thực tế',
+
+          qc_loai_hang_1: get(qcItems, 0, 'loaiHang'), qc_trong_luong_1: cl(boxItems[0], 'trong_luong'), qc_ngoai_quan_1: cl(boxItems[0], 'ngoai_quan'), qc_tieu_chi_khac_1: cl(boxItems[0], 'tieu_chi_khac'), qc_ket_qua_1: get(qcItems, 0, 'ketQua'), qc_ghi_chu_1: get(qcItems, 0, 'ghiChu'),
+          qc_loai_hang_2: get(qcItems, 1, 'loaiHang'), qc_trong_luong_2: cl(boxItems[1], 'trong_luong'), qc_ngoai_quan_2: cl(boxItems[1], 'ngoai_quan'), qc_tieu_chi_khac_2: cl(boxItems[1], 'tieu_chi_khac'), qc_ket_qua_2: get(qcItems, 1, 'ketQua'), qc_ghi_chu_2: get(qcItems, 1, 'ghiChu'),
+          qc_loai_hang_3: get(qcItems, 2, 'loaiHang'), qc_trong_luong_3: cl(boxItems[2], 'trong_luong'), qc_ngoai_quan_3: cl(boxItems[2], 'ngoai_quan'), qc_tieu_chi_khac_3: cl(boxItems[2], 'tieu_chi_khac'), qc_ket_qua_3: get(qcItems, 2, 'ketQua'), qc_ghi_chu_3: get(qcItems, 2, 'ghiChu'),
+          qc_loai_hang_4: get(qcItems, 3, 'loaiHang'), qc_trong_luong_4: '', qc_ngoai_quan_4: '', qc_tieu_chi_khac_4: '', qc_ket_qua_4: get(qcItems, 3, 'ketQua'), qc_ghi_chu_4: get(qcItems, 3, 'ghiChu'),
+
+          bb_loai_thung_1: bb(0, 'loai_thung'), bb_kich_thuoc_1: bb(0, 'kich_thuoc'), bb_trong_luong_1: bb(0, 'trong_luong'), bb_mau_sac_1: bb(0, 'mau_sac'), bb_so_lop_1: bb(0, 'so_lop'), bb_tinh_trang_truoc_1: bb(0, 'tinh_trang_truoc'), bb_tinh_trang_sau_1: bb(0, 'tinh_trang_sau'), bb_ghi_chu_1: bb(0, 'ghi_chu'),
+          bb_loai_thung_2: bb(1, 'loai_thung'), bb_kich_thuoc_2: bb(1, 'kich_thuoc'), bb_trong_luong_2: bb(1, 'trong_luong'), bb_mau_sac_2: bb(1, 'mau_sac'), bb_so_lop_2: bb(1, 'so_lop'), bb_tinh_trang_truoc_2: bb(1, 'tinh_trang_truoc'), bb_tinh_trang_sau_2: bb(1, 'tinh_trang_sau'), bb_ghi_chu_2: bb(1, 'ghi_chu'),
+          bb_loai_thung_3: bb(2, 'loai_thung'), bb_kich_thuoc_3: bb(2, 'kich_thuoc'), bb_trong_luong_3: bb(2, 'trong_luong'), bb_mau_sac_3: bb(2, 'mau_sac'), bb_so_lop_3: bb(2, 'so_lop'), bb_tinh_trang_truoc_3: bb(2, 'tinh_trang_truoc'), bb_tinh_trang_sau_3: bb(2, 'tinh_trang_sau'), bb_ghi_chu_3: bb(2, 'ghi_chu'),
+
+          sodo_items: soDoRows.map(function(r){ return { lop: r.lop || '', loai_hang: r.loai_hang || '', so_luong: r.so_luong || '' }; })
+        };
+        CONT_CHECKPOINTS.forEach(function(_, i){
+          data['cont_tinh_trang_' + (i + 1)] = cc(i, 'tinh_trang');
+          data['cont_quyet_dinh_' + (i + 1)] = cc(i, 'quyet_dinh');
+          data['cont_ghi_chu_' + (i + 1)] = cc(i, 'ghi_chu');
+        });
+        // sodo_items rỗng thì bảng mất hẳn dòng (docxtemplater bỏ trọn vòng
+        // lặp) — luôn có ít nhất 1 dòng trống để bảng vẫn hiện đủ khung.
+        if(!data.sodo_items.length) data.sodo_items = [{ lop: '', loai_hang: '', so_luong: '' }];
+
+        const templateRes = await fetch('assets/qc-report-template.docx');
+        if(!templateRes.ok) throw new Error('Không tải được file mẫu báo cáo (assets/qc-report-template.docx).');
+        const templateBuffer = await templateRes.arrayBuffer();
+
+        // Ảnh (Mục 6) — tải song song 9 ảnh đã lưu (nếu có), thiếu ảnh nào
+        // thì để trống ô đó (không lỗi cả file vì thiếu 1-2 ảnh).
+        const photoBuffers = await Promise.all([0,1,2,3,4,5,6,7,8].map(async function(i){
+          const path = photoPaths[i];
+          if(!path) return null;
+          try{
+            const { data: pub } = sb.storage.from('qc-photos').getPublicUrl(path);
+            const res = await fetch(pub.publicUrl);
+            if(!res.ok) return null;
+            return await res.arrayBuffer();
+          } catch(e){ return null; }
+        }));
+        photoBuffers.forEach(function(buf, i){ data['photo' + (i + 1)] = buf ? 'x' : ''; });
+
+        const imageModule = new ImageModule({
+          centered: false,
+          getImage: function(tagValue, tagName){
+            const idx = Number(tagName.replace('photo', '')) - 1;
+            return photoBuffers[idx];
+          },
+          getSize: function(){ return [180, 180]; }
+        });
+
+        const zip = new PizZip(templateBuffer);
+        const doc = new Docxtemplater(zip, { modules: [imageModule], paragraphLoop: true, linebreaks: true });
+        await doc.renderAsync(data);
+        const outBlob = doc.getZip().generate({
+          type: 'blob',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        });
+        const url = URL.createObjectURL(outBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'QC-' + batchCode + '.docx';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch(err){
+        console.error('Không tạo được báo cáo QC:', err);
+        alert('Không tạo được báo cáo QC: ' + (err.message || err));
+      } finally {
+        if(btn){ btn.disabled = false; btn.innerHTML = originalHtml; }
+      }
+    }
+
+    // ---- Modal "Ghi nhận đóng cont" — QC nhập trực tiếp trong app (thay vì
+    // gõ tay vào Word) để generateQcReport() ở trên tự điền được đầy đủ.
+    // Lưu vào bảng riêng qc_closing_records (1 dòng/lô, upsert theo batch),
+    // ảnh lưu ở Storage bucket "qc-photos".
+    const qccOverlay = document.getElementById('qcc-overlay');
+    const qccForm = document.getElementById('form-qcc');
+    const qccModalTitle = document.getElementById('qcc-modal-title');
+    const qccCloseBtn = document.getElementById('btn-close-qcc');
+    const qccCancelBtn = document.getElementById('btn-cancel-qcc');
+    const qccSubmitBtn = document.getElementById('btn-submit-qcc');
+    const qccBaoBiEl = document.getElementById('qcc-bao-bi');
+    const qccChatLuongEl = document.getElementById('qcc-chat-luong');
+    const qccContainerEl = document.getElementById('qcc-container');
+    const qccPhotosEl = document.getElementById('qcc-photos');
+    const qccSoDoEl = document.getElementById('qcc-so-do');
+    const qccAddLopBtn = document.getElementById('btn-qcc-add-lop');
+
+    let qccCurrentBatch = null;
+    let qccPhotoSlots = [];
+
+    function createQccInput(placeholder, field, value){
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.placeholder = placeholder;
+      inp.dataset.field = field;
+      inp.value = value || '';
+      inp.style.fontSize = '12.5px';
+      return inp;
+    }
+
+    // Mục 2 — 3 dòng bao bì cố định, không gắn với Loại hàng nào (VD: thùng
+    // carton khác thùng xốp dùng chung trong 1 cont).
+    function renderBaoBi(rows){
+      qccBaoBiEl.textContent = '';
+      const fields = [
+        ['loai_thung', 'Loại thùng'], ['kich_thuoc', 'Kích thước (mm)'], ['trong_luong', 'Trọng lượng'], ['mau_sac', 'Màu sắc'],
+        ['so_lop', 'Số lớp'], ['tinh_trang_truoc', 'Tình trạng trước đóng'], ['tinh_trang_sau', 'Tình trạng sau đóng'], ['ghi_chu', 'Ghi chú']
+      ];
+      for(let i = 0; i < 3; i++){
+        const data = rows[i] || {};
+        const wrap = document.createElement('div');
+        wrap.className = 'qcc-bb-row';
+        wrap.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;padding:10px;border:1px solid var(--border);border-radius:8px;';
+        const label = document.createElement('div');
+        label.style.cssText = 'grid-column:1/-1;font-size:11.5px;font-weight:600;color:var(--ink-soft);';
+        label.textContent = 'Dòng ' + (i + 1);
+        wrap.appendChild(label);
+        fields.forEach(function(f){ wrap.appendChild(createQccInput(f[1], f[0], data[f[0]])); });
+        qccBaoBiEl.appendChild(wrap);
+      }
+    }
+    function readBaoBi(){
+      const rows = [];
+      Array.from(qccBaoBiEl.querySelectorAll('.qcc-bb-row')).forEach(function(wrap){
+        const row = {};
+        let hasValue = false;
+        Array.from(wrap.querySelectorAll('input')).forEach(function(inp){
+          const v = inp.value.trim();
+          row[inp.dataset.field] = v;
+          if(v) hasValue = true;
+        });
+        if(hasValue) rows.push(row);
+      });
+      return rows;
+    }
+
+    // Mục 3 & 4 — 1 dòng/Loại hàng (khớp đúng danh sách đã đóng gói ở Xưởng
+    // Ba Phi, dùng chung getBoxItemsForBatch với generateQcReport), khoá theo
+    // TÊN loại hàng (không theo thứ tự) để không lệch nếu danh sách đổi.
+    function renderChatLuong(boxItems, chatLuong, soLuongThucTe){
+      qccChatLuongEl.textContent = '';
+      if(!boxItems.length){
+        const empty = document.createElement('div');
+        empty.className = 'muted';
+        empty.style.fontSize = '12px';
+        empty.textContent = 'Chưa có Loại hàng nào (chưa khai báo Quy cách đóng thùng ở Xưởng Ba Phi).';
+        qccChatLuongEl.appendChild(empty);
+        return;
+      }
+      boxItems.forEach(function(item){
+        const existing = chatLuong[item.sanPham] || {};
+        const wrap = document.createElement('div');
+        wrap.className = 'qcc-cl-row';
+        wrap.dataset.loaiHang = item.sanPham;
+        wrap.style.cssText = 'display:grid;grid-template-columns:1.4fr 1fr 1fr 1.4fr 1fr;gap:6px;margin-bottom:8px;padding:10px;border:1px solid var(--border);border-radius:8px;align-items:center;';
+        const label = document.createElement('div');
+        label.style.cssText = 'font-size:12.5px;font-weight:600;';
+        label.textContent = item.sanPham || '(chưa đặt tên)';
+        wrap.appendChild(label);
+        wrap.appendChild(createQccInput('Trọng lượng', 'trong_luong', existing.trong_luong));
+        wrap.appendChild(createQccInput('Ngoại quan', 'ngoai_quan', existing.ngoai_quan));
+        wrap.appendChild(createQccInput('Tiêu chí khác', 'tieu_chi_khac', existing.tieu_chi_khac));
+        wrap.appendChild(createQccInput('Số lượng thực tế', 'so_luong_thuc_te', soLuongThucTe[item.sanPham]));
+        qccChatLuongEl.appendChild(wrap);
+      });
+      const tongWrap = document.createElement('div');
+      tongWrap.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:6px;';
+      const tongLabel = document.createElement('div');
+      tongLabel.style.cssText = 'font-size:12.5px;font-weight:600;';
+      tongLabel.textContent = 'Tổng số lượng thực tế:';
+      tongWrap.appendChild(tongLabel);
+      const tongInput = createQccInput('VD: 960 thùng', 'tong', soLuongThucTe._tong);
+      tongInput.id = 'qcc-tong-thuc-te';
+      tongInput.style.flex = '1';
+      tongWrap.appendChild(tongInput);
+      qccChatLuongEl.appendChild(tongWrap);
+    }
+    function readChatLuong(){
+      const chatLuong = {};
+      const soLuongThucTe = {};
+      Array.from(qccChatLuongEl.querySelectorAll('.qcc-cl-row')).forEach(function(wrap){
+        const key = wrap.dataset.loaiHang;
+        const inputs = wrap.querySelectorAll('input');
+        chatLuong[key] = { trong_luong: inputs[0].value.trim(), ngoai_quan: inputs[1].value.trim(), tieu_chi_khac: inputs[2].value.trim() };
+        soLuongThucTe[key] = inputs[3].value.trim();
+      });
+      const tongInput = document.getElementById('qcc-tong-thuc-te');
+      if(tongInput && tongInput.value.trim()) soLuongThucTe._tong = tongInput.value.trim();
+      return { chatLuong: chatLuong, soLuongThucTe: soLuongThucTe };
+    }
+
+    // Mục 5 — 11 chỉ tiêu CỐ ĐỊNH (CONT_CHECKPOINTS), khoá theo tên chỉ tiêu.
+    function renderContainerCheck(existing){
+      qccContainerEl.textContent = '';
+      CONT_CHECKPOINTS.forEach(function(name){
+        const data = existing[name] || {};
+        const wrap = document.createElement('div');
+        wrap.className = 'qcc-cont-row';
+        wrap.dataset.chiTieu = name;
+        wrap.style.cssText = 'display:grid;grid-template-columns:1.4fr 1.2fr 0.9fr 1.4fr;gap:6px;margin-bottom:6px;align-items:center;';
+        const label = document.createElement('div');
+        label.style.fontSize = '12.5px';
+        label.textContent = name;
+        wrap.appendChild(label);
+        wrap.appendChild(createQccInput('Tình trạng', 'tinh_trang', data.tinh_trang));
+        const sel = document.createElement('select');
+        sel.dataset.field = 'quyet_dinh';
+        sel.className = 'table-inline-select';
+        [['', '—'], ['Đạt', 'Đạt'], ['Không đạt', 'Không đạt']].forEach(function(o){
+          const opt = document.createElement('option');
+          opt.value = o[0]; opt.textContent = o[1];
+          if((data.quyet_dinh || '') === o[0]) opt.selected = true;
+          sel.appendChild(opt);
+        });
+        wrap.appendChild(sel);
+        wrap.appendChild(createQccInput('Ghi chú', 'ghi_chu', data.ghi_chu));
+        qccContainerEl.appendChild(wrap);
+      });
+    }
+    function readContainerCheck(){
+      const result = {};
+      Array.from(qccContainerEl.querySelectorAll('.qcc-cont-row')).forEach(function(wrap){
+        const name = wrap.dataset.chiTieu;
+        const tinhTrangInp = wrap.querySelector('input[data-field="tinh_trang"]');
+        const quyetDinhSel = wrap.querySelector('select[data-field="quyet_dinh"]');
+        const ghiChuInp = wrap.querySelector('input[data-field="ghi_chu"]');
+        result[name] = { tinh_trang: tinhTrangInp.value.trim(), quyet_dinh: quyetDinhSel.value, ghi_chu: ghiChuInp.value.trim() };
+      });
+      return result;
+    }
+
+    // Mục 7 — số dòng thay đổi theo từng cont thật, thêm/xoá tự do.
+    function addSoDoRow(data){
+      data = data || {};
+      const wrap = document.createElement('div');
+      wrap.className = 'qcc-sodo-row';
+      wrap.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;';
+      const lopInput = createQccInput('Lớp', 'lop', data.lop);
+      lopInput.style.flex = '0.5';
+      const loaiInput = createQccInput('Loại hàng', 'loai_hang', data.loai_hang);
+      loaiInput.style.flex = '1.5';
+      const slInput = createQccInput('Số lượng', 'so_luong', data.so_luong);
+      slInput.style.flex = '1';
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'row-delete-btn';
+      removeBtn.setAttribute('aria-label', 'Xóa dòng');
+      removeBtn.innerHTML = '<i class="ti ti-trash"></i>';
+      removeBtn.addEventListener('click', function(){ wrap.remove(); });
+      wrap.appendChild(lopInput);
+      wrap.appendChild(loaiInput);
+      wrap.appendChild(slInput);
+      wrap.appendChild(removeBtn);
+      qccSoDoEl.appendChild(wrap);
+    }
+    function renderSoDo(rows){
+      qccSoDoEl.textContent = '';
+      (rows.length ? rows : [{}]).forEach(function(r){ addSoDoRow(r); });
+    }
+    function readSoDo(){
+      return Array.from(qccSoDoEl.querySelectorAll('.qcc-sodo-row')).map(function(wrap){
+        const inputs = wrap.querySelectorAll('input');
+        return { lop: inputs[0].value.trim(), loai_hang: inputs[1].value.trim(), so_luong: inputs[2].value.trim() };
+      }).filter(function(r){ return r.lop || r.loai_hang || r.so_luong; });
+    }
+    if(qccAddLopBtn) qccAddLopBtn.addEventListener('click', function(){ addSoDoRow(); });
+
+    // Mục 6 — 9 ô ảnh, mỗi ô là 1 <input type="file"> ẩn sau icon, chọn xong
+    // hiện thumbnail + nút xoá ngay (chưa upload lên Storage tới lúc bấm Lưu).
+    function photoPublicUrl(path){
+      const { data } = sb.storage.from('qc-photos').getPublicUrl(path);
+      return data.publicUrl;
+    }
+    function buildPhotoSlot(i){
+      const slot = qccPhotoSlots[i];
+      const box = document.createElement('div');
+      box.className = 'qcc-photo-slot';
+      box.style.cssText = 'border:1px dashed var(--border);border-radius:8px;padding:6px;text-align:center;min-height:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;position:relative;';
+      const previewUrl = slot.file ? URL.createObjectURL(slot.file) : (slot.path && !slot.removed ? photoPublicUrl(slot.path) : null);
+      if(previewUrl){
+        const img = document.createElement('img');
+        img.src = previewUrl;
+        img.style.cssText = 'max-width:100%;max-height:90px;border-radius:6px;object-fit:cover;';
+        box.appendChild(img);
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'row-delete-btn';
+        removeBtn.style.cssText = 'position:absolute;top:2px;right:2px;';
+        removeBtn.setAttribute('aria-label', 'Xóa ảnh ' + (i + 1));
+        removeBtn.innerHTML = '<i class="ti ti-x"></i>';
+        removeBtn.addEventListener('click', function(){
+          qccPhotoSlots[i] = { path: null, file: null, removed: true };
+          box.replaceWith(buildPhotoSlot(i));
+        });
+        box.appendChild(removeBtn);
+      } else {
+        const icon = document.createElement('i');
+        icon.className = 'ti ti-camera-plus';
+        icon.style.cssText = 'font-size:22px;color:var(--ink-mute);display:block;margin-bottom:4px;';
+        box.appendChild(icon);
+        const label = document.createElement('label');
+        label.style.cssText = 'font-size:11px;color:var(--ink-soft);cursor:pointer;';
+        label.textContent = 'Ảnh ' + (i + 1);
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.style.display = 'none';
+        input.addEventListener('change', function(){
+          if(input.files && input.files[0]){
+            qccPhotoSlots[i] = { path: slot.path, file: input.files[0], removed: false };
+            box.replaceWith(buildPhotoSlot(i));
+          }
+        });
+        label.appendChild(input);
+        box.appendChild(label);
+      }
+      return box;
+    }
+    function renderPhotos(existingPaths){
+      qccPhotosEl.textContent = '';
+      qccPhotosEl.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:10px;';
+      qccPhotoSlots = [];
+      for(let i = 0; i < 9; i++){
+        qccPhotoSlots.push({ path: existingPaths[i] || null, file: null, removed: false });
+        qccPhotosEl.appendChild(buildPhotoSlot(i));
+      }
+    }
+
+    async function openQccModal(batchCode){
+      qccCurrentBatch = batchCode;
+      qccModalTitle.textContent = 'Ghi nhận đóng cont — ' + batchCode;
+      qccForm.reset();
+      qccBaoBiEl.textContent = '';
+      qccContainerEl.textContent = '';
+      qccPhotosEl.textContent = '';
+      qccSoDoEl.textContent = '';
+      qccChatLuongEl.textContent = '';
+      const loadingMsg = document.createElement('div');
+      loadingMsg.className = 'muted';
+      loadingMsg.textContent = 'Đang tải dữ liệu...';
+      qccChatLuongEl.appendChild(loadingMsg);
+      qccOverlay.classList.add('active');
+      try{
+        const [boxItems, closingRes] = await Promise.all([
+          getBoxItemsForBatch(batchCode),
+          sb.from('qc_closing_records').select('*').eq('batch', batchCode).is('deleted_at', null).maybeSingle()
+        ]);
+        if(closingRes.error && closingRes.error.code !== 'PGRST116') throw closingRes.error;
+        const closing = closingRes.data || {};
+        renderBaoBi(closing.bao_bi || []);
+        renderChatLuong(boxItems, closing.chat_luong || {}, closing.so_luong_thuc_te || {});
+        renderContainerCheck(closing.container_check || {});
+        renderSoDo(closing.so_do_load_hang || []);
+        renderPhotos(closing.photo_paths || []);
+      } catch(err){
+        console.error('Không tải được dữ liệu đóng cont:', err);
+        qccChatLuongEl.textContent = '';
+        const errMsg = document.createElement('div');
+        errMsg.style.color = 'var(--red)';
+        errMsg.textContent = 'Không tải được dữ liệu — kiểm tra kết nối Supabase.';
+        qccChatLuongEl.appendChild(errMsg);
+      }
+    }
+    function closeQccModal(){
+      qccOverlay.classList.remove('active');
+      qccForm.reset();
+      qccCurrentBatch = null;
+      qccPhotoSlots = [];
+    }
+    if(qccCloseBtn) qccCloseBtn.addEventListener('click', closeQccModal);
+    if(qccCancelBtn) qccCancelBtn.addEventListener('click', closeQccModal);
+    if(qccOverlay) qccOverlay.addEventListener('click', function(e){ if(e.target === qccOverlay) closeQccModal(); });
+
+    if(qccForm){
+      qccForm.addEventListener('submit', async function(e){
+        e.preventDefault();
+        if(!qccCurrentBatch) return;
+        const originalLabel = qccSubmitBtn.textContent;
+        qccSubmitBtn.disabled = true;
+        qccSubmitBtn.textContent = 'Đang lưu...';
+        try{
+          // Chỉ upload ảnh MỚI chọn — ảnh cũ chưa đổi giữ nguyên path cũ,
+          // không tải/ghi lại tốn dung lượng.
+          const photoPaths = [];
+          for(let i = 0; i < 9; i++){
+            const slot = qccPhotoSlots[i];
+            if(!slot || slot.removed || (!slot.path && !slot.file)){ photoPaths[i] = null; continue; }
+            if(slot.file){
+              const ext = (slot.file.name.split('.').pop() || 'jpg').toLowerCase();
+              const path = qccCurrentBatch.replace(/[^a-zA-Z0-9-_]/g, '_') + '/' + (i + 1) + '-' + Date.now() + '.' + ext;
+              const { error: upErr } = await sb.storage.from('qc-photos').upload(path, slot.file, { upsert: true });
+              if(upErr) throw upErr;
+              photoPaths[i] = path;
+            } else {
+              photoPaths[i] = slot.path;
+            }
+          }
+
+          const clResult = readChatLuong();
+          const payload = {
+            batch: qccCurrentBatch,
+            bao_bi: readBaoBi(),
+            chat_luong: clResult.chatLuong,
+            so_luong_thuc_te: clResult.soLuongThucTe,
+            container_check: readContainerCheck(),
+            so_do_load_hang: readSoDo(),
+            photo_paths: photoPaths,
+            updated_at: new Date().toISOString()
+          };
+          const { error } = await sb.from('qc_closing_records').upsert(payload, { onConflict: 'batch' });
+          if(error) throw error;
+          closeQccModal();
+        } catch(err){
+          alert('Không thể lưu: ' + (err.message || err));
+        } finally {
+          qccSubmitBtn.disabled = false;
+          qccSubmitBtn.textContent = originalLabel;
+        }
+      });
+    }
+
     summaryTbody.addEventListener('click', function(e){
       const traceBtn = e.target.closest('.trace-btn');
       if(traceBtn){
         const tr = traceBtn.closest('tr');
         if(tr && tr.dataset.batch) goToBatchTrace(tr.dataset.batch);
+        return;
+      }
+      const reportBtn = e.target.closest('.qc-report-btn');
+      if(reportBtn){
+        const tr = reportBtn.closest('tr');
+        if(tr && tr.dataset.batch) generateQcReport(tr.dataset.batch, reportBtn);
+        return;
+      }
+      const closingBtn = e.target.closest('.qcc-open-btn');
+      if(closingBtn){
+        const tr = closingBtn.closest('tr');
+        if(tr && tr.dataset.batch) openQccModal(tr.dataset.batch);
         return;
       }
       const btn = e.target.closest('.row-edit-btn');
@@ -3672,6 +4220,18 @@ const titles = {
       });
     }
 
+    // Sắp hết hạn = còn hạn nhưng trong vòng DOC_DUE_SOON_DAYS ngày tới —
+    // cùng ngưỡng cảnh báo với FEEDBACK_DEADLINE_DAYS ở module Feedback KH,
+    // dùng chung cho "Trung tâm cảnh báo trễ hạn" ở Tổng quan.
+    const DOC_DUE_SOON_DAYS = 3;
+    function docDeadlineStatus(deadline){
+      if(!deadline) return { key: 'none', label: 'Chưa có hạn', color: 'gray' };
+      const today = todayStr();
+      if(deadline < today) return { key: 'overdue', label: 'Quá hạn', color: 'red' };
+      if(deadline <= addDays(today, DOC_DUE_SOON_DAYS)) return { key: 'soon', label: 'Sắp hết hạn', color: 'amber' };
+      return { key: 'ok', label: 'Còn hạn', color: 'green' };
+    }
+
     function renderMissing(rows){
       if(!missingTbody) return;
       const missing = rows.filter(function(d){
@@ -3682,7 +4242,7 @@ const titles = {
       if(!missing.length){
         const tr = document.createElement('tr');
         const td = document.createElement('td');
-        td.colSpan = 4;
+        td.colSpan = 5;
         td.style.textAlign = 'center';
         td.style.color = 'var(--ink-soft)';
         td.style.padding = '20px';
@@ -3691,7 +4251,16 @@ const titles = {
         missingTbody.appendChild(tr);
         return;
       }
-      missing.forEach(function(d){
+      // Ưu tiên hiện lô gấp nhất trước — quá hạn > sắp hết hạn > còn hạn >
+      // chưa có hạn (cùng nhóm thì lô có hạn gần hơn lên trước).
+      const urgencyOrder = { overdue: 0, soon: 1, ok: 2, none: 3 };
+      const sorted = missing.slice().sort(function(a, b){
+        const sa = docDeadlineStatus(a.deadline), sb = docDeadlineStatus(b.deadline);
+        const diff = urgencyOrder[sa.key] - urgencyOrder[sb.key];
+        if(diff !== 0) return diff;
+        return (a.deadline || '9999') < (b.deadline || '9999') ? -1 : 1;
+      });
+      sorted.forEach(function(d){
         const tr = document.createElement('tr');
         tr.className = 'hoverable';
         const batchTd = document.createElement('td');
@@ -3704,7 +4273,14 @@ const titles = {
         marketTd.textContent = d.market || '—';
         const deadlineTd = document.createElement('td');
         deadlineTd.textContent = fmtDate(d.deadline);
-        tr.appendChild(batchTd); tr.appendChild(missingTd); tr.appendChild(marketTd); tr.appendChild(deadlineTd);
+        const status = docDeadlineStatus(d.deadline);
+        if(status.key === 'overdue' || status.key === 'soon') deadlineTd.className = 'warn-text';
+        const statusTd = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + status.color;
+        badge.textContent = status.label;
+        statusTd.appendChild(badge);
+        tr.appendChild(batchTd); tr.appendChild(missingTd); tr.appendChild(marketTd); tr.appendChild(deadlineTd); tr.appendChild(statusTd);
         missingTbody.appendChild(tr);
       });
     }
@@ -3905,6 +4481,8 @@ const titles = {
       document.getElementById('fb-market').value = card.dataset.market || '';
       document.getElementById('fb-rating').value = card.dataset.rating || '5';
       document.getElementById('fb-text').value = card.dataset.text || '';
+      document.getElementById('fb-assignee').value = card.dataset.assignee || '';
+      document.getElementById('fb-deadline').value = card.dataset.deadline || '';
       const statusRadio = form.querySelector('input[name="fb-status"][value="' + card.dataset.status + '"]');
       if(statusRadio) statusRadio.checked = true;
       modalTitle.textContent = 'Chỉnh sửa feedback';
@@ -3960,6 +4538,8 @@ const titles = {
       card.dataset.rating = d.rating != null ? d.rating : '5';
       card.dataset.text = d.feedback_text || '';
       card.dataset.status = d.status || '';
+      card.dataset.assignee = d.assignee || '';
+      card.dataset.deadline = d.response_deadline || '';
 
       const top = document.createElement('div');
       top.className = 'feedback-top';
@@ -4002,11 +4582,28 @@ const titles = {
       text.textContent = d.feedback_text || '';
 
       const statusRow = document.createElement('div');
-      statusRow.style.marginTop = '10px';
+      statusRow.style.cssText = 'margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
       const badge = document.createElement('span');
-      badge.className = 'badge ' + (d.status === 'Đã xử lý' ? 'green' : 'red');
+      // 3 mức: Chưa xử lý (mới, cần nhận việc) → Đang xử lý → Đã xử lý (đóng).
+      badge.className = 'badge ' + ({ 'Chưa xử lý': 'red', 'Đang xử lý': 'amber', 'Đã xử lý': 'green' }[d.status] || 'red');
       badge.textContent = d.status || 'Chưa xử lý';
       statusRow.appendChild(badge);
+      if(d.assignee){
+        const assigneeEl = document.createElement('span');
+        assigneeEl.className = 'muted';
+        assigneeEl.style.fontSize = '11.5px';
+        assigneeEl.textContent = 'Phụ trách: ' + d.assignee;
+        statusRow.appendChild(assigneeEl);
+      }
+      // Hạn xử lý chỉ còn ý nghĩa cảnh báo khi CHƯA đóng (Đã xử lý coi như
+      // xong, không cần nhắc trễ hạn nữa dù deadline đã qua).
+      if(d.response_deadline && d.status !== 'Đã xử lý'){
+        const overdue = d.response_deadline < todayStr();
+        const deadlineEl = document.createElement('span');
+        deadlineEl.className = 'badge ' + (overdue ? 'red' : 'gray');
+        deadlineEl.textContent = (overdue ? 'Quá hạn xử lý ' : 'Hạn xử lý ') + fmtDate(d.response_deadline);
+        statusRow.appendChild(deadlineEl);
+      }
 
       card.appendChild(top);
       card.appendChild(text);
@@ -4123,7 +4720,9 @@ const titles = {
         market: fieldVal('fb-market') || null,
         rating: numOrNull(fieldVal('fb-rating')),
         feedback_text: fieldVal('fb-text') || null,
-        status: form.querySelector('input[name="fb-status"]:checked').value
+        status: form.querySelector('input[name="fb-status"]:checked').value,
+        assignee: fieldVal('fb-assignee') || null,
+        response_deadline: fieldVal('fb-deadline') || null
       };
       if(!payload.batch_code){
         alert('Vui lòng chọn Lô hàng.');
@@ -5443,14 +6042,16 @@ const titles = {
     // "Cần xử lý ngay" — gom các cảnh báo đang nằm rải rác ở từng module
     // (Chứng từ/Feedback KH/Đánh giá chất lượng) thành 1 danh sách ưu tiên
     // ngay đầu Tổng quan, bấm vào 1 dòng sẽ nhảy thẳng tới module đó.
-    function renderAlerts(missingDocsCount, overdueFeedbackCount, qcPendingCount, staleInventoryCount, pendingOrderCount, upcomingDeliveryCount, upcomingContainerEtaCount){
+    function renderAlerts(missingDocsCount, docsOverdueCount, overdueFeedbackCount, unresolvedFeedbackOverdueCount, qcPendingCount, staleInventoryCount, pendingOrderCount, upcomingDeliveryCount, upcomingContainerEtaCount){
       if(!alertsList) return;
       alertsList.textContent = '';
       const items = [
         { count: upcomingDeliveryCount, icon: 'ti-calendar-exclamation', chip: 'nic-red', text: 'đơn sắp/đã tới hạn giao (trong ' + DELIVERY_WARNING_DAYS + ' ngày) mà chưa đóng hàng', sub: 'Đơn hàng', tab: 'donhang' },
         { count: upcomingContainerEtaCount, icon: 'ti-ship', chip: 'nic-blue', text: 'container sắp/đã tới ETA (trong ' + ETA_WARNING_DAYS + ' ngày) mà chưa ghi nhận khách nhận hàng', sub: 'Logistics', tab: 'logistics' },
+        { count: docsOverdueCount, icon: 'ti-file-alert', chip: 'nic-red', text: 'lô đã QUÁ HẠN bổ sung chứng từ', sub: 'Chứng từ', tab: 'docs' },
+        { count: unresolvedFeedbackOverdueCount, icon: 'ti-message-exclamation', chip: 'nic-red', text: 'khiếu nại khách hàng đã QUÁ HẠN xử lý', sub: 'Feedback KH', tab: 'feedback' },
         { count: pendingOrderCount, icon: 'ti-shopping-cart', chip: 'nic-amber', text: 'đơn đã chốt nhưng chưa có nguyên liệu', sub: 'Đơn hàng', tab: 'donhang' },
-        { count: missingDocsCount, icon: 'ti-file-text', chip: 'nic-red', text: 'lô đang thiếu chứng từ trước khi thông quan', sub: 'Chứng từ', tab: 'docs' },
+        { count: missingDocsCount, icon: 'ti-file-text', chip: 'nic-amber', text: 'lô đang thiếu chứng từ trước khi thông quan', sub: 'Chứng từ', tab: 'docs' },
         { count: overdueFeedbackCount, icon: 'ti-message-star', chip: 'nic-amber', text: 'lô đã quá hạn phản hồi khách hàng (quá ' + FEEDBACK_DEADLINE_DAYS + ' ngày)', sub: 'Feedback KH', tab: 'feedback' },
         { count: qcPendingCount, icon: 'ti-clipboard-check', chip: 'nic-blue', text: 'lượt kiểm QC đang chờ xác nhận kết quả', sub: 'Đánh giá chất lượng', tab: 'qc' },
         { count: staleInventoryCount, icon: 'ti-package', chip: 'nic-amber', text: 'lô tồn kho quá ' + INVENTORY_STALE_DAYS + ' ngày chưa xuất hết', sub: 'Xưởng Ba Phi', tab: 'factory' }
@@ -5546,6 +6147,20 @@ const titles = {
             const d = docRows.find(function(r){ return r.batch_code === b.batch; });
             return !d || !d.contract_ok || !d.co_ok || !d.quarantine_ok || !d.bill_of_lading_ok;
           }).length;
+        // Tách riêng phần đã QUÁ HẠN bổ sung (deadline đã đặt và đã qua) khỏi
+        // missingDocsCount chung — đây là tín hiệu gấp hơn hẳn "thiếu chứng
+        // từ" nói chung (thiếu nhưng còn hạn/chưa đặt hạn thì chưa gấp bằng).
+        const docsOverdueCount = Object.values(sharedBatchSummaries)
+          .filter(function(b){ return b.hasSourceInfo && b.saleType !== 'Nội địa' && b.orderStatus === 'Đã đóng hàng'; })
+          .filter(function(b){
+            const d = docRows.find(function(r){ return r.batch_code === b.batch; });
+            if(!d || !d.deadline) return false;
+            const missing = !d.contract_ok || !d.co_ok || !d.quarantine_ok || !d.bill_of_lading_ok;
+            return missing && d.deadline < todayStr();
+          }).length;
+        const unresolvedFeedbackOverdueCount = fbRows.filter(function(d){
+          return d.response_deadline && d.status !== 'Đã xử lý' && d.response_deadline < todayStr();
+        }).length;
         const qcPendingCount = qcRows.filter(function(d){ return d.result === 'Chờ xác nhận'; }).length;
         const overdueFeedbackCount = shipRows.filter(function(d){
           if(d.stage !== 'Khách đã nhận hàng' || !d.received_date) return false;
@@ -5588,7 +6203,7 @@ const titles = {
           if(!d.eta || d.stage === 'Khách đã nhận hàng') return false;
           return !!etaWarnBy && d.eta <= etaWarnBy;
         }).length;
-        renderAlerts(missingDocsCount, overdueFeedbackCount, qcPendingCount, staleInventoryCount, pendingOrderCount, upcomingDeliveryCount, upcomingContainerEtaCount);
+        renderAlerts(missingDocsCount, docsOverdueCount, overdueFeedbackCount, unresolvedFeedbackOverdueCount, qcPendingCount, staleInventoryCount, pendingOrderCount, upcomingDeliveryCount, upcomingContainerEtaCount);
 
         recentTbody.textContent = '';
         const recent = shipRows.slice(0, 6);
