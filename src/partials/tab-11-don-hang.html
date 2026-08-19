@@ -80,4 +80,53 @@
         </form>
       </div>
     </div>
+
+    <div class="modal-overlay" id="trace-overlay">
+      <div class="modal" style="max-width:420px;">
+        <div class="modal-header">
+          <div class="modal-title" id="trace-modal-title">Truy xuất nguồn gốc</div>
+          <button class="modal-close" id="btn-close-trace" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <div class="muted" style="font-size:11.5px;margin-bottom:14px;">Trang công khai chỉ hiện vùng nguyên liệu, kết quả QC tóm tắt, đóng gói và hành trình vận chuyển — không hiện khách hàng, giá trị đơn hay thông tin NCC.</div>
+        <form id="form-trace">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+            <button type="button" class="btn-secondary" id="btn-refill-trace-packing" style="font-size:11px;padding:4px 10px;white-space:nowrap;"><i class="ti ti-refresh"></i> Lấy từ hệ thống</button>
+          </div>
+          <div class="form-group">
+            <label for="trace-region">Vùng nguyên liệu (hiển thị công khai)</label>
+            <input type="text" id="trace-region" placeholder="VD: Bến Tre">
+            <div class="muted" style="font-size:11px;margin-top:4px;">"Lấy từ hệ thống" điền tạm nguyên địa chỉ đầu mối thu mua đã khai — nên rút gọn lại về đúng vùng/tỉnh trước khi lưu, tránh lộ địa chỉ chi tiết.</div>
+          </div>
+          <div class="form-group">
+            <label for="trace-packed-date">Ngày đóng hàng</label>
+            <input type="date" id="trace-packed-date">
+          </div>
+          <div class="form-group">
+            <label for="trace-packing-text">Quy cách đóng gói (hiển thị công khai)</label>
+            <textarea id="trace-packing-text" rows="3" placeholder="Nhiều loại hàng/quy cách thì mỗi dòng 1 loại."></textarea>
+          </div>
+          <div class="modal-actions" style="justify-content:space-between;">
+            <button type="button" class="btn-secondary" id="btn-cancel-trace">Đóng</button>
+            <button type="submit" class="btn-primary" id="btn-submit-trace">Lưu</button>
+          </div>
+        </form>
+
+        <div id="trace-public-section" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--border);display:none;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;">
+            <div style="font-size:13px;font-weight:700;">Công khai trang truy xuất</div>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="trace-enabled-toggle" style="width:auto;">
+              <span class="muted" style="font-size:12px;" id="trace-enabled-label">Tắt</span>
+            </label>
+          </div>
+          <div id="trace-qr-wrap" style="display:none;text-align:center;">
+            <div id="trace-qr-box" style="display:inline-block;padding:10px;background:#fff;border:1px solid var(--border);border-radius:10px;"></div>
+            <div style="display:flex;gap:6px;margin-top:10px;">
+              <input type="text" id="trace-public-url" readonly style="font-size:11.5px;flex:1;">
+              <button type="button" class="btn-secondary" id="btn-copy-trace-url" title="Sao chép link"><i class="ti ti-copy"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>

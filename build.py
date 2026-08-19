@@ -69,6 +69,13 @@ def main():
         dist_assets = os.path.join(DIST, "assets")
         shutil.copytree(ASSETS, dist_assets, dirs_exist_ok=True)
 
+    # trace.html là trang công khai riêng (không đăng nhập, không qua khung
+    # shell.html) — chép thẳng sang dist/ để mã QR trỏ đúng vào
+    # https://fadoagri-scms.github.io/trace.html?t=<mã>
+    trace_src = os.path.join(SRC, "trace.html")
+    if os.path.isfile(trace_src):
+        shutil.copyfile(trace_src, os.path.join(DIST, "trace.html"))
+
     # index.html chuyển hướng — để khi deploy lên hosting (Netlify...),
     # mở đúng link gốc (vd: https://xxx.netlify.app/) là vào thẳng dashboard
     # thay vì phải nhớ thêm tên file chuoi-cung-ung-dashboard.html

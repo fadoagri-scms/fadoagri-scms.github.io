@@ -21,11 +21,48 @@
       </div>
     </div>
 
-    <div class="section-label">Cần xử lý ngay</div>
-    <div class="card">
-      <div id="alerts-list">
-        <div class="muted" style="padding:20px 0;">Đang tải dữ liệu...</div>
+    <div class="two-col overview-action-row">
+      <div>
+        <div class="section-label">Cần xử lý ngay</div>
+        <div class="card">
+          <div id="alerts-list">
+            <div class="muted" style="padding:20px 0;">Đang tải dữ liệu...</div>
+          </div>
+        </div>
       </div>
+      <div>
+        <div class="section-header-row">
+          <div class="section-label">Lịch deadline tổng hợp</div>
+          <div class="calendar-nav">
+            <button class="btn-icon" id="cal-prev-month" type="button" aria-label="Tháng trước"><i class="ti ti-chevron-left"></i></button>
+            <div class="calendar-month-label" id="cal-month-label">—</div>
+            <button class="btn-icon" id="cal-next-month" type="button" aria-label="Tháng sau"><i class="ti ti-chevron-right"></i></button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="calendar-legend">
+            <span><i class="cal-dot amber"></i>Giao hàng</span>
+            <span><i class="cal-dot blue"></i>ETA container</span>
+            <span><i class="cal-dot red"></i>Hạn chứng từ</span>
+            <span><i class="cal-dot green"></i>Hạn phản hồi KH</span>
+            <span><i class="cal-dot violet"></i>NCC giao nguyên liệu</span>
+            <span><i class="cal-dot teal"></i>Hạn sử dụng tồn kho</span>
+          </div>
+          <div class="calendar-grid" id="calendar-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label">Lô hàng gần đây</div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Lô hàng</th><th>Giai đoạn</th><th>Chứng từ</th><th>ETA / feedback</th></tr>
+        </thead>
+        <tbody id="overview-recent-tbody">
+          <tr><td colspan="4" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
     </div>
 
     <div class="section-header-row">
@@ -58,17 +95,5 @@
         <div class="chart-card-title">Tỷ lệ đạt QC theo tháng</div>
         <div class="chart-container" id="chart-qc-rate"><div class="muted" style="padding:20px 0;">Đang tải dữ liệu...</div></div>
       </div>
-    </div>
-
-    <div class="section-label">Lô hàng gần đây</div>
-    <div class="card">
-      <table>
-        <thead>
-          <tr><th>Lô hàng</th><th>Giai đoạn</th><th>Chứng từ</th><th>ETA / feedback</th></tr>
-        </thead>
-        <tbody id="overview-recent-tbody">
-          <tr><td colspan="4" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
-        </tbody>
-      </table>
     </div>
   </section>

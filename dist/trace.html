@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Truy xuất nguồn gốc — FADO AGRI</title>
+<style>
+  :root{
+    --ink:#1B2733; --ink-soft:#5B6B7D; --ink-mute:#93A3B3;
+    --surface:#FFFFFF; --surface-2:#F4F9FB; --border:#E2EBF1;
+    --forest:#14B3AC; --forest-deep:#0E7C82;
+    --green:#33B27A; --green-bg:#DDF3E9;
+    --amber:#F0900B; --amber-bg:#FDECD2;
+    --red:#E24C4C; --red-bg:#FBE0E0;
+    --page-bg:#E7EEF0;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;background:var(--page-bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+    min-height:100vh;display:flex;justify-content:center;
+  }
+  .page-wrap{width:100%;max-width:460px;display:flex;flex-direction:column;}
+  @media (min-width:700px){
+    body{padding:40px 20px;}
+    .page-wrap{box-shadow:0 24px 60px -24px rgba(15,40,45,.35);border-radius:22px;overflow:hidden;background:var(--surface);}
+  }
+  .content{background:var(--surface);padding:16px 22px 30px;display:flex;flex-direction:column;gap:22px;min-height:100vh;}
+  @media (min-width:700px){ .content{min-height:0;} }
+
+  .top-bar{display:flex;justify-content:flex-end;}
+  .lang-toggle{display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:18px;padding:2px;gap:2px;}
+  .lang-btn{border:none;background:transparent;font:700 10px/1 -apple-system,sans-serif;letter-spacing:.03em;color:var(--ink-soft);padding:5px 11px;border-radius:14px;cursor:pointer;}
+  .lang-btn.active{background:var(--forest);color:#fff;}
+
+  .ph-header{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding-top:6px;}
+  .ph-logo{height:46px;width:auto;object-fit:contain;}
+  .ph-brandline{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--forest-deep);}
+
+  .hero{display:flex;flex-direction:column;gap:8px;align-items:flex-start;}
+  .hero-eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--forest-deep);}
+  .hero h1{margin:0;font-size:21px;font-weight:800;letter-spacing:-.01em;line-height:1.25;color:var(--ink);text-wrap:balance;}
+  .batch-chip{display:inline-flex;align-items:center;gap:6px;font:600 12px/1 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;letter-spacing:.02em;color:var(--forest-deep);background:var(--surface-2);border:1px solid var(--border);padding:6px 10px;border-radius:8px;}
+
+  .card{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:16px 16px;display:flex;flex-direction:column;gap:12px;}
+  .card-title{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);}
+  .card-title svg{width:16px;height:16px;color:var(--forest-deep);flex-shrink:0;}
+  .field-row{display:flex;justify-content:space-between;gap:12px;font-size:13.5px;}
+  .field-label{color:var(--ink-soft);}
+  .field-value{color:var(--ink);font-weight:600;text-align:right;}
+  .field-value.mono{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;font-variant-numeric:tabular-nums;font-weight:500;}
+
+  .qc-block{border-radius:14px;padding:18px 16px;display:flex;align-items:center;gap:14px;}
+  .qc-block.qc-pass{background:linear-gradient(155deg, var(--green-bg), var(--surface-2) 70%);border:1px solid var(--green);}
+  .qc-block.qc-partial{background:linear-gradient(155deg, var(--amber-bg), var(--surface-2) 70%);border:1px solid var(--amber);}
+  .qc-block.qc-pending{background:var(--surface-2);border:1px solid var(--border);}
+  .qc-badge{width:44px;height:44px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .qc-pass .qc-badge{background:var(--green);}
+  .qc-partial .qc-badge{background:var(--amber);}
+  .qc-pending .qc-badge{background:var(--ink-mute);}
+  .qc-badge svg{width:22px;height:22px;}
+  .qc-text{display:flex;flex-direction:column;gap:2px;}
+  .qc-title{font-size:14.5px;font-weight:800;}
+  .qc-pass .qc-title{color:#1D6B4C;} .qc-partial .qc-title{color:#8A5A05;} .qc-pending .qc-title{color:var(--ink-soft);}
+  .qc-sub{font-size:12px;color:var(--ink-soft);}
+  .qc-rate{margin-left:auto;text-align:right;flex-shrink:0;}
+  .qc-rate-num{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums;}
+  .qc-pass .qc-rate-num{color:#1D6B4C;} .qc-partial .qc-rate-num{color:#8A5A05;}
+  .qc-rate-label{font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;}
+
+  .timeline{display:flex;flex-direction:column;}
+  .tl-step{display:grid;grid-template-columns:22px 1fr;column-gap:12px;}
+  .tl-rail{display:flex;flex-direction:column;align-items:center;}
+  .tl-dot{width:12px;height:12px;border-radius:50%;background:var(--border);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--border);flex-shrink:0;margin-top:2px;}
+  .tl-line{width:2px;flex:1;background:var(--border);min-height:26px;}
+  .tl-step.done .tl-dot{background:var(--forest);box-shadow:0 0 0 1px var(--forest);}
+  .tl-step.done .tl-line{background:var(--forest);}
+  .tl-step.current .tl-dot{background:var(--surface);border:2px solid var(--forest);box-shadow:0 0 0 4px var(--green-bg);}
+  .tl-body{padding-bottom:20px;}
+  .tl-step:last-child .tl-line{display:none;}
+  .tl-step:last-child .tl-body{padding-bottom:2px;}
+  .tl-label{font-size:13.5px;font-weight:700;color:var(--ink);}
+  .tl-step:not(.done):not(.current) .tl-label{color:var(--ink-mute);font-weight:600;}
+  .tl-date{font-size:11.5px;color:var(--ink-soft);margin-top:1px;font-variant-numeric:tabular-nums;}
+  .tl-now-tag{display:inline-block;margin-top:4px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--forest-deep);background:var(--surface);border:1px solid var(--forest);padding:2px 7px;border-radius:20px;}
+
+  .ph-footer{margin-top:4px;padding-top:14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:4px;align-items:center;text-align:center;}
+  .ph-footer .note{font-size:10.5px;color:var(--ink-mute);line-height:1.5;max-width:280px;}
+  .ph-footer .contact{font-size:11.5px;color:var(--ink-soft);font-weight:600;}
+
+  .state-block{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:40px 10px;}
+  .state-block svg{width:40px;height:40px;color:var(--ink-mute);}
+  .state-title{font-size:15px;font-weight:700;color:var(--ink);}
+  .state-sub{font-size:12.5px;color:var(--ink-soft);max-width:260px;line-height:1.5;}
+  [hidden]{display:none !important;}
+</style>
+</head>
+<body>
+<div class="page-wrap">
+  <div class="content">
+
+    <div class="top-bar">
+      <div class="lang-toggle" id="langToggle" role="group" aria-label="Chọn ngôn ngữ / Choose language">
+        <button type="button" class="lang-btn active" data-lang="vi">VI</button>
+        <button type="button" class="lang-btn" data-lang="en">EN</button>
+      </div>
+    </div>
+
+    <div class="ph-header">
+      <img class="ph-logo" src="assets/logo-fadoagri-cropped.png" alt="FADO AGRI">
+      <div class="ph-brandline" data-vi="Truy xuất nguồn gốc" data-en="Product Traceability">Truy xuất nguồn gốc</div>
+    </div>
+
+    <div id="stateLoading" class="state-block">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9"/></svg>
+      <div class="state-title" data-vi="Đang tải..." data-en="Loading...">Đang tải...</div>
+    </div>
+
+    <div id="stateNotFound" class="state-block" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <div class="state-title" data-vi="Không tìm thấy thông tin" data-en="No information found">Không tìm thấy thông tin</div>
+      <div class="state-sub" data-vi="Mã tra cứu không đúng hoặc lô hàng chưa được công khai." data-en="This lookup code is invalid or the batch is not public yet.">Mã tra cứu không đúng hoặc lô hàng chưa được công khai.</div>
+    </div>
+
+    <div id="stateError" class="state-block" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+      <div class="state-title" data-vi="Không tải được dữ liệu" data-en="Couldn't load data">Không tải được dữ liệu</div>
+      <div class="state-sub" data-vi="Kiểm tra kết nối mạng rồi thử lại." data-en="Check your connection and try again.">Kiểm tra kết nối mạng rồi thử lại.</div>
+    </div>
+
+    <div id="stateContent" hidden style="display:flex;flex-direction:column;gap:22px;">
+
+      <div class="hero">
+        <div class="hero-eyebrow" id="heroEyebrow"></div>
+        <h1 id="heroTitle"></h1>
+        <span class="batch-chip" id="batchChip"></span>
+      </div>
+
+      <div class="card" id="originCard">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21c7-1 12-6 13-13"/><path d="M5 21C5 13 10 6 18 5c1 5-2 12-9 15Z"/></svg>
+          <span data-vi="Nguồn gốc" data-en="Origin">Nguồn gốc</span>
+        </div>
+        <div class="field-row" id="rowRegion" hidden><span class="field-label" data-vi="Vùng nguyên liệu" data-en="Growing region">Vùng nguyên liệu</span><span class="field-value" id="valRegion"></span></div>
+        <div class="field-row" id="rowVariety" hidden><span class="field-label" data-vi="Chủng loại" data-en="Variety">Chủng loại</span><span class="field-value" id="valVariety"></span></div>
+        <div class="field-row" id="rowHarvest" hidden><span class="field-label" data-vi="Ngày thu hoạch" data-en="Harvest date">Ngày thu hoạch</span><span class="field-value mono" id="valHarvest"></span></div>
+      </div>
+
+      <div class="qc-block" id="qcBlock">
+        <div class="qc-badge" id="qcBadge"></div>
+        <div class="qc-text">
+          <div class="qc-title" id="qcTitle"></div>
+          <div class="qc-sub" id="qcSub"></div>
+        </div>
+        <div class="qc-rate" id="qcRateWrap" hidden>
+          <div class="qc-rate-num" id="qcRateNum"></div>
+          <div class="qc-rate-label" data-vi="Tỷ lệ đạt" data-en="Pass rate">Tỷ lệ đạt</div>
+        </div>
+      </div>
+
+      <div class="card" id="packingCard" hidden>
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
+          <span data-vi="Đóng gói" data-en="Packing">Đóng gói</span>
+        </div>
+        <div class="field-row" id="rowPackedDate" hidden><span class="field-label" data-vi="Ngày đóng hàng" data-en="Packed on">Ngày đóng hàng</span><span class="field-value mono" id="valPackedDate"></span></div>
+        <div class="field-row" id="rowPackingText" hidden><span class="field-label" data-vi="Quy cách" data-en="Specification">Quy cách</span><span class="field-value" id="valPackingText"></span></div>
+      </div>
+
+      <div>
+        <div class="card-title" style="margin-bottom:14px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h20"/><path d="M4 20V10l4-2 4 2 4-2 4 2v10"/><path d="M12 4v6"/></svg>
+          <span data-vi="Hành trình vận chuyển" data-en="Shipping journey">Hành trình vận chuyển</span>
+        </div>
+        <div class="timeline" id="timeline"></div>
+      </div>
+
+      <div class="ph-footer">
+        <div class="contact" data-vi="fadoagri.com · hotline 090x xxx xxx" data-en="fadoagri.com · phone 090x xxx xxx">fadoagri.com · hotline 090x xxx xxx</div>
+        <div class="note" data-vi="Dữ liệu cập nhật tự động từ hệ thống quản lý chuỗi cung ứng FADO AGRI" data-en="Data updated automatically from FADO AGRI's supply chain management system">Dữ liệu cập nhật tự động từ hệ thống quản lý chuỗi cung ứng FADO AGRI</div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  var SUPABASE_URL = 'https://ickyibgaxczypuxzpuun.supabase.co';
+  var SUPABASE_ANON_KEY = 'sb_publishable_9FLlPV6d0aFcX-m-wmKK5w_Qdc4V_0h';
+  var lang = 'vi';
+
+  function $(id){ return document.getElementById(id); }
+  function fmtDate(v){
+    if(!v) return '';
+    var s = String(v).slice(0,10);
+    var p = s.split('-');
+    return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : s;
+  }
+  function setBilingual(el, vi, en){
+    if(!el) return;
+    el.dataset.vi = vi;
+    el.dataset.en = en;
+    el.textContent = lang === 'vi' ? vi : en;
+  }
+  function applyLang(){
+    document.querySelectorAll('[data-vi]').forEach(function(el){
+      el.textContent = el.dataset[lang];
+    });
+    document.querySelectorAll('.lang-btn').forEach(function(b){
+      b.classList.toggle('active', b.dataset.lang === lang);
+    });
+  }
+  $('langToggle').addEventListener('click', function(e){
+    var btn = e.target.closest('.lang-btn');
+    if(!btn) return;
+    lang = btn.dataset.lang;
+    applyLang();
+  });
+
+  function showState(name){
+    ['stateLoading','stateNotFound','stateError','stateContent'].forEach(function(id){
+      $(id).hidden = (id !== name);
+    });
+  }
+
+  var QC_META = {
+    'Đạt':               { cls:'qc-pass',    icon:'check', vi:'Đạt chuẩn xuất khẩu', en:'Export quality passed' },
+    'Không đạt 1 phần':  { cls:'qc-partial', icon:'alert', vi:'Một phần chưa đạt chuẩn', en:'Partially below standard' },
+    'Chờ xác nhận':      { cls:'qc-pending', icon:'clock', vi:'Đang chờ kết quả kiểm định', en:'Inspection pending' }
+  };
+  var QC_ICONS = {
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+    alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>',
+    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>'
+  };
+
+  var STAGE_ORDER = ['Trên biển', 'Thông quan', 'Cảng đến', 'Giao khách hàng', 'Khách đã nhận hàng'];
+  function stageIndex(stage){
+    var i = STAGE_ORDER.indexOf(stage);
+    return i === -1 ? -1 : i;
+  }
+
+  function render(d){
+    setBilingual($('heroEyebrow'), (d.variety || 'Dừa xiêm xanh') + ' · Xuất khẩu', (d.variety || 'Coconut') + ' · Export');
+    var productName = d.product_name || (lang === 'vi' ? 'Sản phẩm chưa đặt tên' : 'Unnamed product');
+    $('heroTitle').textContent = d.product_name || (lang === 'vi' ? 'Sản phẩm chưa đặt tên' : 'Unnamed product');
+    $('heroTitle').dataset.vi = d.product_name || 'Sản phẩm chưa đặt tên';
+    $('heroTitle').dataset.en = d.product_name || 'Unnamed product';
+    setBilingual($('batchChip'), 'Mã lô ' + d.trace_code, 'Batch ' + d.trace_code);
+
+    if(d.region){ $('rowRegion').hidden = false; $('valRegion').textContent = d.region; }
+    if(d.variety){ $('rowVariety').hidden = false; $('valVariety').textContent = d.variety; }
+    if(d.harvest_date){ $('rowHarvest').hidden = false; $('valHarvest').textContent = fmtDate(d.harvest_date); }
+    if(!d.region && !d.variety && !d.harvest_date){ $('originCard').hidden = true; }
+
+    var qcMeta = QC_META[d.qc_status] || null;
+    var qcBlock = $('qcBlock');
+    if(qcMeta){
+      qcBlock.className = 'qc-block ' + qcMeta.cls;
+      $('qcBadge').innerHTML = QC_ICONS[qcMeta.icon];
+      setBilingual($('qcTitle'), qcMeta.vi, qcMeta.en);
+      var qcDateTxt = d.qc_date ? fmtDate(d.qc_date) : '';
+      setBilingual($('qcSub'), qcDateTxt ? ('Kiểm định ' + qcDateTxt) : 'Chưa có ngày kiểm định', qcDateTxt ? ('Inspected ' + qcDateTxt) : 'No inspection date yet');
+      if(d.qc_pass_rate != null){
+        $('qcRateWrap').hidden = false;
+        $('qcRateNum').textContent = Math.round(d.qc_pass_rate) + '%';
+      }
+    } else {
+      qcBlock.hidden = true;
+    }
+
+    if(d.packed_date || d.packing_text){
+      $('packingCard').hidden = false;
+      if(d.packed_date){ $('rowPackedDate').hidden = false; $('valPackedDate').textContent = fmtDate(d.packed_date); }
+      if(d.packing_text){ $('rowPackingText').hidden = false; $('valPackingText').textContent = d.packing_text; }
+    }
+
+    renderTimeline(d);
+    applyLang();
+    showState('stateContent');
+  }
+
+  function tlStep(labelVi, labelEn, dateText, state){
+    var wrap = document.createElement('div');
+    wrap.className = 'tl-step' + (state ? ' ' + state : '');
+    var rail = document.createElement('div'); rail.className = 'tl-rail';
+    rail.innerHTML = '<div class="tl-dot"></div><div class="tl-line"></div>';
+    var body = document.createElement('div'); body.className = 'tl-body';
+    var label = document.createElement('div'); label.className = 'tl-label';
+    setBilingual(label, labelVi, labelEn);
+    body.appendChild(label);
+    if(dateText){
+      var dateEl = document.createElement('div'); dateEl.className = 'tl-date'; dateEl.textContent = dateText;
+      body.appendChild(dateEl);
+    }
+    if(state === 'current'){
+      var tag = document.createElement('span'); tag.className = 'tl-now-tag';
+      setBilingual(tag, 'Đang ở bước này', 'Current stage');
+      body.appendChild(tag);
+    }
+    wrap.appendChild(rail); wrap.appendChild(body);
+    return wrap;
+  }
+
+  function renderTimeline(d){
+    var idx = stageIndex(d.shipping_stage);
+    var el = $('timeline');
+    el.textContent = '';
+
+    // Đóng hàng — coi là "done" nếu đã có ngày đóng hàng hoặc lô đã có bất kỳ mốc vận chuyển nào.
+    var packedState = (d.packed_date || idx >= 0) ? 'done' : (idx === -1 && !d.packed_date ? 'current' : '');
+    el.appendChild(tlStep('Đóng hàng', 'Packed', d.packed_date ? fmtDate(d.packed_date) : '', packedState));
+
+    // Trên biển
+    var atSeaState = idx > 0 ? 'done' : (idx === 0 ? 'current' : '');
+    el.appendChild(tlStep('Trên biển', 'At sea', '', atSeaState));
+
+    // Cảng đến
+    var arrivedState = idx > 2 ? 'done' : (idx === 1 || idx === 2 ? 'current' : '');
+    var arrivedDate = d.shipping_eta ? (lang === 'vi' ? 'Dự kiến ' : 'Estimated ') + fmtDate(d.shipping_eta) : '';
+    el.appendChild(tlStep('Cảng đến', 'Port of arrival', arrivedDate, arrivedState));
+
+    // Giao khách hàng
+    var deliveredState = idx === 4 ? 'done' : (idx === 3 ? 'current' : '');
+    var deliveredDate = d.shipping_received_date ? fmtDate(d.shipping_received_date) : '';
+    el.appendChild(tlStep('Giao khách hàng', 'Delivered to customer', deliveredDate, deliveredState));
+  }
+
+  function load(){
+    var token = new URLSearchParams(location.search).get('t');
+    if(!token){ showState('stateNotFound'); return; }
+    var url = SUPABASE_URL + '/rest/v1/batch_trace_public?trace_code=eq.' + encodeURIComponent(token) + '&select=*';
+    fetch(url, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY } })
+      .then(function(res){ if(!res.ok) throw new Error('http ' + res.status); return res.json(); })
+      .then(function(rows){
+        if(!rows || !rows.length){ showState('stateNotFound'); return; }
+        render(rows[0]);
+      })
+      .catch(function(){ showState('stateError'); });
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>

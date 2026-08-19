@@ -27,6 +27,7 @@
     --green-bg:#DDF3E9;
     --blue:#6C63FF;
     --blue-bg:#EAE8FF;
+    --violet:#B24CE2;
     --radius:18px;
     --radius-sm:12px;
     --shadow:0 1px 2px rgba(20,45,60,.05), 0 12px 28px -10px rgba(20,45,60,.16);
@@ -145,6 +146,53 @@
     padding:7px 14px;border-radius:20px;box-shadow:var(--shadow-sm);
   }
   .date-chip i{color:var(--forest);}
+
+  .global-search{position:relative;width:250px;}
+  .global-search i.ti-search{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--ink-soft);pointer-events:none;}
+  .global-search input{
+    width:100%;box-sizing:border-box;font-size:12.5px;font-weight:500;color:var(--ink);
+    background:var(--surface);border:1px solid var(--border);border-radius:20px;
+    padding:8px 14px 8px 34px;box-shadow:var(--shadow-sm);
+  }
+  .global-search input:focus{outline:none;border-color:var(--forest);}
+  .global-search-results{
+    display:none;position:absolute;top:calc(100% + 6px);left:0;right:0;min-width:280px;
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:var(--shadow);max-height:360px;overflow-y:auto;z-index:50;
+  }
+  .global-search-results.open{display:block;}
+  .gs-group-label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);padding:10px 14px 4px;}
+  .gs-item{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;}
+  .gs-item:hover, .gs-item.active{background:var(--surface-2);}
+  .gs-item-title{font-size:13px;font-weight:600;color:var(--ink);}
+  .gs-item-sub{font-size:11px;color:var(--ink-soft);margin-top:1px;}
+  .gs-empty{padding:16px 14px;font-size:12.5px;color:var(--ink-soft);text-align:center;}
+
+  @keyframes row-flash{0%{background:var(--amber-bg);}100%{background:transparent;}}
+  tr.row-flash td{animation:row-flash 1.6s ease;}
+
+  .btn-icon{width:30px;height:30px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--ink-soft);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
+  .btn-icon:hover{background:var(--surface-2);color:var(--ink);}
+  .calendar-nav{display:flex;align-items:center;gap:10px;}
+  .calendar-month-label{font-size:13.5px;font-weight:700;color:var(--ink);min-width:96px;text-align:center;}
+  .calendar-legend{display:flex;gap:16px;flex-wrap:wrap;padding:16px 4px 8px;font-size:11.5px;color:var(--ink-soft);}
+  .cal-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
+  .calendar-legend .cal-dot{margin-right:5px;}
+  .cal-dot.amber{background:var(--amber);}
+  .cal-dot.blue{background:var(--blue);}
+  .cal-dot.red{background:var(--red);}
+  .cal-dot.green{background:var(--green);}
+  .cal-dot.violet{background:var(--violet);}
+  .cal-dot.teal{background:var(--forest);}
+  .calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:4px 0 18px;}
+  .cal-weekday{font-size:10.5px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);text-align:center;padding:4px 0;}
+  .cal-day{min-height:60px;border-radius:10px;border:1px solid var(--border);padding:6px;font-size:11.5px;color:var(--ink);background:var(--surface-2);}
+  .cal-day.empty{background:transparent;border-color:transparent;}
+  .cal-day.today{border-color:var(--forest);border-width:2px;}
+  .cal-day-num{font-weight:700;font-size:12px;}
+  .cal-day-dots{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px;}
+  .cal-day.cal-day-events{cursor:pointer;transition:background .15s ease;}
+  .cal-day.cal-day-events:hover{background:var(--surface);box-shadow:var(--shadow-sm);}
 
   .tab-content{display:none;}
   .tab-content.active{display:block;animation:fade .25s ease;}
@@ -269,6 +317,12 @@
 
   .section-header-row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 16px;margin:30px 0 13px;}
   .section-header-row .section-label{margin:0;flex:1 1 auto;min-width:180px;}
+
+  /* 2 cột "Cần xử lý ngay" / "Lịch deadline" cần cùng 1 mốc thẳng hàng — cột
+     trái dùng .section-label trần nên tự thành :first-child của ô bọc riêng
+     (mất margin-top mặc định), phải khai báo lại đúng bằng margin-top của
+     .section-header-row bên cột phải mới thẳng hàng nhau. */
+  .overview-action-row > div > .section-label:first-child{margin-top:30px;}
 
   .subtab-bar{display:flex;gap:22px;border-bottom:1px solid var(--border);margin-bottom:24px;}
   .subtab-item{
@@ -572,6 +626,11 @@
       <div class="page-sub" id="page-sub">Toàn cảnh hoạt động chuỗi cung ứng hôm nay</div>
     </div>
     <div class="topbar-right">
+      <div class="global-search" id="global-search">
+        <i class="ti ti-search" aria-hidden="true"></i>
+        <input type="text" id="global-search-input" placeholder="Tìm lô hàng, NCC, khách hàng..." autocomplete="off" aria-label="Tìm kiếm toàn hệ thống">
+        <div class="global-search-results" id="global-search-results"></div>
+      </div>
       <span class="date-chip"><i class="ti ti-calendar" style="margin-right:6px;"></i><span id="topbar-date">—</span></span>
     </div>
   </div>
@@ -599,11 +658,48 @@
       </div>
     </div>
 
-    <div class="section-label">Cần xử lý ngay</div>
-    <div class="card">
-      <div id="alerts-list">
-        <div class="muted" style="padding:20px 0;">Đang tải dữ liệu...</div>
+    <div class="two-col overview-action-row">
+      <div>
+        <div class="section-label">Cần xử lý ngay</div>
+        <div class="card">
+          <div id="alerts-list">
+            <div class="muted" style="padding:20px 0;">Đang tải dữ liệu...</div>
+          </div>
+        </div>
       </div>
+      <div>
+        <div class="section-header-row">
+          <div class="section-label">Lịch deadline tổng hợp</div>
+          <div class="calendar-nav">
+            <button class="btn-icon" id="cal-prev-month" type="button" aria-label="Tháng trước"><i class="ti ti-chevron-left"></i></button>
+            <div class="calendar-month-label" id="cal-month-label">—</div>
+            <button class="btn-icon" id="cal-next-month" type="button" aria-label="Tháng sau"><i class="ti ti-chevron-right"></i></button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="calendar-legend">
+            <span><i class="cal-dot amber"></i>Giao hàng</span>
+            <span><i class="cal-dot blue"></i>ETA container</span>
+            <span><i class="cal-dot red"></i>Hạn chứng từ</span>
+            <span><i class="cal-dot green"></i>Hạn phản hồi KH</span>
+            <span><i class="cal-dot violet"></i>NCC giao nguyên liệu</span>
+            <span><i class="cal-dot teal"></i>Hạn sử dụng tồn kho</span>
+          </div>
+          <div class="calendar-grid" id="calendar-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label">Lô hàng gần đây</div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Lô hàng</th><th>Giai đoạn</th><th>Chứng từ</th><th>ETA / feedback</th></tr>
+        </thead>
+        <tbody id="overview-recent-tbody">
+          <tr><td colspan="4" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
     </div>
 
     <div class="section-header-row">
@@ -636,18 +732,6 @@
         <div class="chart-card-title">Tỷ lệ đạt QC theo tháng</div>
         <div class="chart-container" id="chart-qc-rate"><div class="muted" style="padding:20px 0;">Đang tải dữ liệu...</div></div>
       </div>
-    </div>
-
-    <div class="section-label">Lô hàng gần đây</div>
-    <div class="card">
-      <table>
-        <thead>
-          <tr><th>Lô hàng</th><th>Giai đoạn</th><th>Chứng từ</th><th>ETA / feedback</th></tr>
-        </thead>
-        <tbody id="overview-recent-tbody">
-          <tr><td colspan="4" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
-        </tbody>
-      </table>
     </div>
   </section>
 
@@ -731,6 +815,55 @@
             <button type="submit" class="btn-primary" id="btn-submit-add-order">Thêm đơn hàng</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="trace-overlay">
+      <div class="modal" style="max-width:420px;">
+        <div class="modal-header">
+          <div class="modal-title" id="trace-modal-title">Truy xuất nguồn gốc</div>
+          <button class="modal-close" id="btn-close-trace" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <div class="muted" style="font-size:11.5px;margin-bottom:14px;">Trang công khai chỉ hiện vùng nguyên liệu, kết quả QC tóm tắt, đóng gói và hành trình vận chuyển — không hiện khách hàng, giá trị đơn hay thông tin NCC.</div>
+        <form id="form-trace">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+            <button type="button" class="btn-secondary" id="btn-refill-trace-packing" style="font-size:11px;padding:4px 10px;white-space:nowrap;"><i class="ti ti-refresh"></i> Lấy từ hệ thống</button>
+          </div>
+          <div class="form-group">
+            <label for="trace-region">Vùng nguyên liệu (hiển thị công khai)</label>
+            <input type="text" id="trace-region" placeholder="VD: Bến Tre">
+            <div class="muted" style="font-size:11px;margin-top:4px;">"Lấy từ hệ thống" điền tạm nguyên địa chỉ đầu mối thu mua đã khai — nên rút gọn lại về đúng vùng/tỉnh trước khi lưu, tránh lộ địa chỉ chi tiết.</div>
+          </div>
+          <div class="form-group">
+            <label for="trace-packed-date">Ngày đóng hàng</label>
+            <input type="date" id="trace-packed-date">
+          </div>
+          <div class="form-group">
+            <label for="trace-packing-text">Quy cách đóng gói (hiển thị công khai)</label>
+            <textarea id="trace-packing-text" rows="3" placeholder="Nhiều loại hàng/quy cách thì mỗi dòng 1 loại."></textarea>
+          </div>
+          <div class="modal-actions" style="justify-content:space-between;">
+            <button type="button" class="btn-secondary" id="btn-cancel-trace">Đóng</button>
+            <button type="submit" class="btn-primary" id="btn-submit-trace">Lưu</button>
+          </div>
+        </form>
+
+        <div id="trace-public-section" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--border);display:none;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;">
+            <div style="font-size:13px;font-weight:700;">Công khai trang truy xuất</div>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="trace-enabled-toggle" style="width:auto;">
+              <span class="muted" style="font-size:12px;" id="trace-enabled-label">Tắt</span>
+            </label>
+          </div>
+          <div id="trace-qr-wrap" style="display:none;text-align:center;">
+            <div id="trace-qr-box" style="display:inline-block;padding:10px;background:#fff;border:1px solid var(--border);border-radius:10px;"></div>
+            <div style="display:flex;gap:6px;margin-top:10px;">
+              <input type="text" id="trace-public-url" readonly style="font-size:11.5px;flex:1;">
+              <button type="button" class="btn-secondary" id="btn-copy-trace-url" title="Sao chép link"><i class="ti ti-copy"></i></button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -1829,6 +1962,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script>
 const titles = {
     overview:  ["Tổng quan", "Toàn cảnh hoạt động chuỗi cung ứng hôm nay"],
@@ -2174,6 +2308,14 @@ const titles = {
   const feedbacksListeners = [];
   function onFeedbacksChanged(cb){ feedbacksListeners.push(cb); }
   function notifyFeedbacksChanged(){ feedbacksListeners.forEach(function(cb){ cb(); }); }
+
+  // Tồn kho công bố danh sách thùng còn tồn kèm hạn sử dụng (FEFO) — Tổng
+  // quan dùng để lên Lịch deadline tổng hợp, không tính lại logic quy đổi
+  // trái/thùng + trừ đã xuất (đã có sẵn và đúng ở Tồn kho).
+  let sharedExpiringStock = [];
+  const expiringStockListeners = [];
+  function onExpiringStockChanged(cb){ expiringStockListeners.push(cb); }
+  function notifyExpiringStockChanged(){ expiringStockListeners.forEach(function(cb){ cb(); }); }
 
   function fmtDate(value){
     if(!value) return '—';
@@ -4170,6 +4312,17 @@ const titles = {
             traceBtn.setAttribute('aria-label', 'Xem hành trình đầy đủ');
             traceBtn.innerHTML = '<i class="ti ti-timeline"></i>';
             actionsTd.appendChild(traceBtn);
+            // Trang truy xuất nguồn gốc công khai chỉ có ý nghĩa khi lô đã
+            // đóng hàng — trước đó chưa đủ dữ liệu (quy cách, kết quả QC
+            // thành phẩm) để hiện cho khách.
+            if(b.orderStatus === 'Đã đóng hàng'){
+              const publicTraceBtn = document.createElement('button');
+              publicTraceBtn.type = 'button';
+              publicTraceBtn.className = 'row-edit-btn public-trace-open-btn';
+              publicTraceBtn.setAttribute('aria-label', 'Truy xuất nguồn gốc / mã QR');
+              publicTraceBtn.innerHTML = '<i class="ti ti-qrcode"></i>';
+              actionsTd.appendChild(publicTraceBtn);
+            }
             tr.appendChild(actionsTd);
           }
 
@@ -4705,11 +4858,233 @@ const titles = {
       resetForm();
     }
 
+    // ---- Modal "Truy xuất nguồn gốc" — bật/tắt trang công khai (trace.html,
+    // đọc qua view an toàn public.batch_trace_public, xem
+    // supabase/2026-08-19_public_trace.sql) và sinh mã QR trỏ vào đó cho
+    // từng lô. Vùng nguyên liệu NHẬP TAY (không tự lấy từ NCC/đầu mối thu
+    // mua thật) để tránh lộ quan hệ kinh doanh — nhưng Quy cách đóng gói thì
+    // hệ thống đã có sẵn (Quy cách đóng thùng khai ở Xưởng Ba Phi, xem
+    // getBoxItemsForBatch), tự điền được, staff chỉ cần rà lại trước khi lưu.
+    const PUBLIC_TRACE_BASE_URL = 'https://fadoagri-scms.github.io/trace.html';
+    const traceOverlay = document.getElementById('trace-overlay');
+    const traceModalTitle = document.getElementById('trace-modal-title');
+    const traceCloseBtn = document.getElementById('btn-close-trace');
+    const traceCancelBtn = document.getElementById('btn-cancel-trace');
+    const traceForm = document.getElementById('form-trace');
+    const traceSubmitBtn = document.getElementById('btn-submit-trace');
+    const traceRegionInput = document.getElementById('trace-region');
+    const tracePackedDateInput = document.getElementById('trace-packed-date');
+    const tracePackingTextInput = document.getElementById('trace-packing-text');
+    const traceRefillBtn = document.getElementById('btn-refill-trace-packing');
+    const tracePublicSection = document.getElementById('trace-public-section');
+    const traceEnabledToggle = document.getElementById('trace-enabled-toggle');
+    const traceEnabledLabel = document.getElementById('trace-enabled-label');
+    const traceQrWrap = document.getElementById('trace-qr-wrap');
+    const traceQrBox = document.getElementById('trace-qr-box');
+    const tracePublicUrlInput = document.getElementById('trace-public-url');
+    const traceCopyBtn = document.getElementById('btn-copy-trace-url');
+
+    let traceCurrentBatch = null;
+    let traceCurrentCode = null;
+
+    function genTraceCode(){
+      if(typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+      return (Date.now().toString(36) + Math.random().toString(36).slice(2)).slice(0, 12);
+    }
+
+    // Gộp Sản phẩm+Quy cách trên mọi đợt sản xuất của 1 lô lại (1 lô có thể
+    // có nhiều đợt/nhiều dòng box, nhiều loại hàng khác nhau) — cùng cách
+    // tính với tab Xuất hàng ở Xưởng Ba Phi.
+    async function getBoxItemsForBatch(batchCode){
+      const { data, error } = await sb.from('raw_batches').select('batch, factory_batches(factory_batch_boxes(san_pham,quy_cach,so_luong_thung))').eq('batch', batchCode).is('deleted_at', null);
+      if(error) throw error;
+      const boxMap = {};
+      (data || []).forEach(function(r){
+        const fb = r.factory_batches && (Array.isArray(r.factory_batches) ? r.factory_batches[0] : r.factory_batches);
+        if(!fb) return;
+        (fb.factory_batch_boxes || []).forEach(function(box){
+          const key = (box.san_pham || '') + '::' + (box.quy_cach == null ? '' : box.quy_cach);
+          if(!boxMap[key]) boxMap[key] = { sanPham: box.san_pham || '', quyCach: box.quy_cach, soLuong: 0 };
+          boxMap[key].soLuong += Number(box.so_luong_thung) || 0;
+        });
+      });
+      return Object.values(boxMap);
+    }
+    function formatPackingTextFromBoxes(items){
+      return items.map(function(it){
+        const spec = it.quyCach ? (' — ' + it.quyCach) : '';
+        return (it.sanPham || '(chưa đặt tên)') + spec + ' · ' + it.soLuong.toLocaleString('vi-VN') + ' thùng';
+      }).join('\n');
+    }
+    // Địa chỉ đầu mối thu mua (raw_suppliers.address, khớp theo tên với
+    // raw_batches.ncc — xem ghi chú ở modal "Sửa hồ sơ đầu mối") thường chi
+    // tiết hơn mức cần công khai (VD "Ấp 3, Giồng Trôm, Bến Tre") — điền tạm
+    // làm gợi ý, staff tự rút gọn về đúng vùng/tỉnh trước khi lưu.
+    async function getTraceRegionSuggestion(batchCode){
+      const { data: rows, error } = await sb.from('raw_batches').select('ncc').eq('batch', batchCode).is('deleted_at', null);
+      if(error) throw error;
+      const nccNames = Array.from(new Set((rows || []).map(function(r){ return r.ncc; }).filter(Boolean)));
+      if(!nccNames.length) return '';
+      const { data: suppliers, error: supErr } = await sb.from('raw_suppliers').select('name,address').in('name', nccNames);
+      if(supErr) throw supErr;
+      const addresses = Array.from(new Set((suppliers || []).map(function(s){ return s.address; }).filter(Boolean)));
+      return addresses.join('; ');
+    }
+    // Ngày hệ thống tự tạo dòng vận chuyển đầu tiên cho lô — trùng đúng lúc
+    // Trạng thái đơn hàng chuyển sang "Đã đóng hàng" (xem saveOrderStatus),
+    // dùng làm mốc "ngày đóng hàng" thay vì phải nhập tay lại.
+    async function getTracePackedDateSuggestion(batchCode){
+      const { data, error } = await sb.from('shipments').select('created_at').eq('batch_code', batchCode).is('deleted_at', null).order('created_at', { ascending: true }).limit(1);
+      if(error) throw error;
+      return data && data.length ? String(data[0].created_at).slice(0, 10) : '';
+    }
+    async function refillTraceFromSystem(silent){
+      if(!traceCurrentBatch) return;
+      if(traceRefillBtn) traceRefillBtn.disabled = true;
+      try{
+        const [items, regionSuggestion, packedDateSuggestion] = await Promise.all([
+          getBoxItemsForBatch(traceCurrentBatch),
+          getTraceRegionSuggestion(traceCurrentBatch),
+          getTracePackedDateSuggestion(traceCurrentBatch)
+        ]);
+        let gotAny = false;
+        if(items.length){ tracePackingTextInput.value = formatPackingTextFromBoxes(items); gotAny = true; }
+        if(regionSuggestion){ traceRegionInput.value = regionSuggestion; gotAny = true; }
+        if(packedDateSuggestion){ tracePackedDateInput.value = packedDateSuggestion; gotAny = true; }
+        if(!gotAny && !silent) alert('Chưa có dữ liệu để tự điền cho lô này — nhập tay các ô bên trên.');
+      } catch(err){
+        if(!silent) alert('Không lấy được dữ liệu: ' + (err.message || err));
+      } finally {
+        if(traceRefillBtn) traceRefillBtn.disabled = false;
+      }
+    }
+    if(traceRefillBtn) traceRefillBtn.addEventListener('click', function(){ refillTraceFromSystem(false); });
+
+    function renderTraceQr(code){
+      traceQrBox.textContent = '';
+      const url = PUBLIC_TRACE_BASE_URL + '?t=' + encodeURIComponent(code);
+      tracePublicUrlInput.value = url;
+      if(typeof QRCode === 'undefined'){
+        traceQrBox.textContent = 'Không tải được thư viện QR — kiểm tra kết nối mạng.';
+        return;
+      }
+      new QRCode(traceQrBox, { text: url, width: 176, height: 176, correctLevel: QRCode.CorrectLevel.M });
+    }
+
+    async function openTraceModal(batchCode){
+      traceCurrentBatch = batchCode;
+      traceCurrentCode = null;
+      traceModalTitle.textContent = 'Truy xuất nguồn gốc — ' + batchCode;
+      traceForm.reset();
+      tracePublicSection.style.display = 'none';
+      traceQrWrap.style.display = 'none';
+      traceOverlay.classList.add('active');
+      try{
+        const { data, error } = await sb.from('batch_info').select('trace_region,trace_packed_date,trace_packing_text,trace_enabled,public_trace_code').eq('batch', batchCode).maybeSingle();
+        if(error) throw error;
+        const bi = data || {};
+        traceRegionInput.value = bi.trace_region || '';
+        tracePackedDateInput.value = bi.trace_packed_date || '';
+        tracePackingTextInput.value = bi.trace_packing_text || '';
+        if(!bi.trace_region && !bi.trace_packed_date && !bi.trace_packing_text) refillTraceFromSystem(true);
+        traceCurrentCode = bi.public_trace_code || null;
+        tracePublicSection.style.display = '';
+        traceEnabledToggle.checked = !!bi.trace_enabled;
+        traceEnabledLabel.textContent = bi.trace_enabled ? 'Đang công khai' : 'Tắt';
+        if(bi.trace_enabled && traceCurrentCode){
+          traceQrWrap.style.display = '';
+          renderTraceQr(traceCurrentCode);
+        }
+      } catch(err){
+        alert('Không tải được dữ liệu: ' + (err.message || err));
+      }
+    }
+    function closeTraceModal(){
+      traceOverlay.classList.remove('active');
+      traceForm.reset();
+      traceCurrentBatch = null;
+      traceCurrentCode = null;
+    }
+    if(traceCloseBtn) traceCloseBtn.addEventListener('click', closeTraceModal);
+    if(traceCancelBtn) traceCancelBtn.addEventListener('click', closeTraceModal);
+    if(traceOverlay) traceOverlay.addEventListener('click', function(e){ if(e.target === traceOverlay) closeTraceModal(); });
+
+    if(traceForm){
+      traceForm.addEventListener('submit', async function(e){
+        e.preventDefault();
+        if(!traceCurrentBatch) return;
+        const originalLabel = traceSubmitBtn.textContent;
+        traceSubmitBtn.disabled = true;
+        traceSubmitBtn.textContent = 'Đang lưu...';
+        try{
+          const { error } = await sb.from('batch_info').upsert({
+            batch: traceCurrentBatch,
+            trace_region: traceRegionInput.value.trim() || null,
+            trace_packed_date: tracePackedDateInput.value || null,
+            trace_packing_text: tracePackingTextInput.value.trim() || null
+          }, { onConflict: 'batch' });
+          if(error) throw error;
+          closeTraceModal();
+        } catch(err){
+          alert('Không thể lưu: ' + (err.message || err));
+        } finally {
+          traceSubmitBtn.disabled = false;
+          traceSubmitBtn.textContent = originalLabel;
+        }
+      });
+    }
+
+    if(traceEnabledToggle){
+      traceEnabledToggle.addEventListener('change', async function(){
+        if(!traceCurrentBatch) return;
+        const turningOn = traceEnabledToggle.checked;
+        traceEnabledToggle.disabled = true;
+        try{
+          if(turningOn && !traceCurrentCode) traceCurrentCode = genTraceCode();
+          const { error } = await sb.from('batch_info').upsert({
+            batch: traceCurrentBatch,
+            trace_enabled: turningOn,
+            public_trace_code: traceCurrentCode
+          }, { onConflict: 'batch' });
+          if(error) throw error;
+          traceEnabledLabel.textContent = turningOn ? 'Đang công khai' : 'Tắt';
+          if(turningOn){
+            traceQrWrap.style.display = '';
+            renderTraceQr(traceCurrentCode);
+          } else {
+            traceQrWrap.style.display = 'none';
+          }
+        } catch(err){
+          traceEnabledToggle.checked = !turningOn;
+          alert('Không thể lưu: ' + (err.message || err));
+        } finally {
+          traceEnabledToggle.disabled = false;
+        }
+      });
+    }
+
+    if(traceCopyBtn){
+      traceCopyBtn.addEventListener('click', function(){
+        tracePublicUrlInput.select();
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(tracePublicUrlInput.value).catch(function(){});
+        } else {
+          document.execCommand('copy');
+        }
+      });
+    }
+
     summaryTbody.addEventListener('click', function(e){
       const traceBtn = e.target.closest('.trace-btn');
       if(traceBtn){
         const tr = traceBtn.closest('tr');
         if(tr && tr.dataset.batch) goToBatchTrace(tr.dataset.batch);
+        return;
+      }
+      const publicTraceBtn = e.target.closest('.public-trace-open-btn');
+      if(publicTraceBtn){
+        const tr = publicTraceBtn.closest('tr');
+        if(tr && tr.dataset.batch) openTraceModal(tr.dataset.batch);
         return;
       }
       const btn = e.target.closest('.row-edit-btn');
@@ -7167,6 +7542,26 @@ const titles = {
           return { batch: batch, lines: lines, totalExportedQty: totalExportedQty, exportDate: exportDate };
         });
 
+        // Chỉ lấy dòng còn tồn thật (remainingTrai > 0) và đã đủ dữ liệu để
+        // tính hạn (có Ngày sản xuất + Hạn sử dụng) — dòng chưa quy đổi được
+        // (remainingTrai null) hoặc chưa khai báo hạn thì bỏ qua, không đoán.
+        sharedExpiringStock = [];
+        groups.forEach(function(group){
+          group.lines.forEach(function(line){
+            line.quyCachEntries.forEach(function(entry){
+              if(entry.remainingTrai > 0 && entry.remainingDays != null && entry.productionDate && entry.hanSuDungNgay != null){
+                sharedExpiringStock.push({
+                  batch: group.batch,
+                  sanPham: entry.sanPham,
+                  remainingDays: entry.remainingDays,
+                  expiryDate: addDays(entry.productionDate, entry.hanSuDungNgay)
+                });
+              }
+            });
+          });
+        });
+        notifyExpiringStockChanged();
+
         renderInventoryRows(groups);
         renderStockRows(groups);
         updateInventoryStats(groups);
@@ -7296,6 +7691,12 @@ const titles = {
     const kpiSatisfaction = document.getElementById('kpi-satisfaction');
     const recentTbody = document.getElementById('overview-recent-tbody');
     const alertsList = document.getElementById('alerts-list');
+    const calGrid = document.getElementById('calendar-grid');
+    const calLabel = document.getElementById('cal-month-label');
+    const calPrevBtn = document.getElementById('cal-prev-month');
+    const calNextBtn = document.getElementById('cal-next-month');
+    let calViewDate = new Date();
+    let calShipRows = [], calDocRows = [], calFbRows = [], calPoRows = [];
     const FEEDBACK_DEADLINE_DAYS = 3;
     const INVENTORY_STALE_DAYS = 14;
     const DELIVERY_WARNING_DAYS = 7;
@@ -7379,17 +7780,135 @@ const titles = {
       });
     }
 
+    // "Lịch deadline tổng hợp" — gộp 4 loại hạn đang tính rời rạc trong
+    // renderAlerts (giao hàng/ETA/chứng từ/feedback) thành 1 lịch tháng, để
+    // thấy được ngày nào dồn nhiều việc cùng lúc thay vì chỉ đọc 1 danh sách
+    // phẳng. Dùng lại đúng dữ liệu loadOverview đã tải, không query thêm.
+    const CAL_TYPE_CLASS = { delivery: 'amber', eta: 'blue', docs: 'red', feedback: 'green', supplierDelivery: 'violet', expiry: 'teal' };
+    const CAL_WEEKDAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+
+    function collectCalendarEvents(){
+      const events = {};
+      function push(dateStr, type, label, tab){
+        if(!dateStr) return;
+        if(!events[dateStr]) events[dateStr] = [];
+        events[dateStr].push({ type: type, label: label, tab: tab });
+      }
+      Object.values(sharedBatchSummaries).forEach(function(b){
+        if(b.ngayGiaoMongMuon && b.orderStatus !== 'Đã đóng hàng'){
+          push(b.ngayGiaoMongMuon, 'delivery', b.batch + ' — hạn giao hàng', 'donhang');
+        }
+      });
+      calShipRows.forEach(function(d){
+        if(d.eta && d.stage !== 'Khách đã nhận hàng'){
+          push(d.eta, 'eta', (d.batch_code || '—') + ' — ETA container', 'logistics');
+        }
+      });
+      calDocRows.forEach(function(d){
+        const missing = !d.contract_ok || !d.co_ok || !d.quarantine_ok || !d.bill_of_lading_ok;
+        if(d.deadline && missing){
+          push(d.deadline, 'docs', (d.batch_code || '—') + ' — hạn bổ sung chứng từ', 'docs');
+        }
+      });
+      calFbRows.forEach(function(d){
+        if(d.response_deadline && d.status !== 'Đã xử lý'){
+          push(d.response_deadline, 'feedback', (d.batch_code || '—') + ' — hạn phản hồi KH', 'feedback');
+        }
+      });
+      // NCC đã hứa ngày giao (ngay_hen_giao) nhưng chưa có ngày giao thực tế
+      // — mốc đầu chuỗi cung ứng, biết trước để kịp xử lý thay vì chỉ tính
+      // "% đúng hẹn" sau khi việc đã xong (như bảng Đánh giá NCC đang làm).
+      calPoRows.forEach(function(p){
+        if(p.ngay_hen_giao && !p.ngay_giao_thuc_te){
+          push(p.ngay_hen_giao, 'supplierDelivery', (p.supplier_name || 'NCC') + ' — hạn giao lô ' + (p.batch_code || ''), 'ncc');
+        }
+      });
+      // Thùng thành phẩm còn tồn kho sắp/đã hết hạn sử dụng (FEFO) — lấy từ
+      // sharedExpiringStock do Tồn kho công bố, không tính lại.
+      sharedExpiringStock.forEach(function(s){
+        push(s.expiryDate, 'expiry', s.batch + (s.sanPham ? ' (' + s.sanPham + ')' : '') + ' — hạn sử dụng còn ' + s.remainingDays + ' ngày', 'factory');
+      });
+      return events;
+    }
+
+    function renderCalendar(){
+      if(!calGrid) return;
+      const events = collectCalendarEvents();
+      const year = calViewDate.getFullYear();
+      const month = calViewDate.getMonth();
+      if(calLabel) calLabel.textContent = 'Tháng ' + (month + 1) + '/' + year;
+
+      calGrid.textContent = '';
+      CAL_WEEKDAYS.forEach(function(w){
+        const el = document.createElement('div');
+        el.className = 'cal-weekday';
+        el.textContent = w;
+        calGrid.appendChild(el);
+      });
+
+      const firstDay = new Date(year, month, 1);
+      const startOffset = (firstDay.getDay() + 6) % 7; // Thứ 2 làm đầu tuần
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const todayNow = todayStr();
+
+      for(let i = 0; i < startOffset; i++){
+        const empty = document.createElement('div');
+        empty.className = 'cal-day empty';
+        calGrid.appendChild(empty);
+      }
+
+      for(let day = 1; day <= daysInMonth; day++){
+        const dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        const cell = document.createElement('div');
+        cell.className = 'cal-day' + (dateStr === todayNow ? ' today' : '');
+        const num = document.createElement('div');
+        num.className = 'cal-day-num';
+        num.textContent = String(day);
+        cell.appendChild(num);
+
+        const dayEvents = events[dateStr];
+        if(dayEvents && dayEvents.length){
+          cell.classList.add('cal-day-events');
+          const dots = document.createElement('div');
+          dots.className = 'cal-day-dots';
+          dayEvents.forEach(function(ev){
+            const dot = document.createElement('span');
+            dot.className = 'cal-dot ' + (CAL_TYPE_CLASS[ev.type] || 'amber');
+            dots.appendChild(dot);
+          });
+          cell.appendChild(dots);
+          cell.title = dayEvents.map(function(ev){ return ev.label; }).join('\n');
+          cell.addEventListener('click', function(){ goTab(dayEvents[0].tab); });
+        }
+        calGrid.appendChild(cell);
+      }
+    }
+
+    if(calPrevBtn){
+      calPrevBtn.addEventListener('click', function(){
+        calViewDate = new Date(calViewDate.getFullYear(), calViewDate.getMonth() - 1, 1);
+        renderCalendar();
+      });
+    }
+    if(calNextBtn){
+      calNextBtn.addEventListener('click', function(){
+        calViewDate = new Date(calViewDate.getFullYear(), calViewDate.getMonth() + 1, 1);
+        renderCalendar();
+      });
+    }
+
     async function loadOverview(){
       try{
-        const [qcRes, shipRes, docRes, fbRes] = await Promise.all([
+        const [qcRes, shipRes, docRes, fbRes, poRes] = await Promise.all([
           sb.from('qc_checks').select('*').is('deleted_at', null),
           sb.from('shipments').select('*').is('deleted_at', null).order('created_at', { ascending: false }),
           sb.from('documents_checklist').select('*'),
-          sb.from('feedbacks').select('*').is('deleted_at', null)
+          sb.from('feedbacks').select('*').is('deleted_at', null),
+          sb.from('purchase_orders').select('batch_code, supplier_name, ngay_hen_giao, ngay_giao_thuc_te').is('deleted_at', null)
         ]);
-        [qcRes, shipRes, docRes, fbRes].forEach(function(r){ if(r.error) throw r.error; });
+        [qcRes, shipRes, docRes, fbRes, poRes].forEach(function(r){ if(r.error) throw r.error; });
 
-        const qcRows = qcRes.data, shipRows = shipRes.data, docRows = docRes.data, fbRows = fbRes.data;
+        const qcRows = qcRes.data, shipRows = shipRes.data, docRows = docRes.data, fbRows = fbRes.data, poRows = poRes.data;
 
         // "Lô hàng đang xử lý" = tổng số lô (mọi ngành hàng — Dừa/Chanh/Thanh
         // long) lấy từ sharedBatchSummaries (nguồn QC tổng hợp) mà QC chưa
@@ -7489,6 +8008,12 @@ const titles = {
         }).length;
         renderAlerts(missingDocsCount, docsOverdueCount, overdueFeedbackCount, unresolvedFeedbackOverdueCount, qcPendingCount, staleInventoryCount, pendingOrderCount, upcomingDeliveryCount, upcomingContainerEtaCount);
 
+        calShipRows = shipRows;
+        calDocRows = docRows;
+        calFbRows = fbRows;
+        calPoRows = poRows;
+        renderCalendar();
+
         recentTbody.textContent = '';
         const recent = shipRows.slice(0, 6);
         if(!recent.length){
@@ -7583,6 +8108,7 @@ const titles = {
     onDeliveredShipmentsChanged(loadOverview);
     onDocumentsChecklistChanged(loadOverview);
     onFeedbacksChanged(loadOverview);
+    onExpiringStockChanged(loadOverview);
   })();
 
   // ---- Tổng quan: biểu đồ lô hàng theo tháng/năm ----
@@ -8683,6 +9209,180 @@ const titles = {
       if(detailSection) detailSection.style.display = '';
       loadBatch(batchCode);
     };
+  })();
+
+  // ---- Tìm kiếm toàn cục (topbar) ----
+  // Gộp 2 nguồn: lô hàng (đọc thẳng sharedBatchSummaries đã có sẵn trong bộ
+  // nhớ — cùng 1 nguồn dữ liệu QC dùng cho toàn hệ thống, không tự query lại)
+  // và nhà cung cấp (bảng suppliers nhỏ nên query nhẹ trực tiếp, không giữ
+  // cache riêng). Bấm 1 lô hàng thì mở thẳng "Truy xuất lô hàng" (tái dùng
+  // goToBatchTrace đã có); bấm 1 NCC thì nhảy tab Nhà cung cấp và nháy sáng
+  // đúng dòng trong bảng suppliers-tbody.
+  (function(){
+    const input = document.getElementById('global-search-input');
+    const resultsEl = document.getElementById('global-search-results');
+    const wrap = document.getElementById('global-search');
+    if(!input || !resultsEl || !wrap || !sb) return;
+
+    let activeIndex = -1;
+    let currentItems = [];
+    let requestSeq = 0;
+    let debounceTimer = null;
+
+    function closeResults(){
+      resultsEl.classList.remove('open');
+      resultsEl.textContent = '';
+      currentItems = [];
+      activeIndex = -1;
+    }
+
+    function highlightRow(tbodyId, name){
+      const tr = document.querySelector('#' + tbodyId + ' tr[data-name="' + CSS.escape(name) + '"]');
+      if(!tr) return;
+      tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      tr.classList.remove('row-flash');
+      void tr.offsetWidth;
+      tr.classList.add('row-flash');
+    }
+
+    function selectItem(item){
+      input.value = '';
+      closeResults();
+      if(item.kind === 'batch'){
+        goToBatchTrace(item.batch);
+      } else if(item.kind === 'supplier'){
+        goTab('ncc');
+        setTimeout(function(){ highlightRow('supplier-tbody', item.name); }, 60);
+      }
+    }
+
+    function updateActive(){
+      currentItems.forEach(function(el, i){ el.classList.toggle('active', i === activeIndex); });
+      if(activeIndex >= 0) currentItems[activeIndex].scrollIntoView({ block: 'nearest' });
+    }
+
+    function renderResults(groups){
+      resultsEl.textContent = '';
+      currentItems = [];
+      const hasAny = groups.some(function(g){ return g.items.length; });
+      if(!hasAny){
+        const empty = document.createElement('div');
+        empty.className = 'gs-empty';
+        empty.textContent = 'Không tìm thấy kết quả.';
+        resultsEl.appendChild(empty);
+        resultsEl.classList.add('open');
+        return;
+      }
+      groups.forEach(function(g){
+        if(!g.items.length) return;
+        const label = document.createElement('div');
+        label.className = 'gs-group-label';
+        label.textContent = g.label;
+        resultsEl.appendChild(label);
+        g.items.forEach(function(item){
+          const row = document.createElement('div');
+          row.className = 'gs-item';
+          const chip = document.createElement('span');
+          chip.className = 'icon-chip ' + item.chip;
+          const icon = document.createElement('i');
+          icon.className = 'ti ' + item.icon;
+          chip.appendChild(icon);
+          const textWrap = document.createElement('div');
+          const title = document.createElement('div');
+          title.className = 'gs-item-title';
+          title.textContent = item.title;
+          textWrap.appendChild(title);
+          if(item.sub){
+            const sub = document.createElement('div');
+            sub.className = 'gs-item-sub';
+            sub.textContent = item.sub;
+            textWrap.appendChild(sub);
+          }
+          row.appendChild(chip);
+          row.appendChild(textWrap);
+          row.addEventListener('click', function(){ selectItem(item); });
+          resultsEl.appendChild(row);
+          currentItems.push(row);
+        });
+      });
+      activeIndex = -1;
+      resultsEl.classList.add('open');
+    }
+
+    function searchBatches(q){
+      return Object.values(sharedBatchSummaries)
+        .filter(function(b){ return b.hasSourceInfo || b.hasOrderInfo; })
+        .filter(function(b){
+          const nccMatch = Array.from(b.nccSet || []).some(function(n){ return n.toLowerCase().indexOf(q) !== -1; });
+          const catMatch = Array.from(b.categorySet || []).some(function(c){ return c.toLowerCase().indexOf(q) !== -1; });
+          const khMatch = (b.khachHang || '').toLowerCase().indexOf(q) !== -1;
+          return (b.batch || '').toLowerCase().indexOf(q) !== -1 || nccMatch || catMatch || khMatch;
+        })
+        .slice(0, 6)
+        .map(function(b){
+          const subParts = [];
+          if(b.categorySet && b.categorySet.size) subParts.push(Array.from(b.categorySet).join(', '));
+          if(b.nccSet && b.nccSet.size) subParts.push(Array.from(b.nccSet).join(', '));
+          return {
+            kind: 'batch', batch: b.batch, title: b.batch,
+            sub: subParts.join(' · ') || null,
+            icon: 'ti-package', chip: 'nic-blue'
+          };
+        });
+    }
+
+    async function searchSuppliers(q){
+      try{
+        const { data, error } = await sb.from('suppliers').select('name, category').is('deleted_at', null).ilike('name', '%' + q + '%').limit(6);
+        if(error) throw error;
+        return (data || []).map(function(s){
+          return { kind: 'supplier', name: s.name, title: s.name, sub: s.category || null, icon: 'ti-truck-delivery', chip: 'nic-green' };
+        });
+      } catch(err){
+        console.error('Không tìm được nhà cung cấp:', err);
+        return [];
+      }
+    }
+
+    input.addEventListener('input', function(){
+      clearTimeout(debounceTimer);
+      const q = input.value.trim().toLowerCase();
+      if(!q){ closeResults(); return; }
+      debounceTimer = setTimeout(async function(){
+        const seq = ++requestSeq;
+        const batchResults = searchBatches(q);
+        const supplierResults = await searchSuppliers(q);
+        if(seq !== requestSeq) return;
+        renderResults([
+          { label: 'Lô hàng', items: batchResults },
+          { label: 'Nhà cung cấp', items: supplierResults }
+        ]);
+      }, 250);
+    });
+
+    input.addEventListener('keydown', function(e){
+      if(!resultsEl.classList.contains('open') || !currentItems.length) return;
+      if(e.key === 'ArrowDown'){
+        e.preventDefault();
+        activeIndex = Math.min(activeIndex + 1, currentItems.length - 1);
+        updateActive();
+      } else if(e.key === 'ArrowUp'){
+        e.preventDefault();
+        activeIndex = Math.max(activeIndex - 1, 0);
+        updateActive();
+      } else if(e.key === 'Enter'){
+        e.preventDefault();
+        if(activeIndex >= 0) currentItems[activeIndex].click();
+        else if(currentItems.length) currentItems[0].click();
+      } else if(e.key === 'Escape'){
+        closeResults();
+        input.blur();
+      }
+    });
+
+    document.addEventListener('click', function(e){
+      if(!wrap.contains(e.target)) closeResults();
+    });
   })();
 </script>
 
