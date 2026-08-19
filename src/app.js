@@ -2911,6 +2911,8 @@ const titles = {
     const traceProductNameEnInput = document.getElementById('trace-product-name-en');
     const traceSupplierNameInput = document.getElementById('trace-supplier-name');
     const traceSupplierNameEnInput = document.getElementById('trace-supplier-name-en');
+    const traceVarietyInput = document.getElementById('trace-variety');
+    const traceVarietyEnInput = document.getElementById('trace-variety-en');
     const traceRegionInput = document.getElementById('trace-region');
     const traceRegionEnInput = document.getElementById('trace-region-en');
     const tracePackedDateInput = document.getElementById('trace-packed-date');
@@ -2975,6 +2977,12 @@ const titles = {
       ));
       return names.join(', ');
     }
+    async function getTraceVarietySuggestion(batchCode){
+      const { data, error } = await sb.from('raw_batches').select('chung_loai').eq('batch', batchCode).is('deleted_at', null);
+      if(error) throw error;
+      const names = Array.from(new Set((data || []).map(function(r){ return r.chung_loai; }).filter(Boolean)));
+      return names.join(', ');
+    }
     // Địa chỉ đầu mối thu mua (raw_suppliers.address, khớp theo tên với
     // raw_batches.ncc — xem ghi chú ở modal "Sửa hồ sơ đầu mối") thường chi
     // tiết hơn mức cần công khai (VD "Ấp 3, Giồng Trôm, Bến Tre") — điền tạm
@@ -3018,8 +3026,9 @@ const titles = {
       if(!traceCurrentBatch) return;
       if(traceRefillBtn) traceRefillBtn.disabled = true;
       try{
-        const [items, regionSuggestion, packedDateSuggestion] = await Promise.all([
+        const [items, varietySuggestion, regionSuggestion, packedDateSuggestion] = await Promise.all([
           getBoxItemsForBatch(traceCurrentBatch),
+          getTraceVarietySuggestion(traceCurrentBatch),
           getTraceRegionSuggestion(traceCurrentBatch),
           getTracePackedDateSuggestion(traceCurrentBatch)
         ]);
@@ -3034,6 +3043,10 @@ const titles = {
             traceProductNameInput.value = productName;
             gotAny = true;
           }
+        }
+        if(varietySuggestion && (!onlyFillEmpty || !traceVarietyInput.value.trim())){
+          traceVarietyInput.value = varietySuggestion;
+          gotAny = true;
         }
         if(regionSuggestion && (!onlyFillEmpty || !traceRegionInput.value.trim())){
           traceRegionInput.value = regionSuggestion;
@@ -3082,7 +3095,7 @@ const titles = {
       traceQrWrap.style.display = 'none';
       traceOverlay.classList.add('active');
       try{
-        const { data, error } = await sb.from('batch_info').select('trace_batch_label,trace_product_name,trace_product_name_en,trace_supplier_name,trace_supplier_name_en,trace_region,trace_region_en,trace_packed_date,trace_packing_text,trace_packing_text_en,trace_enabled,public_trace_code').eq('batch', batchCode).maybeSingle();
+        const { data, error } = await sb.from('batch_info').select('trace_batch_label,trace_product_name,trace_product_name_en,trace_supplier_name,trace_supplier_name_en,trace_variety,trace_variety_en,trace_region,trace_region_en,trace_packed_date,trace_packing_text,trace_packing_text_en,trace_enabled,public_trace_code').eq('batch', batchCode).maybeSingle();
         if(error) throw error;
         const bi = data || {};
         traceBatchLabelInput.value = bi.trace_batch_label || '';
@@ -3090,6 +3103,8 @@ const titles = {
         traceProductNameEnInput.value = bi.trace_product_name_en || '';
         traceSupplierNameInput.value = bi.trace_supplier_name || '';
         traceSupplierNameEnInput.value = bi.trace_supplier_name_en || '';
+        traceVarietyInput.value = bi.trace_variety || '';
+        traceVarietyEnInput.value = bi.trace_variety_en || '';
         traceRegionInput.value = bi.trace_region || '';
         traceRegionEnInput.value = bi.trace_region_en || '';
         tracePackedDateInput.value = bi.trace_packed_date || '';
@@ -3135,6 +3150,8 @@ const titles = {
             trace_product_name_en: traceProductNameEnInput.value.trim() || null,
             trace_supplier_name: traceSupplierNameInput.value.trim() || null,
             trace_supplier_name_en: traceSupplierNameEnInput.value.trim() || null,
+            trace_variety: traceVarietyInput.value.trim() || null,
+            trace_variety_en: traceVarietyEnInput.value.trim() || null,
             trace_region: traceRegionInput.value.trim() || null,
             trace_region_en: traceRegionEnInput.value.trim() || null,
             trace_packed_date: tracePackedDateInput.value || null,
