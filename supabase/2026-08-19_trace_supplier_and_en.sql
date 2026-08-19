@@ -15,25 +15,28 @@ alter table public.batch_info add column if not exists trace_packing_text_en tex
 create or replace view public.batch_trace_public
 with (security_invoker = false)
 as
+-- LƯU Ý: CREATE OR REPLACE VIEW chỉ cho phép THÊM cột mới vào CUỐI danh
+-- sách SELECT, không cho chèn/đổi vị trí cột đã có (lỗi 42P16) — nên các
+-- cột *_en và supplier_name để hết ở cuối, không xen giữa các cột cũ.
 select
   bi.public_trace_code as trace_code,
   coalesce(bi.trace_product_name, bi.san_pham) as product_name,
-  bi.trace_product_name_en as product_name_en,
   bi.trace_region as region,
-  bi.trace_region_en as region_en,
-  bi.trace_supplier_name as supplier_name,
-  bi.trace_supplier_name_en as supplier_name_en,
   rb.variety,
   rb.harvest_date,
   bi.trace_packed_date as packed_date,
   bi.trace_packing_text as packing_text,
-  bi.trace_packing_text_en as packing_text_en,
   qc.qc_status,
   qc.qc_pass_rate,
   qc.qc_date,
   sh.stage as shipping_stage,
   sh.eta as shipping_eta,
-  sh.received_date as shipping_received_date
+  sh.received_date as shipping_received_date,
+  bi.trace_supplier_name as supplier_name,
+  bi.trace_product_name_en as product_name_en,
+  bi.trace_region_en as region_en,
+  bi.trace_supplier_name_en as supplier_name_en,
+  bi.trace_packing_text_en as packing_text_en
 from public.batch_info bi
 left join lateral (
   select
