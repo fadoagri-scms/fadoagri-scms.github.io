@@ -830,6 +830,11 @@
             <button type="button" class="btn-secondary" id="btn-refill-trace-packing" style="font-size:11px;padding:4px 10px;white-space:nowrap;"><i class="ti ti-refresh"></i> Lấy từ hệ thống</button>
           </div>
           <div class="form-group">
+            <label for="trace-product-name">Tên sản phẩm (hiển thị công khai)</label>
+            <input type="text" id="trace-product-name" placeholder="VD: Dừa xiêm xanh gọt vỏ">
+            <div class="muted" style="font-size:11px;margin-top:4px;">Riêng với trang công khai — không lấy từ ô "Sản phẩm" ở Thêm đơn hàng, vì lô có thể gồm nhiều loại hàng khác nhau.</div>
+          </div>
+          <div class="form-group">
             <label for="trace-region">Vùng nguyên liệu (hiển thị công khai)</label>
             <input type="text" id="trace-region" placeholder="VD: Bến Tre">
             <div class="muted" style="font-size:11px;margin-top:4px;">"Lấy từ hệ thống" điền tạm nguyên địa chỉ đầu mối thu mua đã khai — nên rút gọn lại về đúng vùng/tỉnh trước khi lưu, tránh lộ địa chỉ chi tiết.</div>
@@ -4872,6 +4877,7 @@ const titles = {
     const traceCancelBtn = document.getElementById('btn-cancel-trace');
     const traceForm = document.getElementById('form-trace');
     const traceSubmitBtn = document.getElementById('btn-submit-trace');
+    const traceProductNameInput = document.getElementById('trace-product-name');
     const traceRegionInput = document.getElementById('trace-region');
     const tracePackedDateInput = document.getElementById('trace-packed-date');
     const tracePackingTextInput = document.getElementById('trace-packing-text');
@@ -4916,6 +4922,17 @@ const titles = {
         return (it.sanPham || '(chưa đặt tên)') + spec + ' · ' + it.soLuong.toLocaleString('vi-VN') + ' thùng';
       }).join('\n');
     }
+    // Tên sản phẩm công khai lấy từ chính danh sách đóng thùng thật (không
+    // dùng batch_info.san_pham — ô "Sản phẩm dự kiến" nhập lúc tạo đơn,
+    // thường bỏ trống/không cập nhật khi lô có nhiều loại hàng) — sắp theo
+    // sản lượng nhiều nhất trước.
+    function productNameFromBoxes(items){
+      const names = Array.from(new Set(
+        items.slice().sort(function(a, b){ return b.soLuong - a.soLuong; })
+          .map(function(it){ return it.sanPham; }).filter(Boolean)
+      ));
+      return names.join(', ');
+    }
     // Địa chỉ đầu mối thu mua (raw_suppliers.address, khớp theo tên với
     // raw_batches.ncc — xem ghi chú ở modal "Sửa hồ sơ đầu mối") thường chi
     // tiết hơn mức cần công khai (VD "Ấp 3, Giồng Trôm, Bến Tre") — điền tạm
@@ -4948,7 +4965,12 @@ const titles = {
           getTracePackedDateSuggestion(traceCurrentBatch)
         ]);
         let gotAny = false;
-        if(items.length){ tracePackingTextInput.value = formatPackingTextFromBoxes(items); gotAny = true; }
+        if(items.length){
+          tracePackingTextInput.value = formatPackingTextFromBoxes(items);
+          const productName = productNameFromBoxes(items);
+          if(productName) traceProductNameInput.value = productName;
+          gotAny = true;
+        }
         if(regionSuggestion){ traceRegionInput.value = regionSuggestion; gotAny = true; }
         if(packedDateSuggestion){ tracePackedDateInput.value = packedDateSuggestion; gotAny = true; }
         if(!gotAny && !silent) alert('Chưa có dữ liệu để tự điền cho lô này — nhập tay các ô bên trên.');
@@ -4980,13 +5002,14 @@ const titles = {
       traceQrWrap.style.display = 'none';
       traceOverlay.classList.add('active');
       try{
-        const { data, error } = await sb.from('batch_info').select('trace_region,trace_packed_date,trace_packing_text,trace_enabled,public_trace_code').eq('batch', batchCode).maybeSingle();
+        const { data, error } = await sb.from('batch_info').select('trace_product_name,trace_region,trace_packed_date,trace_packing_text,trace_enabled,public_trace_code').eq('batch', batchCode).maybeSingle();
         if(error) throw error;
         const bi = data || {};
+        traceProductNameInput.value = bi.trace_product_name || '';
         traceRegionInput.value = bi.trace_region || '';
         tracePackedDateInput.value = bi.trace_packed_date || '';
         tracePackingTextInput.value = bi.trace_packing_text || '';
-        if(!bi.trace_region && !bi.trace_packed_date && !bi.trace_packing_text) refillTraceFromSystem(true);
+        if(!bi.trace_product_name && !bi.trace_region && !bi.trace_packed_date && !bi.trace_packing_text) refillTraceFromSystem(true);
         traceCurrentCode = bi.public_trace_code || null;
         tracePublicSection.style.display = '';
         traceEnabledToggle.checked = !!bi.trace_enabled;
@@ -5019,6 +5042,7 @@ const titles = {
         try{
           const { error } = await sb.from('batch_info').upsert({
             batch: traceCurrentBatch,
+            trace_product_name: traceProductNameInput.value.trim() || null,
             trace_region: traceRegionInput.value.trim() || null,
             trace_packed_date: tracePackedDateInput.value || null,
             trace_packing_text: tracePackingTextInput.value.trim() || null
