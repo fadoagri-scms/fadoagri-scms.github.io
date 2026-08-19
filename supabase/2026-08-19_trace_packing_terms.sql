@@ -31,6 +31,7 @@ select
   bi.trace_product_name_en as product_name_en,
   bi.trace_region_en as region_en,
   bi.trace_supplier_name_en as supplier_name_en,
+  bi.trace_packing_text_en as packing_text_en,
   bi.trace_batch_label as batch_label,
   bi.trace_variety_en as variety_en,
   bi.trace_packing_terms_en as packing_terms_en
