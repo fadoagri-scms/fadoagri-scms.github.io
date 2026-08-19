@@ -2906,6 +2906,7 @@ const titles = {
     const traceCancelBtn = document.getElementById('btn-cancel-trace');
     const traceForm = document.getElementById('form-trace');
     const traceSubmitBtn = document.getElementById('btn-submit-trace');
+    const traceBatchLabelInput = document.getElementById('trace-batch-label');
     const traceProductNameInput = document.getElementById('trace-product-name');
     const traceProductNameEnInput = document.getElementById('trace-product-name-en');
     const traceSupplierNameInput = document.getElementById('trace-supplier-name');
@@ -2930,6 +2931,9 @@ const titles = {
     let traceCurrentBatch = null;
     let traceCurrentCode = null;
 
+    // Mã bí mật nằm trong link/QR — LUÔN ngẫu nhiên, không liên quan tên lô,
+    // để không ai dò/đoán ra link được (xem trace_batch_label bên dưới cho
+    // phần "Mã lô" hiển thị công khai — tách riêng, không liên quan mã này).
     function genTraceCode(){
       if(typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID().replace(/-/g, '').slice(0, 12);
       return (Date.now().toString(36) + Math.random().toString(36).slice(2)).slice(0, 12);
@@ -3034,6 +3038,10 @@ const titles = {
           traceRegionInput.value = regionSuggestion;
           gotAny = true;
         }
+        if(traceCurrentBatch.trim() && (!onlyFillEmpty || !traceBatchLabelInput.value.trim())){
+          traceBatchLabelInput.value = traceCurrentBatch.trim().toUpperCase();
+          gotAny = true;
+        }
         const supplierSuggestion = getTraceSupplierSuggestion(traceCurrentBatch);
         if(supplierSuggestion && (!onlyFillEmpty || !traceSupplierNameInput.value.trim())){
           traceSupplierNameInput.value = supplierSuggestion;
@@ -3073,9 +3081,10 @@ const titles = {
       traceQrWrap.style.display = 'none';
       traceOverlay.classList.add('active');
       try{
-        const { data, error } = await sb.from('batch_info').select('trace_product_name,trace_product_name_en,trace_supplier_name,trace_supplier_name_en,trace_region,trace_region_en,trace_packed_date,trace_packing_text,trace_packing_text_en,trace_enabled,public_trace_code').eq('batch', batchCode).maybeSingle();
+        const { data, error } = await sb.from('batch_info').select('trace_batch_label,trace_product_name,trace_product_name_en,trace_supplier_name,trace_supplier_name_en,trace_region,trace_region_en,trace_packed_date,trace_packing_text,trace_packing_text_en,trace_enabled,public_trace_code').eq('batch', batchCode).maybeSingle();
         if(error) throw error;
         const bi = data || {};
+        traceBatchLabelInput.value = bi.trace_batch_label || '';
         traceProductNameInput.value = bi.trace_product_name || '';
         traceProductNameEnInput.value = bi.trace_product_name_en || '';
         traceSupplierNameInput.value = bi.trace_supplier_name || '';
@@ -3120,6 +3129,7 @@ const titles = {
         try{
           const { error } = await sb.from('batch_info').upsert({
             batch: traceCurrentBatch,
+            trace_batch_label: traceBatchLabelInput.value.trim().toUpperCase() || null,
             trace_product_name: traceProductNameInput.value.trim() || null,
             trace_product_name_en: traceProductNameEnInput.value.trim() || null,
             trace_supplier_name: traceSupplierNameInput.value.trim() || null,
@@ -3153,7 +3163,17 @@ const titles = {
             trace_enabled: turningOn,
             public_trace_code: traceCurrentCode
           }, { onConflict: 'batch' });
-          if(error) throw error;
+          if(error){
+            // Trùng mã (lô khác đã dùng cùng tên viết hoa, hiếm khi xảy ra
+            // vì tên lô vốn đã là khoá duy nhất trong hệ thống) — báo rõ
+            // thay vì để lỗi kỹ thuật khó hiểu.
+            if(/duplicate|unique/i.test(error.message || '')){
+              traceEnabledToggle.checked = !turningOn;
+              alert('Mã "' + traceCurrentCode + '" đã được lô khác dùng — mở modal đó và đổi mã tra cứu trước.');
+              return;
+            }
+            throw error;
+          }
           traceEnabledLabel.textContent = turningOn ? 'Đang công khai' : 'Tắt';
           if(turningOn){
             traceCodeWrap.style.display = '';

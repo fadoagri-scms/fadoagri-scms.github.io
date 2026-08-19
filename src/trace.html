@@ -40,7 +40,7 @@
   .hero{display:flex;flex-direction:column;gap:8px;align-items:flex-start;}
   .hero-eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--forest-deep);}
   .hero h1{margin:0;font-size:21px;font-weight:800;letter-spacing:-.01em;line-height:1.25;color:var(--ink);text-wrap:balance;}
-  .batch-chip{display:inline-flex;align-items:center;gap:6px;font:600 12px/1 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;letter-spacing:.02em;color:var(--forest-deep);background:var(--surface-2);border:1px solid var(--border);padding:6px 10px;border-radius:8px;}
+  .batch-chip{display:inline-flex;align-items:center;gap:6px;font:600 12px/1 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;letter-spacing:.02em;text-transform:uppercase;color:var(--forest-deep);background:var(--surface-2);border:1px solid var(--border);padding:6px 10px;border-radius:8px;}
 
   .card{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:16px 16px;display:flex;flex-direction:column;gap:12px;}
   .card-title{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);}
@@ -312,7 +312,8 @@
   function render(d){
     currentRecord = d;
     setBilingual($('heroEyebrow'), (d.variety || 'Dừa xiêm xanh') + ' · Xuất khẩu', (d.variety || 'Coconut') + ' · Export');
-    setBilingual($('batchChip'), 'Mã lô ' + d.trace_code, 'Batch ' + d.trace_code);
+    var displayCode = d.batch_label || d.trace_code;
+    setBilingual($('batchChip'), 'Mã lô: ' + displayCode, 'Batch: ' + displayCode);
 
     if(d.variety){ $('rowVariety').hidden = false; $('valVariety').textContent = d.variety; }
     if(d.harvest_date){ $('rowHarvest').hidden = false; $('valHarvest').textContent = fmtDate(d.harvest_date); }

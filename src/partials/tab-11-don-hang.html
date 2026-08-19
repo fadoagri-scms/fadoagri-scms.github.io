@@ -93,6 +93,11 @@
             <button type="button" class="btn-secondary" id="btn-refill-trace-packing" style="font-size:11px;padding:4px 10px;white-space:nowrap;"><i class="ti ti-refresh"></i> Lấy từ hệ thống</button>
           </div>
           <div class="form-group">
+            <label for="trace-batch-label">Mã lô (hiển thị công khai)</label>
+            <input type="text" id="trace-batch-label" placeholder="VD: MINH NHÂN - 23.26" style="text-transform:uppercase;">
+            <div class="muted" style="font-size:11px;margin-top:4px;">Chỉ để khách <em>nhìn thấy</em> — khác với "Mã tra cứu" bên dưới (mã bí mật thật sự nằm trong link/QR, không đổi theo ô này).</div>
+          </div>
+          <div class="form-group">
             <label for="trace-product-name">Tên sản phẩm (hiển thị công khai)</label>
             <input type="text" id="trace-product-name" placeholder="VD: Dừa xiêm xanh gọt vỏ">
             <div class="muted" style="font-size:11px;margin-top:4px;">Riêng với trang công khai — không lấy từ ô "Sản phẩm" ở Thêm đơn hàng, vì lô có thể gồm nhiều loại hàng khác nhau.</div>
@@ -133,12 +138,12 @@
             </label>
           </div>
           <div id="trace-code-wrap" style="display:none;margin-bottom:12px;">
-            <label for="trace-code-input" style="font-size:11.5px;">Mã tra cứu (nằm trong link/QR)</label>
+            <label for="trace-code-input" style="font-size:11.5px;">Mã bí mật (nằm trong link/QR — khách không thấy trực tiếp)</label>
             <div style="display:flex;gap:6px;">
               <input type="text" id="trace-code-input" style="font-size:12px;flex:1;">
               <button type="button" class="btn-secondary" id="btn-save-trace-code" style="font-size:11px;padding:4px 10px;white-space:nowrap;">Lưu mã</button>
             </div>
-            <div class="muted" style="font-size:11px;margin-top:4px;">Đổi mã cũng đổi luôn link/QR cũ — mã cũ sẽ không dùng được nữa. Nên đặt mã khó đoán, tránh dùng thẳng tên lô.</div>
+            <div class="muted" style="font-size:11px;margin-top:4px;">Đổi mã cũng đổi luôn link/QR cũ — mã cũ sẽ không dùng được nữa. Để ngẫu nhiên (mặc định) cho khó đoán — chỉ đổi khi thật sự cần.</div>
           </div>
           <div id="trace-qr-wrap" style="display:none;text-align:center;">
             <div id="trace-qr-box" style="display:inline-block;padding:10px;background:#fff;border:1px solid var(--border);border-radius:10px;"></div>
