@@ -2922,6 +2922,7 @@ const titles = {
     const traceEnabledLabel = document.getElementById('trace-enabled-label');
     const traceCodeWrap = document.getElementById('trace-code-wrap');
     const traceCodeInput = document.getElementById('trace-code-input');
+    const traceRegenCodeBtn = document.getElementById('btn-regen-trace-code');
     const traceSaveCodeBtn = document.getElementById('btn-save-trace-code');
     const traceQrWrap = document.getElementById('trace-qr-wrap');
     const traceQrBox = document.getElementById('trace-qr-box');
@@ -3190,6 +3191,14 @@ const titles = {
         } finally {
           traceEnabledToggle.disabled = false;
         }
+      });
+    }
+
+    // Chỉ điền lại ô — vẫn phải bấm "Lưu mã" mới thật sự đổi, để staff kịp
+    // xem qua mã mới trước khi link cũ ngừng hoạt động.
+    if(traceRegenCodeBtn){
+      traceRegenCodeBtn.addEventListener('click', function(){
+        traceCodeInput.value = genTraceCode();
       });
     }
 
