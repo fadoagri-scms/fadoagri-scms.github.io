@@ -47,6 +47,7 @@
   .field-row{display:flex;justify-content:space-between;gap:12px;font-size:13.5px;}
   .packing-line{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13px;padding-top:8px;border-top:1px solid var(--border);}
   .packing-line:first-child{padding-top:0;border-top:none;}
+  .packing-line .pl-source{color:var(--forest-deep);font-size:10.5px;font-weight:700;letter-spacing:.02em;margin-bottom:2px;}
   .packing-line .pl-name{color:var(--ink);font-weight:600;}
   .packing-line .pl-spec{color:var(--ink-soft);font-weight:400;}
   .packing-line .pl-qty{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;flex-shrink:0;}
@@ -262,23 +263,33 @@
     return i === -1 ? -1 : i;
   }
 
-  // packing_text: mỗi dòng "<tên>[ — <quy cách>] · <số lượng>" (do app tự
-  // sinh từ dữ liệu đóng thùng, xem formatPackingTextFromBoxes trong app.js)
-  // — tách thành từng dòng riêng cho dễ đọc thay vì dồn chung 1 đoạn văn.
+  // packing_text: mỗi dòng "[<nguyên liệu> → ]<tên>[ — <quy cách>] · <số
+  // lượng>" (do app tự sinh từ dữ liệu đóng thùng, xem
+  // formatPackingTextFromBoxes trong app.js) — tách thành từng dòng riêng
+  // cho dễ đọc, và hiện rõ nguyên liệu nào ra thành phẩm nào thay vì dồn
+  // chung 1 đoạn văn hay tách rời 2 danh sách không liên quan nhau.
   function renderPackingLines(text){
     var wrap = $('packingLines');
     wrap.textContent = '';
     wrap.hidden = false;
     String(text).split('\n').map(function(l){ return l.trim(); }).filter(Boolean).forEach(function(line){
-      var qtyIdx = line.lastIndexOf(' · ');
-      var left = qtyIdx === -1 ? line : line.slice(0, qtyIdx);
-      var qty = qtyIdx === -1 ? '' : line.slice(qtyIdx + 3);
+      var arrowIdx = line.indexOf(' → ');
+      var source = arrowIdx === -1 ? '' : line.slice(0, arrowIdx);
+      var rest = arrowIdx === -1 ? line : line.slice(arrowIdx + 3);
+      var qtyIdx = rest.lastIndexOf(' · ');
+      var left = qtyIdx === -1 ? rest : rest.slice(0, qtyIdx);
+      var qty = qtyIdx === -1 ? '' : rest.slice(qtyIdx + 3);
       var dashIdx = left.indexOf(' — ');
       var name = dashIdx === -1 ? left : left.slice(0, dashIdx);
       var spec = dashIdx === -1 ? '' : left.slice(dashIdx + 3);
       var row = document.createElement('div');
       row.className = 'packing-line';
       var left2 = document.createElement('div');
+      if(source){
+        var srcEl = document.createElement('div'); srcEl.className = 'pl-source';
+        srcEl.textContent = (lang === 'vi' ? 'Nguyên liệu: ' : 'Raw material: ') + source;
+        left2.appendChild(srcEl);
+      }
       var nameEl = document.createElement('span'); nameEl.className = 'pl-name'; nameEl.textContent = name;
       left2.appendChild(nameEl);
       if(spec){
@@ -303,6 +314,7 @@
     $('heroTitle').textContent = productName;
     if(d.supplier_name){ $('rowSupplier').hidden = false; $('valSupplier').textContent = pick('supplier_name'); }
     if(d.region){ $('rowRegion').hidden = false; $('valRegion').textContent = pick('region'); }
+    if(d.variety){ $('valVariety').textContent = pick('variety'); }
     var packingText = pick('packing_text');
     if(packingText) renderPackingLines(packingText);
   }
@@ -312,7 +324,7 @@
     var displayCode = d.batch_label || d.trace_code;
     setBilingual($('batchChip'), 'Mã lô: ' + displayCode, 'Batch: ' + displayCode);
 
-    if(d.variety){ $('rowVariety').hidden = false; $('valVariety').textContent = d.variety; }
+    if(d.variety){ $('rowVariety').hidden = false; }
     if(d.harvest_date){ $('rowHarvest').hidden = false; $('valHarvest').textContent = fmtDate(d.harvest_date); }
     if(!d.region && !d.variety && !d.harvest_date && !d.supplier_name){ $('originCard').hidden = true; }
     refreshDynamicText();

@@ -2944,26 +2944,34 @@ const titles = {
 
     // Gộp Sản phẩm+Quy cách trên mọi đợt sản xuất của 1 lô lại (1 lô có thể
     // có nhiều đợt/nhiều dòng box, nhiều loại hàng khác nhau) — cùng cách
-    // tính với tab Xuất hàng ở Xưởng Ba Phi.
+    // tính với tab Xuất hàng ở Xưởng Ba Phi. Giữ luôn chung_loai (nguyên liệu
+    // thô) của ĐÚNG dòng raw_batches sinh ra box đó — 1 lô nhập nhiều loại
+    // nguyên liệu thì mỗi loại có thể ra 1 sản phẩm thành phẩm khác hẳn nhau
+    // (VD Xiêm xanh → Dừa nón lá, Dừa trọc → Dừa trọc chóp), gộp phẳng mất
+    // hết mối liên hệ này nên phải giữ theo từng raw_batches.
     async function getBoxItemsForBatch(batchCode){
-      const { data, error } = await sb.from('raw_batches').select('batch, factory_batches(factory_batch_boxes(san_pham,quy_cach,so_luong_thung))').eq('batch', batchCode).is('deleted_at', null);
+      const { data, error } = await sb.from('raw_batches').select('batch, chung_loai, factory_batches(factory_batch_boxes(san_pham,quy_cach,so_luong_thung))').eq('batch', batchCode).is('deleted_at', null);
       if(error) throw error;
       const boxMap = {};
       (data || []).forEach(function(r){
         const fb = r.factory_batches && (Array.isArray(r.factory_batches) ? r.factory_batches[0] : r.factory_batches);
         if(!fb) return;
         (fb.factory_batch_boxes || []).forEach(function(box){
-          const key = (box.san_pham || '') + '::' + (box.quy_cach == null ? '' : box.quy_cach);
-          if(!boxMap[key]) boxMap[key] = { sanPham: box.san_pham || '', quyCach: box.quy_cach, soLuong: 0 };
+          const key = (r.chung_loai || '') + '::' + (box.san_pham || '') + '::' + (box.quy_cach == null ? '' : box.quy_cach);
+          if(!boxMap[key]) boxMap[key] = { nguyenLieu: r.chung_loai || '', sanPham: box.san_pham || '', quyCach: box.quy_cach, soLuong: 0 };
           boxMap[key].soLuong += Number(box.so_luong_thung) || 0;
         });
       });
       return Object.values(boxMap);
     }
+    // "→" đánh dấu riêng mối liên hệ nguyên liệu→thành phẩm, khác với " — "
+    // (spec) và " · " (số lượng) đã dùng — trace.html tách theo đúng 3 dấu
+    // này để vẽ lại đẹp trên trang công khai (xem renderPackingLines).
     function formatPackingTextFromBoxes(items){
       return items.map(function(it){
         const spec = it.quyCach ? (' — ' + it.quyCach) : '';
-        return (it.sanPham || '(chưa đặt tên)') + spec + ' · ' + it.soLuong.toLocaleString('vi-VN') + ' thùng';
+        const prefix = it.nguyenLieu ? (it.nguyenLieu + ' → ') : '';
+        return prefix + (it.sanPham || '(chưa đặt tên)') + spec + ' · ' + it.soLuong.toLocaleString('vi-VN') + ' thùng';
       }).join('\n');
     }
     // Tên sản phẩm công khai lấy từ chính danh sách đóng thùng thật (không
