@@ -46,6 +46,11 @@
   .card-title{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);}
   .card-title svg{width:16px;height:16px;color:var(--forest-deep);flex-shrink:0;}
   .field-row{display:flex;justify-content:space-between;gap:12px;font-size:13.5px;}
+  .packing-line{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13px;padding-top:8px;border-top:1px solid var(--border);}
+  .packing-line:first-child{padding-top:0;border-top:none;}
+  .packing-line .pl-name{color:var(--ink);font-weight:600;}
+  .packing-line .pl-spec{color:var(--ink-soft);font-weight:400;}
+  .packing-line .pl-qty{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;flex-shrink:0;}
   .field-label{color:var(--ink-soft);}
   .field-value{color:var(--ink);font-weight:600;text-align:right;}
   .field-value.mono{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;font-variant-numeric:tabular-nums;font-weight:500;}
@@ -164,7 +169,7 @@
           <span data-vi="Đóng gói" data-en="Packing">Đóng gói</span>
         </div>
         <div class="field-row" id="rowPackedDate" hidden><span class="field-label" data-vi="Ngày đóng hàng" data-en="Packed on">Ngày đóng hàng</span><span class="field-value mono" id="valPackedDate"></span></div>
-        <div class="field-row" id="rowPackingText" hidden><span class="field-label" data-vi="Quy cách" data-en="Specification">Quy cách</span><span class="field-value" id="valPackingText"></span></div>
+        <div id="packingLines" hidden style="display:flex;flex-direction:column;gap:8px;padding-top:2px;"></div>
       </div>
 
       <div>
@@ -242,6 +247,38 @@
     return i === -1 ? -1 : i;
   }
 
+  // packing_text: mỗi dòng "<tên>[ — <quy cách>] · <số lượng>" (do app tự
+  // sinh từ dữ liệu đóng thùng, xem formatPackingTextFromBoxes trong app.js)
+  // — tách thành từng dòng riêng cho dễ đọc thay vì dồn chung 1 đoạn văn.
+  function renderPackingLines(text){
+    var wrap = $('packingLines');
+    wrap.textContent = '';
+    wrap.hidden = false;
+    String(text).split('\n').map(function(l){ return l.trim(); }).filter(Boolean).forEach(function(line){
+      var qtyIdx = line.lastIndexOf(' · ');
+      var left = qtyIdx === -1 ? line : line.slice(0, qtyIdx);
+      var qty = qtyIdx === -1 ? '' : line.slice(qtyIdx + 3);
+      var dashIdx = left.indexOf(' — ');
+      var name = dashIdx === -1 ? left : left.slice(0, dashIdx);
+      var spec = dashIdx === -1 ? '' : left.slice(dashIdx + 3);
+      var row = document.createElement('div');
+      row.className = 'packing-line';
+      var left2 = document.createElement('div');
+      var nameEl = document.createElement('span'); nameEl.className = 'pl-name'; nameEl.textContent = name;
+      left2.appendChild(nameEl);
+      if(spec){
+        var specEl = document.createElement('span'); specEl.className = 'pl-spec'; specEl.textContent = ' — ' + spec;
+        left2.appendChild(specEl);
+      }
+      row.appendChild(left2);
+      if(qty){
+        var qtyEl = document.createElement('div'); qtyEl.className = 'pl-qty'; qtyEl.textContent = qty;
+        row.appendChild(qtyEl);
+      }
+      wrap.appendChild(row);
+    });
+  }
+
   function render(d){
     setBilingual($('heroEyebrow'), (d.variety || 'Dừa xiêm xanh') + ' · Xuất khẩu', (d.variety || 'Coconut') + ' · Export');
     var productName = d.product_name || (lang === 'vi' ? 'Sản phẩm chưa đặt tên' : 'Unnamed product');
@@ -274,7 +311,7 @@
     if(d.packed_date || d.packing_text){
       $('packingCard').hidden = false;
       if(d.packed_date){ $('rowPackedDate').hidden = false; $('valPackedDate').textContent = fmtDate(d.packed_date); }
-      if(d.packing_text){ $('rowPackingText').hidden = false; $('valPackingText').textContent = d.packing_text; }
+      if(d.packing_text){ renderPackingLines(d.packing_text); }
     }
 
     renderTimeline(d);

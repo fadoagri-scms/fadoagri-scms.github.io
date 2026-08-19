@@ -4955,7 +4955,14 @@ const titles = {
       if(error) throw error;
       return data && data.length ? String(data[0].created_at).slice(0, 10) : '';
     }
-    async function refillTraceFromSystem(silent){
+    // onlyFillEmpty=true (lúc tự mở modal) chỉ điền những ô ĐANG TRỐNG — không
+    // ghi đè ô đã lưu/đã sửa tay trước đó. Bấm nút "Lấy từ hệ thống" thì
+    // onlyFillEmpty=false, ghi đè hết vì đó là yêu cầu làm mới rõ ràng.
+    // Trước đây gộp chung 1 điều kiện "cả 4 ô đều trống mới tự điền" nên lô
+    // nào đã lưu sẵn 3/4 ô (từ lúc field Tên sản phẩm chưa tồn tại) sẽ không
+    // bao giờ được tự điền ô Tên sản phẩm mới thêm — sửa lại để mỗi ô tự
+    // kiểm tra độc lập.
+    async function refillTraceFromSystem(silent, onlyFillEmpty){
       if(!traceCurrentBatch) return;
       if(traceRefillBtn) traceRefillBtn.disabled = true;
       try{
@@ -4966,13 +4973,24 @@ const titles = {
         ]);
         let gotAny = false;
         if(items.length){
-          tracePackingTextInput.value = formatPackingTextFromBoxes(items);
+          if(!onlyFillEmpty || !tracePackingTextInput.value.trim()){
+            tracePackingTextInput.value = formatPackingTextFromBoxes(items);
+            gotAny = true;
+          }
           const productName = productNameFromBoxes(items);
-          if(productName) traceProductNameInput.value = productName;
+          if(productName && (!onlyFillEmpty || !traceProductNameInput.value.trim())){
+            traceProductNameInput.value = productName;
+            gotAny = true;
+          }
+        }
+        if(regionSuggestion && (!onlyFillEmpty || !traceRegionInput.value.trim())){
+          traceRegionInput.value = regionSuggestion;
           gotAny = true;
         }
-        if(regionSuggestion){ traceRegionInput.value = regionSuggestion; gotAny = true; }
-        if(packedDateSuggestion){ tracePackedDateInput.value = packedDateSuggestion; gotAny = true; }
+        if(packedDateSuggestion && (!onlyFillEmpty || !tracePackedDateInput.value)){
+          tracePackedDateInput.value = packedDateSuggestion;
+          gotAny = true;
+        }
         if(!gotAny && !silent) alert('Chưa có dữ liệu để tự điền cho lô này — nhập tay các ô bên trên.');
       } catch(err){
         if(!silent) alert('Không lấy được dữ liệu: ' + (err.message || err));
@@ -4980,7 +4998,7 @@ const titles = {
         if(traceRefillBtn) traceRefillBtn.disabled = false;
       }
     }
-    if(traceRefillBtn) traceRefillBtn.addEventListener('click', function(){ refillTraceFromSystem(false); });
+    if(traceRefillBtn) traceRefillBtn.addEventListener('click', function(){ refillTraceFromSystem(false, false); });
 
     function renderTraceQr(code){
       traceQrBox.textContent = '';
@@ -5009,7 +5027,7 @@ const titles = {
         traceRegionInput.value = bi.trace_region || '';
         tracePackedDateInput.value = bi.trace_packed_date || '';
         tracePackingTextInput.value = bi.trace_packing_text || '';
-        if(!bi.trace_product_name && !bi.trace_region && !bi.trace_packed_date && !bi.trace_packing_text) refillTraceFromSystem(true);
+        refillTraceFromSystem(true, true);
         traceCurrentCode = bi.public_trace_code || null;
         tracePublicSection.style.display = '';
         traceEnabledToggle.checked = !!bi.trace_enabled;
