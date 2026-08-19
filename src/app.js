@@ -2907,13 +2907,21 @@ const titles = {
     const traceForm = document.getElementById('form-trace');
     const traceSubmitBtn = document.getElementById('btn-submit-trace');
     const traceProductNameInput = document.getElementById('trace-product-name');
+    const traceProductNameEnInput = document.getElementById('trace-product-name-en');
+    const traceSupplierNameInput = document.getElementById('trace-supplier-name');
+    const traceSupplierNameEnInput = document.getElementById('trace-supplier-name-en');
     const traceRegionInput = document.getElementById('trace-region');
+    const traceRegionEnInput = document.getElementById('trace-region-en');
     const tracePackedDateInput = document.getElementById('trace-packed-date');
     const tracePackingTextInput = document.getElementById('trace-packing-text');
+    const tracePackingTextEnInput = document.getElementById('trace-packing-text-en');
     const traceRefillBtn = document.getElementById('btn-refill-trace-packing');
     const tracePublicSection = document.getElementById('trace-public-section');
     const traceEnabledToggle = document.getElementById('trace-enabled-toggle');
     const traceEnabledLabel = document.getElementById('trace-enabled-label');
+    const traceCodeWrap = document.getElementById('trace-code-wrap');
+    const traceCodeInput = document.getElementById('trace-code-input');
+    const traceSaveCodeBtn = document.getElementById('btn-save-trace-code');
     const traceQrWrap = document.getElementById('trace-qr-wrap');
     const traceQrBox = document.getElementById('trace-qr-box');
     const tracePublicUrlInput = document.getElementById('trace-public-url');
@@ -2984,6 +2992,16 @@ const titles = {
       if(error) throw error;
       return data && data.length ? String(data[0].created_at).slice(0, 10) : '';
     }
+    // Dừa đi qua sản xuất nội bộ ở Xưởng Ba Phi (không qua NCC ngoài như
+    // Chanh/Thanh long/Chuối) nên gợi ý thẳng "Ba Phi"; các loại hàng khác
+    // lấy đúng tên NCC đã ghi nhận qua PO (đã có sẵn trong batchSummaries,
+    // không cần gọi Supabase thêm).
+    function getTraceSupplierSuggestion(batchCode){
+      const b = batchSummaries[batchCode];
+      if(!b) return '';
+      if(b.isDua) return 'Ba Phi';
+      return b.ncc || '';
+    }
     // onlyFillEmpty=true (lúc tự mở modal) chỉ điền những ô ĐANG TRỐNG — không
     // ghi đè ô đã lưu/đã sửa tay trước đó. Bấm nút "Lấy từ hệ thống" thì
     // onlyFillEmpty=false, ghi đè hết vì đó là yêu cầu làm mới rõ ràng.
@@ -3016,6 +3034,11 @@ const titles = {
           traceRegionInput.value = regionSuggestion;
           gotAny = true;
         }
+        const supplierSuggestion = getTraceSupplierSuggestion(traceCurrentBatch);
+        if(supplierSuggestion && (!onlyFillEmpty || !traceSupplierNameInput.value.trim())){
+          traceSupplierNameInput.value = supplierSuggestion;
+          gotAny = true;
+        }
         if(packedDateSuggestion && (!onlyFillEmpty || !tracePackedDateInput.value)){
           tracePackedDateInput.value = packedDateSuggestion;
           gotAny = true;
@@ -3046,22 +3069,30 @@ const titles = {
       traceModalTitle.textContent = 'Truy xuất nguồn gốc — ' + batchCode;
       traceForm.reset();
       tracePublicSection.style.display = 'none';
+      traceCodeWrap.style.display = 'none';
       traceQrWrap.style.display = 'none';
       traceOverlay.classList.add('active');
       try{
-        const { data, error } = await sb.from('batch_info').select('trace_product_name,trace_region,trace_packed_date,trace_packing_text,trace_enabled,public_trace_code').eq('batch', batchCode).maybeSingle();
+        const { data, error } = await sb.from('batch_info').select('trace_product_name,trace_product_name_en,trace_supplier_name,trace_supplier_name_en,trace_region,trace_region_en,trace_packed_date,trace_packing_text,trace_packing_text_en,trace_enabled,public_trace_code').eq('batch', batchCode).maybeSingle();
         if(error) throw error;
         const bi = data || {};
         traceProductNameInput.value = bi.trace_product_name || '';
+        traceProductNameEnInput.value = bi.trace_product_name_en || '';
+        traceSupplierNameInput.value = bi.trace_supplier_name || '';
+        traceSupplierNameEnInput.value = bi.trace_supplier_name_en || '';
         traceRegionInput.value = bi.trace_region || '';
+        traceRegionEnInput.value = bi.trace_region_en || '';
         tracePackedDateInput.value = bi.trace_packed_date || '';
         tracePackingTextInput.value = bi.trace_packing_text || '';
+        tracePackingTextEnInput.value = bi.trace_packing_text_en || '';
         refillTraceFromSystem(true, true);
         traceCurrentCode = bi.public_trace_code || null;
         tracePublicSection.style.display = '';
         traceEnabledToggle.checked = !!bi.trace_enabled;
         traceEnabledLabel.textContent = bi.trace_enabled ? 'Đang công khai' : 'Tắt';
         if(bi.trace_enabled && traceCurrentCode){
+          traceCodeWrap.style.display = '';
+          traceCodeInput.value = traceCurrentCode;
           traceQrWrap.style.display = '';
           renderTraceQr(traceCurrentCode);
         }
@@ -3090,9 +3121,14 @@ const titles = {
           const { error } = await sb.from('batch_info').upsert({
             batch: traceCurrentBatch,
             trace_product_name: traceProductNameInput.value.trim() || null,
+            trace_product_name_en: traceProductNameEnInput.value.trim() || null,
+            trace_supplier_name: traceSupplierNameInput.value.trim() || null,
+            trace_supplier_name_en: traceSupplierNameEnInput.value.trim() || null,
             trace_region: traceRegionInput.value.trim() || null,
+            trace_region_en: traceRegionEnInput.value.trim() || null,
             trace_packed_date: tracePackedDateInput.value || null,
-            trace_packing_text: tracePackingTextInput.value.trim() || null
+            trace_packing_text: tracePackingTextInput.value.trim() || null,
+            trace_packing_text_en: tracePackingTextEnInput.value.trim() || null
           }, { onConflict: 'batch' });
           if(error) throw error;
           closeTraceModal();
@@ -3120,9 +3156,12 @@ const titles = {
           if(error) throw error;
           traceEnabledLabel.textContent = turningOn ? 'Đang công khai' : 'Tắt';
           if(turningOn){
+            traceCodeWrap.style.display = '';
+            traceCodeInput.value = traceCurrentCode;
             traceQrWrap.style.display = '';
             renderTraceQr(traceCurrentCode);
           } else {
+            traceCodeWrap.style.display = 'none';
             traceQrWrap.style.display = 'none';
           }
         } catch(err){
@@ -3130,6 +3169,33 @@ const titles = {
           alert('Không thể lưu: ' + (err.message || err));
         } finally {
           traceEnabledToggle.disabled = false;
+        }
+      });
+    }
+
+    // Đổi mã tra cứu thủ công — chủ yếu để staff thay mã dễ đoán/lỡ lộ bằng
+    // mã khác, không phải thao tác dùng thường xuyên.
+    if(traceSaveCodeBtn){
+      traceSaveCodeBtn.addEventListener('click', async function(){
+        if(!traceCurrentBatch) return;
+        const newCode = traceCodeInput.value.trim();
+        if(!newCode){ alert('Mã tra cứu không được để trống.'); return; }
+        traceSaveCodeBtn.disabled = true;
+        try{
+          const { error } = await sb.from('batch_info').upsert({
+            batch: traceCurrentBatch,
+            public_trace_code: newCode
+          }, { onConflict: 'batch' });
+          if(error) throw error;
+          traceCurrentCode = newCode;
+          renderTraceQr(traceCurrentCode);
+        } catch(err){
+          // Vi phạm unique constraint nếu trùng mã lô khác — báo rõ thay vì
+          // để lỗi kỹ thuật khó hiểu.
+          const msg = /duplicate|unique/i.test(err.message || '') ? 'Mã này đã được lô khác dùng — chọn mã khác.' : (err.message || err);
+          alert('Không thể lưu mã: ' + msg);
+        } finally {
+          traceSaveCodeBtn.disabled = false;
         }
       });
     }

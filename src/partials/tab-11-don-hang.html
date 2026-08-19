@@ -87,7 +87,7 @@
           <div class="modal-title" id="trace-modal-title">Truy xuất nguồn gốc</div>
           <button class="modal-close" id="btn-close-trace" type="button" aria-label="Đóng">&times;</button>
         </div>
-        <div class="muted" style="font-size:11.5px;margin-bottom:14px;">Trang công khai chỉ hiện vùng nguyên liệu, kết quả QC tóm tắt, đóng gói và hành trình vận chuyển — không hiện khách hàng, giá trị đơn hay thông tin NCC.</div>
+        <div class="muted" style="font-size:11.5px;margin-bottom:14px;">Trang công khai hiện vùng nguyên liệu, nhà cung cấp, kết quả QC tóm tắt, đóng gói và hành trình vận chuyển — không hiện khách hàng hay giá trị đơn.</div>
         <form id="form-trace">
           <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
             <button type="button" class="btn-secondary" id="btn-refill-trace-packing" style="font-size:11px;padding:4px 10px;white-space:nowrap;"><i class="ti ti-refresh"></i> Lấy từ hệ thống</button>
@@ -96,11 +96,18 @@
             <label for="trace-product-name">Tên sản phẩm (hiển thị công khai)</label>
             <input type="text" id="trace-product-name" placeholder="VD: Dừa xiêm xanh gọt vỏ">
             <div class="muted" style="font-size:11px;margin-top:4px;">Riêng với trang công khai — không lấy từ ô "Sản phẩm" ở Thêm đơn hàng, vì lô có thể gồm nhiều loại hàng khác nhau.</div>
+            <input type="text" id="trace-product-name-en" placeholder="(Tiếng Anh, tùy chọn) VD: Peeled young coconut" style="margin-top:6px;font-size:12px;">
+          </div>
+          <div class="form-group">
+            <label for="trace-supplier-name">Nhà cung cấp (hiển thị công khai)</label>
+            <input type="text" id="trace-supplier-name" placeholder="VD: Ba Phi">
+            <input type="text" id="trace-supplier-name-en" placeholder="(Tiếng Anh, tùy chọn)" style="margin-top:6px;font-size:12px;">
           </div>
           <div class="form-group">
             <label for="trace-region">Vùng nguyên liệu (hiển thị công khai)</label>
             <input type="text" id="trace-region" placeholder="VD: Bến Tre">
             <div class="muted" style="font-size:11px;margin-top:4px;">"Lấy từ hệ thống" điền tạm nguyên địa chỉ đầu mối thu mua đã khai — nên rút gọn lại về đúng vùng/tỉnh trước khi lưu, tránh lộ địa chỉ chi tiết.</div>
+            <input type="text" id="trace-region-en" placeholder="(Tiếng Anh, tùy chọn)" style="margin-top:6px;font-size:12px;">
           </div>
           <div class="form-group">
             <label for="trace-packed-date">Ngày đóng hàng</label>
@@ -109,6 +116,7 @@
           <div class="form-group">
             <label for="trace-packing-text">Quy cách đóng gói (hiển thị công khai)</label>
             <textarea id="trace-packing-text" rows="3" placeholder="Nhiều loại hàng/quy cách thì mỗi dòng 1 loại."></textarea>
+            <textarea id="trace-packing-text-en" rows="3" placeholder="(Tiếng Anh, tùy chọn)" style="margin-top:6px;font-size:12px;"></textarea>
           </div>
           <div class="modal-actions" style="justify-content:space-between;">
             <button type="button" class="btn-secondary" id="btn-cancel-trace">Đóng</button>
@@ -123,6 +131,14 @@
               <input type="checkbox" id="trace-enabled-toggle" style="width:auto;">
               <span class="muted" style="font-size:12px;" id="trace-enabled-label">Tắt</span>
             </label>
+          </div>
+          <div id="trace-code-wrap" style="display:none;margin-bottom:12px;">
+            <label for="trace-code-input" style="font-size:11.5px;">Mã tra cứu (nằm trong link/QR)</label>
+            <div style="display:flex;gap:6px;">
+              <input type="text" id="trace-code-input" style="font-size:12px;flex:1;">
+              <button type="button" class="btn-secondary" id="btn-save-trace-code" style="font-size:11px;padding:4px 10px;white-space:nowrap;">Lưu mã</button>
+            </div>
+            <div class="muted" style="font-size:11px;margin-top:4px;">Đổi mã cũng đổi luôn link/QR cũ — mã cũ sẽ không dùng được nữa. Nên đặt mã khó đoán, tránh dùng thẳng tên lô.</div>
           </div>
           <div id="trace-qr-wrap" style="display:none;text-align:center;">
             <div id="trace-qr-box" style="display:inline-block;padding:10px;background:#fff;border:1px solid var(--border);border-radius:10px;"></div>

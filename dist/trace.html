@@ -146,9 +146,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21c7-1 12-6 13-13"/><path d="M5 21C5 13 10 6 18 5c1 5-2 12-9 15Z"/></svg>
           <span data-vi="Nguồn gốc" data-en="Origin">Nguồn gốc</span>
         </div>
+        <div class="field-row" id="rowSupplier" hidden><span class="field-label" data-vi="Nhà cung cấp" data-en="Supplier">Nhà cung cấp</span><span class="field-value" id="valSupplier"></span></div>
         <div class="field-row" id="rowRegion" hidden><span class="field-label" data-vi="Vùng nguyên liệu" data-en="Growing region">Vùng nguyên liệu</span><span class="field-value" id="valRegion"></span></div>
         <div class="field-row" id="rowVariety" hidden><span class="field-label" data-vi="Chủng loại" data-en="Variety">Chủng loại</span><span class="field-value" id="valVariety"></span></div>
-        <div class="field-row" id="rowHarvest" hidden><span class="field-label" data-vi="Ngày thu hoạch" data-en="Harvest date">Ngày thu hoạch</span><span class="field-value mono" id="valHarvest"></span></div>
+        <div class="field-row" id="rowHarvest" hidden><span class="field-label" data-vi="Ngày nhập nguyên liệu" data-en="Material intake date">Ngày nhập nguyên liệu</span><span class="field-value mono" id="valHarvest"></span></div>
       </div>
 
       <div class="qc-block" id="qcBlock">
@@ -195,6 +196,15 @@
   var SUPABASE_URL = 'https://ickyibgaxczypuxzpuun.supabase.co';
   var SUPABASE_ANON_KEY = 'sb_publishable_9FLlPV6d0aFcX-m-wmKK5w_Qdc4V_0h';
   var lang = 'vi';
+  var currentRecord = null;
+  // Nội dung tự nhập (tên sản phẩm/NCC/vùng/quy cách) chỉ có bản Anh khi
+  // staff tự gõ — không có thì dùng lại đúng bản tiếng Việt, còn hơn để
+  // trống khi khách chuyển sang EN.
+  function pick(field){
+    if(!currentRecord) return '';
+    var en = currentRecord[field + '_en'];
+    return (lang === 'en' && en) ? en : (currentRecord[field] || '');
+  }
 
   function $(id){ return document.getElementById(id); }
   function fmtDate(v){
@@ -222,6 +232,13 @@
     if(!btn) return;
     lang = btn.dataset.lang;
     applyLang();
+    if(currentRecord){
+      refreshDynamicText();
+      // "Dự kiến"/"Estimated" gắn liền vào chuỗi ngày lúc vẽ hành trình vận
+      // chuyển — không nằm trong applyLang(), nên phải vẽ lại timeline mỗi
+      // lần đổi ngôn ngữ, không chỉ lúc tải trang.
+      renderTimeline(currentRecord);
+    }
   });
 
   function showState(name){
@@ -279,18 +296,28 @@
     });
   }
 
+  // Các trường tự nhập (tên sản phẩm/NCC/vùng/quy cách) đổi qua đổi lại theo
+  // pick() mỗi lần chuyển ngôn ngữ — tách riêng khỏi render() vì cần gọi lại
+  // lúc bấm nút VI/EN, không chỉ lúc tải trang.
+  function refreshDynamicText(){
+    var d = currentRecord;
+    var productName = pick('product_name') || (lang === 'vi' ? 'Sản phẩm chưa đặt tên' : 'Unnamed product');
+    $('heroTitle').textContent = productName;
+    if(d.supplier_name){ $('rowSupplier').hidden = false; $('valSupplier').textContent = pick('supplier_name'); }
+    if(d.region){ $('rowRegion').hidden = false; $('valRegion').textContent = pick('region'); }
+    var packingText = pick('packing_text');
+    if(packingText) renderPackingLines(packingText);
+  }
+
   function render(d){
+    currentRecord = d;
     setBilingual($('heroEyebrow'), (d.variety || 'Dừa xiêm xanh') + ' · Xuất khẩu', (d.variety || 'Coconut') + ' · Export');
-    var productName = d.product_name || (lang === 'vi' ? 'Sản phẩm chưa đặt tên' : 'Unnamed product');
-    $('heroTitle').textContent = d.product_name || (lang === 'vi' ? 'Sản phẩm chưa đặt tên' : 'Unnamed product');
-    $('heroTitle').dataset.vi = d.product_name || 'Sản phẩm chưa đặt tên';
-    $('heroTitle').dataset.en = d.product_name || 'Unnamed product';
     setBilingual($('batchChip'), 'Mã lô ' + d.trace_code, 'Batch ' + d.trace_code);
 
-    if(d.region){ $('rowRegion').hidden = false; $('valRegion').textContent = d.region; }
     if(d.variety){ $('rowVariety').hidden = false; $('valVariety').textContent = d.variety; }
     if(d.harvest_date){ $('rowHarvest').hidden = false; $('valHarvest').textContent = fmtDate(d.harvest_date); }
-    if(!d.region && !d.variety && !d.harvest_date){ $('originCard').hidden = true; }
+    if(!d.region && !d.variety && !d.harvest_date && !d.supplier_name){ $('originCard').hidden = true; }
+    refreshDynamicText();
 
     var qcMeta = QC_META[d.qc_status] || null;
     var qcBlock = $('qcBlock');
@@ -311,7 +338,6 @@
     if(d.packed_date || d.packing_text){
       $('packingCard').hidden = false;
       if(d.packed_date){ $('rowPackedDate').hidden = false; $('valPackedDate').textContent = fmtDate(d.packed_date); }
-      if(d.packing_text){ renderPackingLines(d.packing_text); }
     }
 
     renderTimeline(d);
