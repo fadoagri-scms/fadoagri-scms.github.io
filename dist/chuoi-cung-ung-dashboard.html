@@ -5190,7 +5190,9 @@ const titles = {
     // Chỉ điền lại ô — vẫn phải bấm "Lưu mã" mới thật sự đổi, để staff kịp
     // xem qua mã mới trước khi link cũ ngừng hoạt động.
     if(traceRegenCodeBtn){
-      traceRegenCodeBtn.addEventListener('click', function(){
+      traceRegenCodeBtn.addEventListener('click', async function(){
+        const ok = await confirmDialog('Tạo mã ngẫu nhiên mới thay cho mã hiện tại? Vẫn phải bấm "Lưu mã" mới thật sự áp dụng.', { title: 'Tạo mã mới?', okLabel: 'Tạo mã mới', danger: false });
+        if(!ok) return;
         traceCodeInput.value = genTraceCode();
       });
     }
