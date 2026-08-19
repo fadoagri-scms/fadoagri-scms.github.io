@@ -4957,7 +4957,7 @@ const titles = {
         input.type = 'text';
         input.dataset.term = term;
         input.placeholder = '(EN)';
-        input.value = traceTermTranslations[term] || '';
+        input.value = traceTermTranslations[term] || (term === 'thùng' ? 'boxes' : '');
         input.style.cssText = 'flex:1;font-size:12px;';
         row.appendChild(label);
         row.appendChild(input);
@@ -5026,6 +5026,10 @@ const titles = {
           if(t && !seen.has(t)){ seen.add(t); terms.push(t); }
         });
       });
+      // "thùng" (đơn vị số lượng) cũng là 1 tên cần dịch như bao tên khác —
+      // luôn thêm vào cuối danh sách nếu có ít nhất 1 dòng đóng gói, kèm gợi
+      // ý mặc định "boxes" nếu staff chưa từng dịch (xem renderTraceTerms).
+      if(items.length && !seen.has('thùng')) terms.push('thùng');
       return terms;
     }
     // Tên sản phẩm công khai lấy từ chính danh sách đóng thùng thật (không

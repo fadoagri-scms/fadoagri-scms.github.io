@@ -307,7 +307,7 @@
         row.appendChild(nameEl);
         if(it.qty){
           var qtyEl = document.createElement('span'); qtyEl.className = 'pk-qty';
-          qtyEl.textContent = it.qty + (lang === 'vi' ? ' thùng' : ' boxes');
+          qtyEl.textContent = it.qty + ' ' + tr('thùng');
           row.appendChild(qtyEl);
         }
         groupEl.appendChild(row);
