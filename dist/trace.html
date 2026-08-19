@@ -45,12 +45,12 @@
   .card-title{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);}
   .card-title svg{width:16px;height:16px;color:var(--forest-deep);flex-shrink:0;}
   .field-row{display:flex;justify-content:space-between;gap:12px;font-size:13.5px;}
-  .packing-line{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13px;padding-top:8px;border-top:1px solid var(--border);}
-  .packing-line:first-child{padding-top:0;border-top:none;}
-  .packing-line .pl-source{color:var(--forest-deep);font-size:10.5px;font-weight:700;letter-spacing:.02em;margin-bottom:2px;}
-  .packing-line .pl-name{color:var(--ink);font-weight:600;}
-  .packing-line .pl-spec{color:var(--ink-soft);font-weight:400;}
-  .packing-line .pl-qty{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;flex-shrink:0;}
+  .pk-group{padding-top:10px;border-top:1px solid var(--border);}
+  .pk-group:first-child{padding-top:0;border-top:none;}
+  .pk-group-title{color:var(--forest-deep);font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px;}
+  .pk-item{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13px;padding:3px 0;}
+  .pk-item .pk-name{color:var(--ink);font-weight:600;}
+  .pk-item .pk-qty{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;flex-shrink:0;}
   .field-label{color:var(--ink-soft);}
   .field-value{color:var(--ink);font-weight:600;text-align:right;}
   .field-value.mono{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;font-variant-numeric:tabular-nums;font-weight:500;}
@@ -263,45 +263,55 @@
     return i === -1 ? -1 : i;
   }
 
-  // packing_text: mỗi dòng "[<nguyên liệu> → ]<tên>[ — <quy cách>] · <số
-  // lượng>" (do app tự sinh từ dữ liệu đóng thùng, xem
-  // formatPackingTextFromBoxes trong app.js) — tách thành từng dòng riêng
-  // cho dễ đọc, và hiện rõ nguyên liệu nào ra thành phẩm nào thay vì dồn
-  // chung 1 đoạn văn hay tách rời 2 danh sách không liên quan nhau.
+  // packing_text: mỗi dòng "[<nguyên liệu> → ]<sản phẩm> · <số lượng>" (do
+  // app tự sinh từ dữ liệu đóng thùng, xem formatPackingTextFromBoxes trong
+  // app.js) — gộp theo nguyên liệu (nhiều sản phẩm/quy cách có thể cùng 1
+  // nguyên liệu, không lặp lại nhãn nguyên liệu từng dòng). Tên riêng
+  // (nguyên liệu/sản phẩm) tra qua packingTerms nếu đang xem bản EN, không
+  // có bản dịch thì tự dùng lại tiếng Việt.
   function renderPackingLines(text){
-    var wrap = $('packingLines');
-    wrap.textContent = '';
-    wrap.hidden = false;
+    var terms = (currentRecord && currentRecord.packing_terms_en) || {};
+    function tr(term){ return (lang === 'en' && terms[term]) ? terms[term] : term; }
+
+    var groups = [];
+    var groupByName = {};
     String(text).split('\n').map(function(l){ return l.trim(); }).filter(Boolean).forEach(function(line){
       var arrowIdx = line.indexOf(' → ');
       var source = arrowIdx === -1 ? '' : line.slice(0, arrowIdx);
       var rest = arrowIdx === -1 ? line : line.slice(arrowIdx + 3);
       var qtyIdx = rest.lastIndexOf(' · ');
-      var left = qtyIdx === -1 ? rest : rest.slice(0, qtyIdx);
+      var name = qtyIdx === -1 ? rest : rest.slice(0, qtyIdx);
       var qty = qtyIdx === -1 ? '' : rest.slice(qtyIdx + 3);
-      var dashIdx = left.indexOf(' — ');
-      var name = dashIdx === -1 ? left : left.slice(0, dashIdx);
-      var spec = dashIdx === -1 ? '' : left.slice(dashIdx + 3);
-      var row = document.createElement('div');
-      row.className = 'packing-line';
-      var left2 = document.createElement('div');
-      if(source){
-        var srcEl = document.createElement('div'); srcEl.className = 'pl-source';
-        srcEl.textContent = (lang === 'vi' ? 'Nguyên liệu: ' : 'Raw material: ') + source;
-        left2.appendChild(srcEl);
+      var groupKey = source || ' ';
+      if(!groupByName[groupKey]){
+        groupByName[groupKey] = { source: source, items: [] };
+        groups.push(groupByName[groupKey]);
       }
-      var nameEl = document.createElement('span'); nameEl.className = 'pl-name'; nameEl.textContent = name;
-      left2.appendChild(nameEl);
-      if(spec){
-        var specEl = document.createElement('span'); specEl.className = 'pl-spec'; specEl.textContent = ' — ' + spec;
-        left2.appendChild(specEl);
+      groupByName[groupKey].items.push({ name: name, qty: qty });
+    });
+
+    var wrap = $('packingLines');
+    wrap.textContent = '';
+    wrap.hidden = false;
+    groups.forEach(function(g){
+      var groupEl = document.createElement('div');
+      groupEl.className = 'pk-group';
+      if(g.source){
+        var titleEl = document.createElement('div'); titleEl.className = 'pk-group-title';
+        titleEl.textContent = tr(g.source);
+        groupEl.appendChild(titleEl);
       }
-      row.appendChild(left2);
-      if(qty){
-        var qtyEl = document.createElement('div'); qtyEl.className = 'pl-qty'; qtyEl.textContent = qty;
-        row.appendChild(qtyEl);
-      }
-      wrap.appendChild(row);
+      g.items.forEach(function(it){
+        var row = document.createElement('div'); row.className = 'pk-item';
+        var nameEl = document.createElement('span'); nameEl.className = 'pk-name'; nameEl.textContent = tr(it.name);
+        row.appendChild(nameEl);
+        if(it.qty){
+          var qtyEl = document.createElement('span'); qtyEl.className = 'pk-qty'; qtyEl.textContent = it.qty;
+          row.appendChild(qtyEl);
+        }
+        groupEl.appendChild(row);
+      });
+      wrap.appendChild(groupEl);
     });
   }
 

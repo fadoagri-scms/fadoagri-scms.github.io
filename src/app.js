@@ -2917,7 +2917,8 @@ const titles = {
     const traceRegionEnInput = document.getElementById('trace-region-en');
     const tracePackedDateInput = document.getElementById('trace-packed-date');
     const tracePackingTextInput = document.getElementById('trace-packing-text');
-    const tracePackingTextEnInput = document.getElementById('trace-packing-text-en');
+    const traceTermsGroup = document.getElementById('trace-terms-group');
+    const traceTermsList = document.getElementById('trace-terms-list');
     const traceRefillBtn = document.getElementById('btn-refill-trace-packing');
     const tracePublicSection = document.getElementById('trace-public-section');
     const traceEnabledToggle = document.getElementById('trace-enabled-toggle');
@@ -2933,6 +2934,41 @@ const titles = {
 
     let traceCurrentBatch = null;
     let traceCurrentCode = null;
+    let traceTermTranslations = {};
+
+    // 1 ô EN nhỏ / tên riêng (nguyên liệu hoặc sản phẩm) xuất hiện trong
+    // "Đóng gói" — thay cho việc bắt gõ nguyên đoạn tiếng Anh đúng cấu trúc
+    // "Nguyên liệu → Sản phẩm · Số lượng" (dễ gõ sai dấu, xem phản hồi
+    // 2026-08-19). Danh sách tên lấy từ uniqueTermsFromBoxes(items).
+    function renderTraceTerms(terms){
+      traceTermsList.textContent = '';
+      if(!terms.length){ traceTermsGroup.style.display = 'none'; return; }
+      traceTermsGroup.style.display = '';
+      terms.forEach(function(term){
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;';
+        const label = document.createElement('div');
+        label.style.cssText = 'font-size:12px;color:var(--ink-soft);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+        label.textContent = term;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.dataset.term = term;
+        input.placeholder = '(EN)';
+        input.value = traceTermTranslations[term] || '';
+        input.style.cssText = 'flex:1;font-size:12px;';
+        row.appendChild(label);
+        row.appendChild(input);
+        traceTermsList.appendChild(row);
+      });
+    }
+    function readTraceTerms(){
+      const result = {};
+      Array.from(traceTermsList.querySelectorAll('input[data-term]')).forEach(function(inp){
+        const v = inp.value.trim();
+        if(v) result[inp.dataset.term] = v;
+      });
+      return result;
+    }
 
     // Mã bí mật nằm trong link/QR — LUÔN ngẫu nhiên, không liên quan tên lô,
     // để không ai dò/đoán ra link được (xem trace_batch_label bên dưới cho
@@ -2964,15 +3000,28 @@ const titles = {
       });
       return Object.values(boxMap);
     }
-    // "→" đánh dấu riêng mối liên hệ nguyên liệu→thành phẩm, khác với " — "
-    // (spec) và " · " (số lượng) đã dùng — trace.html tách theo đúng 3 dấu
-    // này để vẽ lại đẹp trên trang công khai (xem renderPackingLines).
+    // "→" đánh dấu nguyên liệu→thành phẩm, " · " ngăn số lượng — trace.html
+    // tách theo đúng 2 dấu này để gộp nhóm theo nguyên liệu (xem
+    // renderPackingLines). Bỏ số quy cách (trái/thùng) khỏi trang công khai
+    // — chi tiết kỹ thuật nội bộ, khách không cần.
     function formatPackingTextFromBoxes(items){
       return items.map(function(it){
-        const spec = it.quyCach ? (' — ' + it.quyCach) : '';
         const prefix = it.nguyenLieu ? (it.nguyenLieu + ' → ') : '';
-        return prefix + (it.sanPham || '(chưa đặt tên)') + spec + ' · ' + it.soLuong.toLocaleString('vi-VN') + ' thùng';
+        return prefix + (it.sanPham || '(chưa đặt tên)') + ' · ' + it.soLuong.toLocaleString('vi-VN') + ' thùng';
       }).join('\n');
+    }
+    // Danh sách tên riêng (nguyên liệu + sản phẩm) xuất hiện trong lô — dùng
+    // để hiện từng ô dịch nhỏ trong modal, thay vì bắt gõ lại nguyên cụm
+    // "Nguyên liệu → Sản phẩm · Số lượng" bằng tiếng Anh (dễ gõ sai dấu).
+    function uniqueTermsFromBoxes(items){
+      const terms = [];
+      const seen = new Set();
+      items.forEach(function(it){
+        [it.nguyenLieu, it.sanPham].forEach(function(t){
+          if(t && !seen.has(t)){ seen.add(t); terms.push(t); }
+        });
+      });
+      return terms;
     }
     // Tên sản phẩm công khai lấy từ chính danh sách đóng thùng thật (không
     // dùng batch_info.san_pham — ô "Sản phẩm dự kiến" nhập lúc tạo đơn,
@@ -3051,6 +3100,9 @@ const titles = {
             traceProductNameInput.value = productName;
             gotAny = true;
           }
+          // Luôn hiện lại danh sách tên cần dịch — không phụ thuộc
+          // onlyFillEmpty vì đây chỉ là hiện ô nhập, không ghi đè gì.
+          renderTraceTerms(uniqueTermsFromBoxes(items));
         }
         if(varietySuggestion && (!onlyFillEmpty || !traceVarietyInput.value.trim())){
           traceVarietyInput.value = varietySuggestion;
@@ -3098,12 +3150,15 @@ const titles = {
       traceCurrentCode = null;
       traceModalTitle.textContent = 'Truy xuất nguồn gốc — ' + batchCode;
       traceForm.reset();
+      traceTermTranslations = {};
+      traceTermsGroup.style.display = 'none';
+      traceTermsList.textContent = '';
       tracePublicSection.style.display = 'none';
       traceCodeWrap.style.display = 'none';
       traceQrWrap.style.display = 'none';
       traceOverlay.classList.add('active');
       try{
-        const { data, error } = await sb.from('batch_info').select('trace_batch_label,trace_product_name,trace_product_name_en,trace_supplier_name,trace_supplier_name_en,trace_variety,trace_variety_en,trace_region,trace_region_en,trace_packed_date,trace_packing_text,trace_packing_text_en,trace_enabled,public_trace_code').eq('batch', batchCode).maybeSingle();
+        const { data, error } = await sb.from('batch_info').select('trace_batch_label,trace_product_name,trace_product_name_en,trace_supplier_name,trace_supplier_name_en,trace_variety,trace_variety_en,trace_region,trace_region_en,trace_packed_date,trace_packing_text,trace_packing_terms_en,trace_enabled,public_trace_code').eq('batch', batchCode).maybeSingle();
         if(error) throw error;
         const bi = data || {};
         traceBatchLabelInput.value = bi.trace_batch_label || '';
@@ -3117,7 +3172,7 @@ const titles = {
         traceRegionEnInput.value = bi.trace_region_en || '';
         tracePackedDateInput.value = bi.trace_packed_date || '';
         tracePackingTextInput.value = bi.trace_packing_text || '';
-        tracePackingTextEnInput.value = bi.trace_packing_text_en || '';
+        traceTermTranslations = bi.trace_packing_terms_en || {};
         refillTraceFromSystem(true, true);
         traceCurrentCode = bi.public_trace_code || null;
         tracePublicSection.style.display = '';
@@ -3164,7 +3219,7 @@ const titles = {
             trace_region_en: traceRegionEnInput.value.trim() || null,
             trace_packed_date: tracePackedDateInput.value || null,
             trace_packing_text: tracePackingTextInput.value.trim() || null,
-            trace_packing_text_en: tracePackingTextEnInput.value.trim() || null
+            trace_packing_terms_en: readTraceTerms()
           }, { onConflict: 'batch' });
           if(error) throw error;
           closeTraceModal();
