@@ -3003,11 +3003,13 @@ const titles = {
     // "→" đánh dấu nguyên liệu→thành phẩm, " · " ngăn số lượng — trace.html
     // tách theo đúng 2 dấu này để gộp nhóm theo nguyên liệu (xem
     // renderPackingLines). Bỏ số quy cách (trái/thùng) khỏi trang công khai
-    // — chi tiết kỹ thuật nội bộ, khách không cần.
+    // — chi tiết kỹ thuật nội bộ, khách không cần. Số lượng để SỐ TRẦN,
+    // không kèm chữ "thùng" — trace.html tự thêm đơn vị theo đúng ngôn ngữ
+    // đang xem (thùng/boxes), gắn cứng vào đây thì không dịch được.
     function formatPackingTextFromBoxes(items){
       return items.map(function(it){
         const prefix = it.nguyenLieu ? (it.nguyenLieu + ' → ') : '';
-        return prefix + (it.sanPham || '(chưa đặt tên)') + ' · ' + it.soLuong.toLocaleString('vi-VN') + ' thùng';
+        return prefix + (it.sanPham || '(chưa đặt tên)') + ' · ' + it.soLuong.toLocaleString('vi-VN');
       }).join('\n');
     }
     // Danh sách tên riêng (nguyên liệu + sản phẩm) xuất hiện trong lô — dùng
