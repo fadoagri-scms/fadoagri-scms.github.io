@@ -38,7 +38,8 @@
   .ph-brandline{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--forest-deep);}
 
   .hero{display:flex;flex-direction:column;gap:8px;align-items:flex-start;}
-  .hero h1{margin:0;font-size:21px;font-weight:800;letter-spacing:-.01em;line-height:1.25;color:var(--ink);text-wrap:balance;}
+  .hero-products{display:flex;flex-direction:column;gap:2px;}
+  .hero-products .hp-line{font-size:17px;font-weight:700;letter-spacing:-.005em;line-height:1.35;color:var(--ink);text-wrap:balance;}
   .batch-chip{display:inline-flex;align-items:center;gap:6px;font:600 12px/1 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;letter-spacing:.02em;text-transform:uppercase;color:var(--forest-deep);background:var(--surface-2);border:1px solid var(--border);padding:6px 10px;border-radius:8px;}
 
   .card{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:16px 16px;display:flex;flex-direction:column;gap:12px;}
@@ -136,7 +137,7 @@
     <div id="stateContent" hidden style="display:flex;flex-direction:column;gap:22px;">
 
       <div class="hero">
-        <h1 id="heroTitle"></h1>
+        <div id="heroTitle" class="hero-products"></div>
         <span class="batch-chip" id="batchChip"></span>
       </div>
 
@@ -306,7 +307,8 @@
         var nameEl = document.createElement('span'); nameEl.className = 'pk-name'; nameEl.textContent = tr(it.name);
         row.appendChild(nameEl);
         if(it.qty){
-          var qtyEl = document.createElement('span'); qtyEl.className = 'pk-qty'; qtyEl.textContent = it.qty;
+          var qtyEl = document.createElement('span'); qtyEl.className = 'pk-qty';
+          qtyEl.textContent = it.qty + ' ' + tr('thùng');
           row.appendChild(qtyEl);
         }
         groupEl.appendChild(row);
@@ -320,13 +322,25 @@
   // lúc bấm nút VI/EN, không chỉ lúc tải trang.
   function refreshDynamicText(){
     var d = currentRecord;
+    // Lô nhiều sản phẩm thì product_name là chuỗi nối bằng ", " (xem
+    // productNameFromBoxes trong app.js) — tách thành từng dòng riêng, cỡ
+    // chữ vừa phải, thay vì nhồi cả cụm vào 1 dòng tiêu đề lớn dễ vỡ dòng.
     var productName = pick('product_name') || (lang === 'vi' ? 'Sản phẩm chưa đặt tên' : 'Unnamed product');
-    $('heroTitle').textContent = productName;
+    var heroEl = $('heroTitle');
+    heroEl.textContent = '';
+    productName.split(', ').forEach(function(p){
+      var line = document.createElement('div'); line.className = 'hp-line'; line.textContent = p;
+      heroEl.appendChild(line);
+    });
     if(d.supplier_name){ $('rowSupplier').hidden = false; $('valSupplier').textContent = pick('supplier_name'); }
     if(d.region){ $('rowRegion').hidden = false; $('valRegion').textContent = pick('region'); }
     if(d.variety){ $('valVariety').textContent = pick('variety'); }
-    var packingText = pick('packing_text');
-    if(packingText) renderPackingLines(packingText);
+    // KHÔNG dùng pick('packing_text') — nó sẽ vô tình lấy field
+    // packing_text_en cũ (đã bỏ dùng, có thể còn sót giá trị cũ trong DB từ
+    // trước khi đổi sang cơ chế từ điển packing_terms_en). Luôn dùng thẳng
+    // d.packing_text (tiếng Việt) làm nguồn duy nhất, renderPackingLines() tự
+    // tra packing_terms_en để dịch từng tên khi cần.
+    if(d.packing_text) renderPackingLines(d.packing_text);
   }
 
   function render(d){
