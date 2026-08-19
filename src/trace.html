@@ -325,8 +325,12 @@
     if(d.supplier_name){ $('rowSupplier').hidden = false; $('valSupplier').textContent = pick('supplier_name'); }
     if(d.region){ $('rowRegion').hidden = false; $('valRegion').textContent = pick('region'); }
     if(d.variety){ $('valVariety').textContent = pick('variety'); }
-    var packingText = pick('packing_text');
-    if(packingText) renderPackingLines(packingText);
+    // KHÔNG dùng pick('packing_text') — nó sẽ vô tình lấy field
+    // packing_text_en cũ (đã bỏ dùng, có thể còn sót giá trị cũ trong DB từ
+    // trước khi đổi sang cơ chế từ điển packing_terms_en). Luôn dùng thẳng
+    // d.packing_text (tiếng Việt) làm nguồn duy nhất, renderPackingLines() tự
+    // tra packing_terms_en để dịch từng tên khi cần.
+    if(d.packing_text) renderPackingLines(d.packing_text);
   }
 
   function render(d){

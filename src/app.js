@@ -3219,7 +3219,10 @@ const titles = {
             trace_region_en: traceRegionEnInput.value.trim() || null,
             trace_packed_date: tracePackedDateInput.value || null,
             trace_packing_text: tracePackingTextInput.value.trim() || null,
-            trace_packing_terms_en: readTraceTerms()
+            trace_packing_terms_en: readTraceTerms(),
+            // Dọn field cũ (đã bỏ dùng, thay bằng trace_packing_terms_en ở
+            // trên) — tránh còn sót giá trị cũ làm trang công khai đọc nhầm.
+            trace_packing_text_en: null
           }, { onConflict: 'batch' });
           if(error) throw error;
           closeTraceModal();
