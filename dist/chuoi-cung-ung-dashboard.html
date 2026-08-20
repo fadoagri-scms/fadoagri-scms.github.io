@@ -919,7 +919,37 @@
             <div class="muted" style="font-size:11px;margin-top:4px;">Đổi mã cũng đổi luôn link/QR cũ — mã cũ sẽ không dùng được nữa. Để ngẫu nhiên (mặc định) cho khó đoán — chỉ đổi khi thật sự cần.</div>
           </div>
           <div id="trace-qr-wrap" style="display:none;text-align:center;">
-            <div id="trace-qr-box" style="display:inline-block;padding:10px;background:#fff;border:1px solid var(--border);border-radius:10px;"></div>
+            <div class="muted" style="font-size:11px;margin-bottom:10px;">Mỗi lô dùng cho tình huống khác nhau — bật loại mã cần dùng, tắt loại không dùng. Cả 2 luôn dẫn tới cùng 1 trang truy xuất.</div>
+            <div style="display:flex;gap:16px;justify-content:center;align-items:flex-start;flex-wrap:wrap;">
+              <div style="text-align:center;width:180px;">
+                <label style="display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;margin-bottom:8px;">
+                  <input type="checkbox" id="trace-qr-enabled-toggle" style="width:auto;">
+                  <span style="font-size:12px;font-weight:700;">Mã QR</span>
+                </label>
+                <div id="trace-qr-visible-area">
+                  <div id="trace-qr-box" style="display:inline-block;padding:10px;background:#fff;border:1px solid var(--border);border-radius:10px;"></div>
+                  <div style="margin-top:8px;">
+                    <button type="button" class="btn-secondary" id="btn-export-trace-qr" style="font-size:11px;padding:5px 10px;">Xuất QR</button>
+                  </div>
+                  <div class="muted" id="trace-qr-exported-label" style="font-size:10.5px;margin-top:4px;"></div>
+                </div>
+              </div>
+              <div style="text-align:center;width:220px;">
+                <label style="display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;margin-bottom:8px;">
+                  <input type="checkbox" id="trace-barcode-enabled-toggle" style="width:auto;">
+                  <span style="font-size:12px;font-weight:700;">Mã vạch</span>
+                </label>
+                <div id="trace-barcode-visible-area">
+                  <div style="display:inline-block;padding:10px;background:#fff;border:1px solid var(--border);border-radius:10px;max-width:220px;">
+                    <svg id="trace-barcode-svg" style="display:block;max-width:100%;height:auto;"></svg>
+                  </div>
+                  <div style="margin-top:8px;">
+                    <button type="button" class="btn-secondary" id="btn-export-trace-barcode" style="font-size:11px;padding:5px 10px;">Xuất mã vạch</button>
+                  </div>
+                  <div class="muted" id="trace-barcode-exported-label" style="font-size:10.5px;margin-top:4px;"></div>
+                </div>
+              </div>
+            </div>
             <div style="display:flex;gap:6px;margin-top:10px;">
               <input type="text" id="trace-public-url" readonly style="font-size:11.5px;flex:1;">
               <button type="button" class="btn-secondary" id="btn-copy-trace-url" title="Sao chép link"><i class="ti ti-copy"></i></button>
@@ -2301,6 +2331,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script>
 const titles = {
     overview:  ["Tổng quan", "Toàn cảnh hoạt động chuỗi cung ứng hôm nay"],
@@ -5306,6 +5337,18 @@ const titles = {
     const traceQrWrap = document.getElementById('trace-qr-wrap');
     const traceQrBox = document.getElementById('trace-qr-box');
     const tracePublicUrlInput = document.getElementById('trace-public-url');
+    const traceQrEnabledToggle = document.getElementById('trace-qr-enabled-toggle');
+    const traceQrVisibleArea = document.getElementById('trace-qr-visible-area');
+    const traceQrExportedLabel = document.getElementById('trace-qr-exported-label');
+    const traceExportQrBtn = document.getElementById('btn-export-trace-qr');
+    const traceBarcodeEnabledToggle = document.getElementById('trace-barcode-enabled-toggle');
+    const traceBarcodeVisibleArea = document.getElementById('trace-barcode-visible-area');
+    const traceBarcodeExportedLabel = document.getElementById('trace-barcode-exported-label');
+    const traceExportBarcodeBtn = document.getElementById('btn-export-trace-barcode');
+    // Đã xuất (đã bấm nút "Xuất" — coi như in/dùng thật) — ảnh hưởng cảnh
+    // báo khi đổi mã tra cứu sau này (xem btn-save-trace-code).
+    let traceQrExported = false;
+    let traceBarcodeExported = false;
     const traceCopyBtn = document.getElementById('btn-copy-trace-url');
 
     let traceCurrentBatch = null;
@@ -5516,15 +5559,44 @@ const titles = {
     }
     if(traceRefillBtn) traceRefillBtn.addEventListener('click', function(){ refillTraceFromSystem(false, false); });
 
+    // Ẩn/hiện đúng khối QR/mã vạch theo công tắc Bật/Tắt riêng từng loại —
+    // mỗi lô chỉ cần dùng 1 loại tuỳ tình huống, không bắt phải xuất cả 2.
+    function updateTraceVisibility(){
+      if(traceQrVisibleArea) traceQrVisibleArea.style.display = traceQrEnabledToggle.checked ? '' : 'none';
+      if(traceBarcodeVisibleArea) traceBarcodeVisibleArea.style.display = traceBarcodeEnabledToggle.checked ? '' : 'none';
+    }
+    function updateTraceExportedLabels(){
+      if(traceQrExportedLabel) traceQrExportedLabel.textContent = traceQrExported ? 'Đã xuất' : '';
+      if(traceBarcodeExportedLabel) traceBarcodeExportedLabel.textContent = traceBarcodeExported ? 'Đã xuất' : '';
+    }
+
     function renderTraceQr(code){
       traceQrBox.textContent = '';
       const url = PUBLIC_TRACE_BASE_URL + '?t=' + encodeURIComponent(code);
       tracePublicUrlInput.value = url;
       if(typeof QRCode === 'undefined'){
         traceQrBox.textContent = 'Không tải được thư viện QR — kiểm tra kết nối mạng.';
-        return;
+      } else {
+        new QRCode(traceQrBox, { text: url, width: 176, height: 176, correctLevel: QRCode.CorrectLevel.M });
       }
-      new QRCode(traceQrBox, { text: url, width: 176, height: 176, correctLevel: QRCode.CorrectLevel.M });
+      // Mã vạch quét ra ĐÚNG cùng 1 link với mã QR ở trên — CODE128 vì đọc
+      // được cả chữ/số/ký tự URL, không giới hạn kiểu EAN chỉ nhận số.
+      const barcodeSvg = document.getElementById('trace-barcode-svg');
+      if(barcodeSvg){
+        if(typeof JsBarcode === 'undefined'){
+          barcodeSvg.parentElement.textContent = 'Không tải được thư viện mã vạch — kiểm tra kết nối mạng.';
+        } else {
+          try{
+            // Link đầy đủ khá dài với CODE128 nên module width để tối
+            // thiểu (1) — SVG còn được CSS co theo khung (max-width:100%)
+            // để vừa modal; khi in tem thật, phóng theo kích thước tem sẽ
+            // rõ nét trở lại vì mã vạch là vector, không mất chi tiết.
+            JsBarcode(barcodeSvg, url, { format: 'CODE128', width: 1, height: 60, fontSize: 9, margin: 4 });
+          } catch(err){
+            barcodeSvg.parentElement.textContent = 'Không tạo được mã vạch: ' + err.message;
+          }
+        }
+      }
     }
 
     async function openTraceModal(batchCode){
@@ -5540,7 +5612,7 @@ const titles = {
       traceQrWrap.style.display = 'none';
       traceOverlay.classList.add('active');
       try{
-        const { data, error } = await sb.from('batch_info').select('trace_batch_label,trace_product_name,trace_product_name_en,trace_supplier_name,trace_supplier_name_en,trace_variety,trace_variety_en,trace_region,trace_region_en,trace_packed_date,trace_packing_text,trace_packing_terms_en,trace_enabled,public_trace_code').eq('batch', batchCode).maybeSingle();
+        const { data, error } = await sb.from('batch_info').select('trace_batch_label,trace_product_name,trace_product_name_en,trace_supplier_name,trace_supplier_name_en,trace_variety,trace_variety_en,trace_region,trace_region_en,trace_packed_date,trace_packing_text,trace_packing_terms_en,trace_enabled,public_trace_code,trace_qr_enabled,trace_barcode_enabled,trace_qr_exported,trace_barcode_exported').eq('batch', batchCode).maybeSingle();
         if(error) throw error;
         const bi = data || {};
         traceBatchLabelInput.value = bi.trace_batch_label || '';
@@ -5560,6 +5632,14 @@ const titles = {
         tracePublicSection.style.display = '';
         traceEnabledToggle.checked = !!bi.trace_enabled;
         traceEnabledLabel.textContent = bi.trace_enabled ? 'Đang công khai' : 'Tắt';
+        // NULL (dữ liệu cũ trước khi có 2 công tắc riêng) coi như đang bật —
+        // giữ đúng hành vi trước đây (QR/mã vạch luôn hiện).
+        traceQrEnabledToggle.checked = bi.trace_qr_enabled !== false;
+        traceBarcodeEnabledToggle.checked = bi.trace_barcode_enabled !== false;
+        traceQrExported = !!bi.trace_qr_exported;
+        traceBarcodeExported = !!bi.trace_barcode_exported;
+        updateTraceExportedLabels();
+        updateTraceVisibility();
         if(bi.trace_enabled && traceCurrentCode){
           traceCodeWrap.style.display = '';
           traceCodeInput.value = traceCurrentCode;
@@ -5646,6 +5726,7 @@ const titles = {
             traceCodeInput.value = traceCurrentCode;
             traceQrWrap.style.display = '';
             renderTraceQr(traceCurrentCode);
+            updateTraceVisibility();
           } else {
             traceCodeWrap.style.display = 'none';
             traceQrWrap.style.display = 'none';
@@ -5658,6 +5739,57 @@ const titles = {
         }
       });
     }
+
+    // Bật/Tắt riêng từng loại mã — mỗi lô chỉ cần dùng 1 loại tuỳ tình
+    // huống thực tế (VD: QR cho khách lẻ, mã vạch cho kho/logistics nội
+    // bộ), không bắt buộc phải xuất cả 2 cùng lúc.
+    function bindTraceTypeToggle(toggleEl, column){
+      if(!toggleEl) return;
+      toggleEl.addEventListener('change', async function(){
+        if(!traceCurrentBatch) return;
+        const val = toggleEl.checked;
+        toggleEl.disabled = true;
+        try{
+          const payload = { batch: traceCurrentBatch };
+          payload[column] = val;
+          const { error } = await sb.from('batch_info').upsert(payload, { onConflict: 'batch' });
+          if(error) throw error;
+          updateTraceVisibility();
+        } catch(err){
+          toggleEl.checked = !val;
+          alert('Không thể lưu: ' + (err.message || err));
+        } finally {
+          toggleEl.disabled = false;
+        }
+      });
+    }
+    bindTraceTypeToggle(traceQrEnabledToggle, 'trace_qr_enabled');
+    bindTraceTypeToggle(traceBarcodeEnabledToggle, 'trace_barcode_enabled');
+
+    // Đánh dấu "đã xuất" — staff bấm khi đã thật sự in/dùng mã đó, KHÔNG tự
+    // động chỉ vì mở modal xem thử. Trạng thái này chỉ dùng để cảnh báo khi
+    // sau này đổi mã tra cứu (xem btn-save-trace-code).
+    function bindTraceExportBtn(btnEl, column, setFlag){
+      if(!btnEl) return;
+      btnEl.addEventListener('click', async function(){
+        if(!traceCurrentBatch) return;
+        btnEl.disabled = true;
+        try{
+          const payload = { batch: traceCurrentBatch };
+          payload[column] = true;
+          const { error } = await sb.from('batch_info').upsert(payload, { onConflict: 'batch' });
+          if(error) throw error;
+          setFlag(true);
+          updateTraceExportedLabels();
+        } catch(err){
+          alert('Không thể lưu: ' + (err.message || err));
+        } finally {
+          btnEl.disabled = false;
+        }
+      });
+    }
+    bindTraceExportBtn(traceExportQrBtn, 'trace_qr_exported', function(v){ traceQrExported = v; });
+    bindTraceExportBtn(traceExportBarcodeBtn, 'trace_barcode_exported', function(v){ traceBarcodeExported = v; });
 
     // Chỉ điền lại ô — vẫn phải bấm "Lưu mã" mới thật sự đổi, để staff kịp
     // xem qua mã mới trước khi link cũ ngừng hoạt động.
@@ -5676,14 +5808,39 @@ const titles = {
         if(!traceCurrentBatch) return;
         const newCode = traceCodeInput.value.trim();
         if(!newCode){ alert('Mã tra cứu không được để trống.'); return; }
+        // Mã thật sự đổi (không chỉ gõ lại y hệt) VÀ ít nhất 1 loại đã được
+        // đánh dấu "đã xuất" (đã in/dùng thật) — cảnh báo rõ trước khi đổi,
+        // vì tem cũ đã phát ra sẽ không còn quét ra đúng trang nữa, ảnh
+        // hưởng tới các bên trong chuỗi cung ứng đã nhận hàng có tem đó.
+        const codeActuallyChanges = newCode !== traceCurrentCode;
+        if(codeActuallyChanges && (traceQrExported || traceBarcodeExported)){
+          const exportedList = [traceQrExported ? 'QR' : null, traceBarcodeExported ? 'mã vạch' : null].filter(Boolean).join(' và ');
+          const ok = await confirmDialog(
+            'Mã ' + exportedList + ' của lô này đã được đánh dấu "Đã xuất" — có thể đã in/dán lên hàng thật. Đổi mã tra cứu bây giờ sẽ làm tem cũ KHÔNG CÒN quét ra đúng trang nữa, có thể ảnh hưởng tới các bên trong chuỗi cung ứng đã nhận hàng có tem đó. Vẫn muốn đổi?',
+            { title: 'Cảnh báo: mã đã xuất', okLabel: 'Vẫn đổi mã', danger: true }
+          );
+          if(!ok) return;
+        }
         traceSaveCodeBtn.disabled = true;
         try{
-          const { error } = await sb.from('batch_info').upsert({
+          const payload = {
             batch: traceCurrentBatch,
             public_trace_code: newCode
-          }, { onConflict: 'batch' });
+          };
+          // Mã mới chưa từng được in/phát ra — trạng thái "đã xuất" của mã
+          // cũ không còn áp dụng, reset lại cả 2 để phản ánh đúng thực tế.
+          if(codeActuallyChanges){
+            payload.trace_qr_exported = false;
+            payload.trace_barcode_exported = false;
+          }
+          const { error } = await sb.from('batch_info').upsert(payload, { onConflict: 'batch' });
           if(error) throw error;
           traceCurrentCode = newCode;
+          if(codeActuallyChanges){
+            traceQrExported = false;
+            traceBarcodeExported = false;
+            updateTraceExportedLabels();
+          }
           renderTraceQr(traceCurrentCode);
         } catch(err){
           // Vi phạm unique constraint nếu trùng mã lô khác — báo rõ thay vì
