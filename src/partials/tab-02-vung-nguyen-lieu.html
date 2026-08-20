@@ -114,14 +114,22 @@
           </div>
           <div class="form-group">
             <label for="f-chungloai">Chủng loại</label>
-            <input type="text" id="f-chungloai" list="chung-loai-options" placeholder="VD: Xiêm xanh">
-            <datalist id="chung-loai-options">
-              <option value="Xiêm xanh">
-              <option value="Xiêm đỏ">
-              <option value="Xiêm lai">
-              <option value="Dừa trọc">
-              <option value="Dừa khô">
-            </datalist>
+            <select id="f-chungloai">
+              <option value="">— Chưa chọn —</option>
+              <option value="Xiêm xanh">Xiêm xanh</option>
+              <option value="Xiêm đỏ">Xiêm đỏ</option>
+              <option value="Mã lai bầu">Mã lai bầu</option>
+              <option value="Mã lai chu">Mã lai chu</option>
+              <option value="Dừa khô">Dừa khô</option>
+              <option value="Dừa trọc">Dừa trọc</option>
+              <option value="Dừa mứt">Dừa mứt</option>
+              <option value="Dừa sáp">Dừa sáp</option>
+              <option value="Khác">Khác</option>
+            </select>
+          </div>
+          <div class="form-group" id="f-chungloai-khac-group" style="display:none;">
+            <label for="f-chungloai-khac">Ghi chú cụ thể (chủng loại "Khác")</label>
+            <input type="text" id="f-chungloai-khac" placeholder="VD: Dừa giống lai địa phương">
           </div>
           <div class="form-group">
             <label for="f-soluong">Số lượng (trái)</label>
@@ -146,6 +154,10 @@
               <option value="Đạt chuẩn">Đạt chuẩn</option>
               <option value="Từ chối một phần">Từ chối một phần</option>
             </select>
+          </div>
+          <div class="form-group">
+            <label for="f-ty-le-dat">Tỷ lệ đạt chuẩn (%)</label>
+            <input type="text" id="f-ty-le-dat" placeholder="VD: 95">
           </div>
           <div class="form-group form-group-full">
             <label for="f-ghichu">Ghi chú</label>

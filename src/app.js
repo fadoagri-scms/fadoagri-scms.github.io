@@ -352,6 +352,21 @@ const titles = {
   function onExpiringStockChanged(cb){ expiringStockListeners.push(cb); }
   function notifyExpiringStockChanged(){ expiringStockListeners.forEach(function(cb){ cb(); }); }
 
+  // Bảng "Hạn sử dụng" (tab Tồn kho) là nguồn hạn dùng theo sản phẩm dùng
+  // chung toàn hệ thống — "Cập nhật sản xuất" tự tra theo map này thay vì
+  // gõ tay hạn dùng ở từng lô. Key đã chuẩn hoá qua normalizeSanPham.
+  let sharedShelfLifeMap = {};
+  const shelfLifeListeners = [];
+  function onShelfLifeChanged(cb){ shelfLifeListeners.push(cb); }
+  function notifyShelfLifeChanged(){ shelfLifeListeners.forEach(function(cb){ cb(); }); }
+  // Chuẩn hoá tên sản phẩm trước khi so khớp — 2 lần gõ cùng 1 tên (VD: lúc
+  // khai báo hạn sử dụng vs lúc nhập sản xuất) có thể lệch nhau ở khoảng
+  // trắng thừa hoặc cách gõ dấu tiếng Việt khác nhau (Unicode tổ hợp vs
+  // dựng sẵn) dù nhìn y hệt trên màn hình — không chuẩn hoá thì tra không ra.
+  function normalizeSanPham(sanPham){
+    return (sanPham || '').normalize('NFC').trim().replace(/\s+/g, ' ');
+  }
+
   function fmtDate(value){
     if(!value) return '—';
     const parts = value.split('-');
@@ -438,8 +453,17 @@ const titles = {
     if(!b || !b.hasOrderInfo) return '';
     const parts = [];
     if(b.khachHang) parts.push('Khách: ' + b.khachHang);
-    if(b.sanPhamDuKien) parts.push(b.sanPhamDuKien);
-    if(b.soLuongDuKien) parts.push('dự kiến ' + b.soLuongDuKien);
+    // Đơn tạo qua form mới ghi vào batch_info_products (nhiều dòng sản
+    // phẩm) — đơn cũ trước khi có bảng này vẫn còn sanPhamDuKien/
+    // soLuongDuKien 1 dòng gộp chung, giữ lại làm phương án dự phòng.
+    if(b.products && b.products.length){
+      parts.push(b.products.map(function(p){
+        return p.soLuongDuKien ? (p.sanPham + ' (' + p.soLuongDuKien + ')') : p.sanPham;
+      }).filter(Boolean).join(', '));
+    } else {
+      if(b.sanPhamDuKien) parts.push(b.sanPhamDuKien);
+      if(b.soLuongDuKien) parts.push('dự kiến ' + b.soLuongDuKien);
+    }
     if(b.ngayGiaoMongMuon) parts.push('giao ' + fmtDate(b.ngayGiaoMongMuon));
     return parts.length ? ('Khớp đơn đã chốt — ' + parts.join(' · ')) : '';
   }
@@ -739,6 +763,18 @@ const titles = {
       'Từ chối một phần': 'red'
     };
 
+    // Danh sách chủng loại cố định cho dropdown — "Khác" có ô ghi chú cụ
+    // thể riêng (chung_loai_ghi_chu) để không mất mô tả khi không khớp
+    // đúng 1 trong các lựa chọn có sẵn.
+    const CHUNG_LOAI_OPTIONS = ['Xiêm xanh', 'Xiêm đỏ', 'Mã lai bầu', 'Mã lai chu', 'Dừa khô', 'Dừa trọc', 'Dừa mứt', 'Dừa sáp'];
+    const chungLoaiFormSelect = document.getElementById('f-chungloai');
+    const chungLoaiKhacGroup = document.getElementById('f-chungloai-khac-group');
+    const chungLoaiKhacInput = document.getElementById('f-chungloai-khac');
+    function toggleChungLoaiKhac(){
+      if(chungLoaiKhacGroup) chungLoaiKhacGroup.style.display = (chungLoaiFormSelect && chungLoaiFormSelect.value === 'Khác') ? '' : 'none';
+    }
+    if(chungLoaiFormSelect) chungLoaiFormSelect.addEventListener('change', toggleChungLoaiKhac);
+
     const statWeek = document.getElementById('stat-raw-week');
     const statWeekNote = document.getElementById('stat-raw-week-note');
     const statPending = document.getElementById('stat-raw-pending');
@@ -785,12 +821,22 @@ const titles = {
       }
 
       if(statPass){
-        const decided = rows.filter(function(d){ return d.trang_thai && d.trang_thai !== 'Chờ kiểm tra'; });
-        if(decided.length){
-          const passed = decided.filter(function(d){ return d.trang_thai === 'Đạt chuẩn'; }).length;
-          statPass.textContent = Math.round(passed / decided.length * 100) + '%';
+        // Ưu tiên trung bình theo % thủ công đã nhập từng lô (chính xác hơn
+        // đếm đạt/không đạt) — lô nào chưa nhập % thì bỏ qua khỏi trung
+        // bình, không đoán. Chỉ rơi về cách đếm theo Trạng thái cũ khi CHƯA
+        // có lô nào nhập % thủ công (dữ liệu cũ trước khi có ô này).
+        const withManualRate = rows.filter(function(d){ return d.ty_le_dat_chuan != null && d.ty_le_dat_chuan !== ''; });
+        if(withManualRate.length){
+          const avg = withManualRate.reduce(function(sum, d){ return sum + Number(d.ty_le_dat_chuan); }, 0) / withManualRate.length;
+          statPass.textContent = Math.round(avg) + '%';
         } else {
-          statPass.textContent = '—';
+          const decided = rows.filter(function(d){ return d.trang_thai && d.trang_thai !== 'Chờ kiểm tra'; });
+          if(decided.length){
+            const passed = decided.filter(function(d){ return d.trang_thai === 'Đạt chuẩn'; }).length;
+            statPass.textContent = Math.round(passed / decided.length * 100) + '%';
+          } else {
+            statPass.textContent = '—';
+          }
         }
       }
     }
@@ -803,6 +849,7 @@ const titles = {
     function closeModal(){
       overlay.classList.remove('active');
       form.reset();
+      toggleChungLoaiKhac();
       editingRow = null;
     }
 
@@ -816,6 +863,7 @@ const titles = {
       // form.reset() không bắn 'input' nên dòng mô tả đơn phải tự làm mới,
       // nếu không sẽ còn sót nội dung của lô vừa mở lần trước.
       batchInput.dispatchEvent(new Event('input'));
+      toggleChungLoaiKhac();
       modalTitle.textContent = 'Thêm lô nguyên liệu';
       submitBtn.textContent = 'Thêm lô hàng';
       openModal();
@@ -836,12 +884,31 @@ const titles = {
       document.getElementById('f-ncc').value = tr.dataset.ncc || '';
       const loaiRadio = form.querySelector('input[name="f-loai"][value="' + tr.dataset.loai + '"]');
       if(loaiRadio) loaiRadio.checked = true;
-      document.getElementById('f-chungloai').value = tr.dataset.chungLoai || '';
+      // Dữ liệu cũ trước khi có dropdown cố định có thể không khớp đúng 1
+      // trong các lựa chọn có sẵn (gõ tay tự do trước đây) — rơi về "Khác"
+      // kèm hiện nguyên văn cũ trong ô ghi chú cụ thể, không được âm thầm
+      // đổi/mất giá trị cũ.
+      const storedChungLoai = tr.dataset.chungLoai || '';
+      if(!storedChungLoai){
+        chungLoaiFormSelect.value = '';
+        chungLoaiKhacInput.value = '';
+      } else if(CHUNG_LOAI_OPTIONS.indexOf(storedChungLoai) !== -1){
+        chungLoaiFormSelect.value = storedChungLoai;
+        chungLoaiKhacInput.value = '';
+      } else if(storedChungLoai === 'Khác'){
+        chungLoaiFormSelect.value = 'Khác';
+        chungLoaiKhacInput.value = tr.dataset.chungLoaiGhiChu || '';
+      } else {
+        chungLoaiFormSelect.value = 'Khác';
+        chungLoaiKhacInput.value = storedChungLoai;
+      }
+      toggleChungLoaiKhac();
       document.getElementById('f-soluong').value = tr.dataset.soluong || '';
       document.getElementById('f-ngay').value = tr.dataset.ngayNhap || '';
       document.getElementById('f-ngay-hen').value = tr.dataset.ngayHenGiao || '';
       document.getElementById('f-gio-hen').value = (tr.dataset.gioHenGiao || '').slice(0, 5);
       document.getElementById('f-trangthai').value = tr.dataset.trangThai || 'Chờ kiểm tra';
+      document.getElementById('f-ty-le-dat').value = tr.dataset.tyLeDat || '';
       document.getElementById('f-ghichu').value = tr.dataset.ghiChu || '';
       modalTitle.textContent = 'Chỉnh sửa lô nguyên liệu';
       submitBtn.textContent = 'Lưu thay đổi';
@@ -904,11 +971,13 @@ const titles = {
       tr.dataset.ncc = d.ncc;
       tr.dataset.loai = d.loai;
       tr.dataset.chungLoai = d.chung_loai || '';
+      tr.dataset.chungLoaiGhiChu = d.chung_loai_ghi_chu || '';
       tr.dataset.soluong = d.soluong || '';
       tr.dataset.ngayNhap = d.ngay_nhap || '';
       tr.dataset.ngayHenGiao = d.ngay_hen_giao || '';
       tr.dataset.gioHenGiao = d.gio_hen_giao || '';
       tr.dataset.trangThai = d.trang_thai;
+      tr.dataset.tyLeDat = d.ty_le_dat_chuan != null ? d.ty_le_dat_chuan : '';
       tr.dataset.ghiChu = d.ghi_chu || '';
     }
 
@@ -934,7 +1003,7 @@ const titles = {
       tr.appendChild(loaiTd);
 
       const chungLoaiTd = document.createElement('td');
-      chungLoaiTd.textContent = d.chung_loai || '—';
+      chungLoaiTd.textContent = (d.chung_loai === 'Khác' && d.chung_loai_ghi_chu) ? ('Khác (' + d.chung_loai_ghi_chu + ')') : (d.chung_loai || '—');
       tr.appendChild(chungLoaiTd);
 
       const soluongTd = document.createElement('td');
@@ -950,6 +1019,14 @@ const titles = {
       badge.className = 'badge ' + statusBadge[d.trang_thai];
       badge.textContent = d.trang_thai;
       trangThaiTd.appendChild(badge);
+      if(d.ty_le_dat_chuan != null && d.ty_le_dat_chuan !== ''){
+        const rateSpan = document.createElement('span');
+        rateSpan.className = 'muted';
+        rateSpan.style.marginLeft = '6px';
+        rateSpan.style.fontSize = '11.5px';
+        rateSpan.textContent = Number(d.ty_le_dat_chuan) + '%';
+        trangThaiTd.appendChild(rateSpan);
+      }
       tr.appendChild(trangThaiTd);
 
       const ghiChuTd = document.createElement('td');
@@ -1022,6 +1099,16 @@ const titles = {
       badge.className = 'badge ' + statusBadge[worst];
       badge.textContent = worst === 'Đạt chuẩn' ? ('Đạt chuẩn (' + items.length + ')') : worst;
       statusTd.appendChild(badge);
+      const itemsWithRate = items.filter(function(d){ return d.ty_le_dat_chuan != null && d.ty_le_dat_chuan !== ''; });
+      if(itemsWithRate.length){
+        const avgRate = itemsWithRate.reduce(function(sum, d){ return sum + Number(d.ty_le_dat_chuan); }, 0) / itemsWithRate.length;
+        const rateSpan = document.createElement('span');
+        rateSpan.className = 'muted';
+        rateSpan.style.marginLeft = '6px';
+        rateSpan.style.fontSize = '11.5px';
+        rateSpan.textContent = 'TB ' + Math.round(avgRate) + '%';
+        statusTd.appendChild(rateSpan);
+      }
       tr.appendChild(statusTd);
 
       const noteCount = items.filter(function(d){ return d.ghi_chu; }).length;
@@ -1347,11 +1434,13 @@ const titles = {
       const ncc = document.getElementById('f-ncc').value.trim();
       const loai = form.querySelector('input[name="f-loai"]:checked').value;
       const chungloai = document.getElementById('f-chungloai').value.trim();
+      const chungloaiKhac = document.getElementById('f-chungloai-khac').value.trim();
       const soluong = document.getElementById('f-soluong').value.trim();
       const ngay = document.getElementById('f-ngay').value;
       const ngayHen = document.getElementById('f-ngay-hen').value;
       const gioHen = document.getElementById('f-gio-hen').value;
       const trangthai = document.getElementById('f-trangthai').value;
+      const tyLeDatRaw = document.getElementById('f-ty-le-dat').value.trim();
       const ghichu = document.getElementById('f-ghichu').value.trim();
 
       if(!batch || !ncc){
@@ -1364,11 +1453,13 @@ const titles = {
         ncc: ncc,
         loai: loai,
         chung_loai: chungloai || null,
+        chung_loai_ghi_chu: chungloai === 'Khác' ? (chungloaiKhac || null) : null,
         soluong: soluong,
         ngay_nhap: ngay || null,
         ngay_hen_giao: ngayHen || null,
         gio_hen_giao: gioHen || null,
         trang_thai: trangthai,
+        ty_le_dat_chuan: tyLeDatRaw === '' ? null : (isNaN(Number(tyLeDatRaw.replace(',', '.'))) ? null : Number(tyLeDatRaw.replace(',', '.'))),
         ghi_chu: ghichu
       };
 
@@ -1831,7 +1922,7 @@ const titles = {
       if(!b.periodDate || d < b.periodDate) b.periodDate = d;
     }
 
-    function buildSummaries(rawRows, poRows, qcRows, batchInfoRows, stockRows){
+    function buildSummaries(rawRows, poRows, qcRows, batchInfoRows, stockRows, productsRows){
       const map = {};
       function ensure(batchCode){
         if(!map[batchCode]){
@@ -1841,7 +1932,7 @@ const titles = {
             ngayNhap: null, hasFactory: false, finishedQty: null, exportedQty: null,
             hasSourceInfo: false, poEntries: [], saleType: null, orderStatus: null, note: '', periodDate: null,
             varietyMap: {}, duaVarieties: [], duaBoxes: 0, sanPhamByVariety: {}, exportedByVariety: {},
-            khachHang: null, sanPhamDuKien: null, soLuongDuKien: null, ngayGiaoMongMuon: null, hasOrderInfo: false, batchInfoCreatedAt: null
+            khachHang: null, sanPhamDuKien: null, soLuongDuKien: null, products: [], ngayGiaoMongMuon: null, hasOrderInfo: false, batchInfoCreatedAt: null
           };
         }
         return map[batchCode];
@@ -1920,6 +2011,15 @@ const titles = {
         // batch_info khớp đúng lô này là đủ bằng chứng "đã đăng ký", không
         // cần đợi điền thêm field nào khác mới hiện.
         b.hasOrderInfo = true;
+      });
+
+      // Danh sách sản phẩm dự kiến theo dòng (batch_info_products) — thay
+      // cho ô "Sản phẩm" gộp chung 1 dòng cũ, để đơn nhiều sản phẩm ghi rõ
+      // từng sản phẩm + số lượng riêng thay vì gộp chung 1 chuỗi text.
+      (productsRows || []).forEach(function(p){
+        if(!p.batch) return;
+        const b = ensure(p.batch);
+        b.products.push({ sanPham: p.san_pham || '', soLuongDuKien: p.so_luong_du_kien || '' });
       });
 
       // factory_finished_stock.exported_qty = số lượng ĐÃ xuất kho/load cont
@@ -2434,7 +2534,10 @@ const titles = {
     // luồng khác hẳn nhau dù cùng gắn nhãn "Nội địa".
     function buildDomesticTypeSelect(b){
       const select = document.createElement('select');
-      [['', '— Chưa phân loại —'], ['Bán cho broker (họ tự xuất khẩu)', 'Bán cho broker (họ tự xuất khẩu)'], ['Tiêu thụ nội địa (Việt Nam)', 'Tiêu thụ nội địa (Việt Nam)']].forEach(function(o){
+      // Value giữ nguyên chuỗi cũ (khớp dữ liệu domestic_type đã lưu trong
+      // Supabase) — chỉ đổi label hiển thị, đổi cả value sẽ làm các lô đã
+      // chọn từ trước hiện về "Chưa phân loại" vì không còn khớp option nào.
+      [['', '— Chưa phân loại —'], ['Bán cho broker (họ tự xuất khẩu)', 'Bán cho cty TM/Broker'], ['Tiêu thụ nội địa (Việt Nam)', 'Tiêu thụ nội địa']].forEach(function(o){
         const opt = document.createElement('option');
         opt.value = o[0];
         opt.textContent = o[1];
@@ -3426,20 +3529,22 @@ const titles = {
 
     async function loadAll(){
       try{
-        const [rawRes, poRes, qcRes, batchInfoRes, stockRes] = await Promise.all([
+        const [rawRes, poRes, qcRes, batchInfoRes, stockRes, productsRes] = await Promise.all([
           sb.from('raw_batches').select('*, factory_batches(*, factory_batch_boxes(*))').is('deleted_at', null),
           sb.from('purchase_orders').select('*').is('deleted_at', null),
           sb.from('qc_checks').select('*').is('deleted_at', null).order('created_at', { ascending: false }),
           sb.from('batch_info').select('*'),
-          sb.from('factory_finished_stock').select('*').is('deleted_at', null)
+          sb.from('factory_finished_stock').select('*').is('deleted_at', null),
+          sb.from('batch_info_products').select('*')
         ]);
         [rawRes, poRes, qcRes, stockRes].forEach(function(r){ if(r.error) throw r.error; });
-        // batch_info có thể chưa tồn tại nếu chưa chạy migration — bỏ qua lỗi
-        // đó thay vì làm hỏng cả bảng tổng hợp.
+        // batch_info/batch_info_products có thể chưa tồn tại nếu chưa chạy
+        // migration — bỏ qua lỗi đó thay vì làm hỏng cả bảng tổng hợp.
         const batchInfoRows = batchInfoRes.error ? [] : (batchInfoRes.data || []);
+        const productsRows = productsRes.error ? [] : (productsRes.data || []);
 
         allQcRows = qcRes.data || [];
-        batchSummaries = buildSummaries(rawRes.data || [], poRes.data || [], allQcRows, batchInfoRows, stockRes.data || []);
+        batchSummaries = buildSummaries(rawRes.data || [], poRes.data || [], allQcRows, batchInfoRows, stockRes.data || [], productsRows);
         sharedBatchSummaries = batchSummaries;
         // Đổ lại gợi ý tên lô cho các ô nhập ở Vùng nguyên liệu/Nhà cung cấp
         // ngay khi danh sách lô đổi — nguồn sự thật vẫn là bảng tổng hợp này.
@@ -3539,16 +3644,68 @@ const titles = {
     const orderForm = document.getElementById('form-add-order');
     const orderSubmitBtn = document.getElementById('btn-submit-add-order');
 
+    // Danh sách "Sản phẩm & số lượng dự kiến" động trong modal — 1 đơn có
+    // thể gồm nhiều sản phẩm, mỗi dòng ghi số lượng dự kiến riêng thay vì
+    // gộp chung 1 ô text (cùng pattern +/- list với Xưởng sản xuất/Sơ chế).
+    const ordProductsListEl = document.getElementById('ord-products-list');
+    const ordAddProductBtn = document.getElementById('btn-ord-add-product');
+
+    function createOrderProductRow(sanPham, soLuong){
+      if(!ordProductsListEl) return;
+      const row = document.createElement('div');
+      row.className = 'ord-product-row';
+      row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;';
+      const sanPhamInput = document.createElement('input');
+      sanPhamInput.type = 'text';
+      sanPhamInput.className = 'ord-product-name';
+      sanPhamInput.placeholder = 'VD: Dừa xiêm xanh gọt vỏ';
+      sanPhamInput.value = sanPham || '';
+      sanPhamInput.style.flex = '1.4';
+      const soLuongInput = document.createElement('input');
+      soLuongInput.type = 'text';
+      soLuongInput.className = 'ord-product-qty';
+      soLuongInput.placeholder = 'VD: 10.000 trái';
+      soLuongInput.value = soLuong || '';
+      soLuongInput.style.flex = '1';
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'row-delete-btn';
+      removeBtn.setAttribute('aria-label', 'Xóa sản phẩm');
+      removeBtn.innerHTML = '<i class="ti ti-trash"></i>';
+      removeBtn.addEventListener('click', function(){ row.remove(); });
+      row.appendChild(sanPhamInput);
+      row.appendChild(soLuongInput);
+      row.appendChild(removeBtn);
+      ordProductsListEl.appendChild(row);
+    }
+    function resetOrderProductRows(){
+      if(!ordProductsListEl) return;
+      ordProductsListEl.textContent = '';
+      createOrderProductRow('', '');
+    }
+    function readOrderProductRows(){
+      if(!ordProductsListEl) return [];
+      return Array.from(ordProductsListEl.querySelectorAll('.ord-product-row')).map(function(row){
+        return {
+          sanPham: (row.querySelector('.ord-product-name').value || '').trim(),
+          soLuong: (row.querySelector('.ord-product-qty').value || '').trim()
+        };
+      }).filter(function(r){ return r.sanPham; });
+    }
+    if(ordAddProductBtn) ordAddProductBtn.addEventListener('click', function(){ createOrderProductRow(); });
+
     if(orderOverlay && orderForm){
       const closeOrderModal = function(){
         orderOverlay.classList.remove('active');
         orderForm.reset();
+        resetOrderProductRows();
         const group = document.getElementById('ord-loai-noi-dia-group');
         if(group) group.style.display = 'none';
       };
       if(orderOpenBtn){
         orderOpenBtn.addEventListener('click', function(){
           orderForm.reset();
+          resetOrderProductRows();
           const group = document.getElementById('ord-loai-noi-dia-group');
           if(group) group.style.display = 'none';
           orderOverlay.classList.add('active');
@@ -3577,11 +3734,10 @@ const titles = {
           return;
         }
         const hinhThuc = document.getElementById('ord-hinh-thuc').value || null;
+        const products = readOrderProductRows();
         const payload = {
           batch: batch,
           khach_hang: document.getElementById('ord-khach-hang').value.trim() || null,
-          san_pham: document.getElementById('ord-san-pham').value.trim() || null,
-          so_luong_du_kien: document.getElementById('ord-so-luong').value.trim() || null,
           sale_type: hinhThuc,
           domestic_type: hinhThuc === 'Nội địa' ? (document.getElementById('ord-loai-noi-dia').value || null) : null,
           ngay_giao_mong_muon: document.getElementById('ord-ngay-giao').value || null
@@ -3592,6 +3748,19 @@ const titles = {
         try{
           const { error } = await sb.from('batch_info').upsert(payload, { onConflict: 'batch' });
           if(error) throw error;
+          // Đồng bộ danh sách sản phẩm bằng xóa hết rồi chèn lại đúng danh
+          // sách hiện có trong form — cùng pattern với factory_batch_boxes ở
+          // Xưởng Ba Phi (đơn giản hơn diff từng dòng đã đổi/thêm/xóa). Gõ
+          // lại tên đơn đã có (upsert batch_info ở trên) sẽ thay hẳn danh
+          // sách sản phẩm cũ bằng danh sách mới trong form.
+          const { error: delErr } = await sb.from('batch_info_products').delete().eq('batch', batch);
+          if(delErr) throw delErr;
+          if(products.length){
+            const { error: insErr } = await sb.from('batch_info_products').insert(products.map(function(p){
+              return { batch: batch, san_pham: p.sanPham, so_luong_du_kien: p.soLuong || null };
+            }));
+            if(insErr) throw insErr;
+          }
           await loadAll();
           closeOrderModal();
         } catch(err){
@@ -5135,6 +5304,11 @@ const titles = {
           sanPham = lastInputs[0].value;
           if(hanSuDung == null) hanSuDung = lastInputs[3].value;
         }
+        // Dòng mới (kể cả copy theo dòng trước) ưu tiên tra hạn sử dụng đã
+        // khai báo sẵn cho đúng sản phẩm này (tab Tồn kho) — đáng tin hơn là
+        // chỉ copy mù theo dòng trước, vì dòng trước có thể là sản phẩm khác.
+        const looked = sharedShelfLifeMap[normalizeSanPham(sanPham)];
+        if(looked != null) hanSuDung = looked;
       }
       sanPhamInput.value = sanPham || '';
       sanPhamInput.style.flex = '1.3';
@@ -5156,6 +5330,15 @@ const titles = {
       hanSuDungInput.placeholder = 'Hạn dùng (ngày)';
       hanSuDungInput.value = hanSuDung != null ? hanSuDung : '';
       hanSuDungInput.style.flex = '0.8';
+      // Gõ/chọn lại Sản phẩm (kể cả khi đang sửa 1 lô đã lưu) thì tự tra lại
+      // hạn dùng theo tên mới — chỉ khi NGƯỜI DÙNG chủ động đổi (sự kiện
+      // 'change', không phải lúc gán .value bằng JS khi mở modal sửa), nên
+      // không ghi đè hạn dùng đã lưu nếu họ không đụng vào ô Sản phẩm. Vẫn
+      // sửa tay được ô Hạn dùng sau đó nếu muốn khác với bảng tra cứu.
+      sanPhamInput.addEventListener('change', function(){
+        const looked = sharedShelfLifeMap[normalizeSanPham(sanPhamInput.value)];
+        if(looked != null) hanSuDungInput.value = looked;
+      });
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
       removeBtn.className = 'row-delete-btn';
@@ -5949,6 +6132,58 @@ const titles = {
         exportTableToExcel(stockTbody.closest('table'), 'ton-kho-' + todayStr() + '.xlsx', 'Tồn kho');
       });
     }
+
+    // ---- Hạn sử dụng theo sản phẩm (tra cứu dùng chung cho Sản xuất) ----
+    initCrudModule({
+      table: 'shelf_life_reference',
+      overlayId: 'add-shelf-life-overlay',
+      openBtnId: 'btn-open-add-shelf-life',
+      closeBtnId: 'btn-close-add-shelf-life',
+      cancelBtnId: 'btn-cancel-add-shelf-life',
+      formId: 'form-add-shelf-life',
+      tbodyId: 'shelf-life-tbody',
+      modalTitleId: 'add-shelf-life-modal-title',
+      submitBtnId: 'btn-submit-add-shelf-life',
+      addTitle: 'Thêm sản phẩm',
+      addLabel: 'Thêm',
+      editTitle: 'Sửa hạn sử dụng',
+      editLabel: 'Lưu thay đổi',
+      cellCount: 3,
+      orderBy: [{ column: 'san_pham', ascending: true }],
+      emptyMessage: 'Chưa khai báo hạn sử dụng cho sản phẩm nào.',
+      validate: function(payload){ return !!payload.san_pham && payload.han_su_dung_ngay != null; },
+      validateMessage: 'Vui lòng nhập Sản phẩm và Hạn sử dụng (ngày).',
+      readForm: function(){
+        return {
+          san_pham: fieldVal('sl-san-pham'),
+          han_su_dung_ngay: parseQty(fieldVal('sl-han-ngay')),
+          ghi_chu: fieldVal('sl-ghichu')
+        };
+      },
+      fillForm: function(form, tr){
+        document.getElementById('sl-san-pham').value = tr.dataset.sanPham || '';
+        document.getElementById('sl-han-ngay').value = tr.dataset.hanNgay || '';
+        document.getElementById('sl-ghichu').value = tr.dataset.ghiChu || '';
+      },
+      deleteLabel: function(tr){ return 'hạn sử dụng của "' + (tr.dataset.sanPham || '') + '"'; },
+      renderRow: function(tr, d){
+        tr.dataset.id = d.id;
+        tr.dataset.sanPham = d.san_pham || '';
+        tr.dataset.hanNgay = d.han_su_dung_ngay != null ? d.han_su_dung_ngay : '';
+        tr.dataset.ghiChu = d.ghi_chu || '';
+        tr.cells[0].textContent = d.san_pham || '—';
+        tr.cells[1].textContent = d.han_su_dung_ngay != null ? (d.han_su_dung_ngay + ' ngày') : '—';
+        tr.cells[2].textContent = d.ghi_chu || '—';
+      },
+      afterRender: function(rows){
+        const map = {};
+        rows.forEach(function(r){
+          if(r.san_pham && r.han_su_dung_ngay != null) map[normalizeSanPham(r.san_pham)] = r.han_su_dung_ngay;
+        });
+        sharedShelfLifeMap = map;
+        notifyShelfLifeChanged();
+      }
+    });
   })();
 
   // ---- Tổng quan (tổng hợp read-only từ các bảng khác) ----

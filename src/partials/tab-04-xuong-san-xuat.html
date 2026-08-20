@@ -127,6 +127,22 @@
           </tbody>
         </table>
       </div>
+
+      <div class="section-header-row">
+        <div class="section-label">Hạn sử dụng theo sản phẩm</div>
+        <button class="btn-primary" id="btn-open-add-shelf-life" type="button"><i class="ti ti-plus"></i>Thêm sản phẩm</button>
+      </div>
+      <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Khai báo 1 lần cho mỗi sản phẩm — "Cập nhật sản xuất" ở tab Sản xuất sẽ tự điền theo đây, không cần gõ tay hạn dùng ở từng lô nữa.</div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>Sản phẩm</th><th>Hạn sử dụng (ngày)</th><th>Ghi chú</th><th>Thao tác</th></tr>
+          </thead>
+          <tbody id="shelf-life-tbody">
+            <tr><td colspan="4" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <div class="modal-overlay" id="add-factory-overlay">
@@ -149,7 +165,7 @@
             <label>Sản phẩm &amp; Quy cách đóng thùng</label>
             <div id="fac-boxes-list"></div>
             <button type="button" class="btn-secondary" id="btn-add-box-row" style="margin-top:4px;">+ Thêm quy cách</button>
-            <div class="muted" style="font-size:11px;margin-top:4px;">Khai báo sau khi đóng gói xong — 1 đợt sản xuất có thể đóng nhiều quy cách thùng khác nhau, kể cả sản phẩm khác nhau (VD: vài thùng làm mẫu cho khách khác). "Hạn sử dụng" tính từ Ngày sản xuất ở trên — dùng để xếp thứ tự ưu tiên xuất hàng ở tab Tồn kho, để trống nếu chưa rõ.</div>
+            <div class="muted" style="font-size:11px;margin-top:4px;">Khai báo sau khi đóng gói xong — 1 đợt sản xuất có thể đóng nhiều quy cách thùng khác nhau, kể cả sản phẩm khác nhau (VD: vài thùng làm mẫu cho khách khác). "Hạn dùng" tự điền theo Sản phẩm đang gõ (tra ở bảng "Hạn sử dụng" trong tab Tồn kho) — vẫn sửa tay được riêng cho dòng này nếu cần, để trống nếu sản phẩm chưa khai báo hạn sử dụng.</div>
           </div>
           <div class="form-group">
             <label for="fac-start">Bắt đầu</label>
@@ -207,6 +223,33 @@
           <div class="modal-actions">
             <button type="button" class="btn-secondary" id="btn-cancel-add-staff">Hủy</button>
             <button type="submit" class="btn-primary" id="btn-submit-add-staff">Thêm nhân sự</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="add-shelf-life-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="add-shelf-life-modal-title">Thêm sản phẩm</div>
+          <button class="modal-close" id="btn-close-add-shelf-life" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <form id="form-add-shelf-life">
+          <div class="form-group">
+            <label for="sl-san-pham">Sản phẩm</label>
+            <input type="text" id="sl-san-pham" list="dl-san-pham" placeholder="VD: Dừa trọc chóp" required>
+          </div>
+          <div class="form-group">
+            <label for="sl-han-ngay">Hạn sử dụng (ngày)</label>
+            <input type="text" id="sl-han-ngay" placeholder="VD: 45" required>
+          </div>
+          <div class="form-group">
+            <label for="sl-ghichu">Ghi chú</label>
+            <textarea id="sl-ghichu" rows="2" placeholder="Ghi chú thêm (nếu có)"></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-shelf-life">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-shelf-life">Thêm</button>
           </div>
         </form>
       </div>
