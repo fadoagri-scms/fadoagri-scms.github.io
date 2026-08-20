@@ -3262,6 +3262,13 @@ const titles = {
         } else {
           try{
             JsBarcode(barcodeSvg, code, { format: 'CODE128', width: 2, height: 70, displayValue: false, margin: 20 });
+            // JsBarcode tự gán width/height CỐ ĐỊNH bằng px trên thẻ <svg>
+            // (attribute, không phải CSS) — attribute này thắng CSS
+            // width:100% trong 1 số trình duyệt, làm ảnh không kéo hết
+            // khung. Gỡ width/height cố định, chỉ giữ viewBox (JsBarcode
+            // cũng tự gán) để trình duyệt tự co giãn đúng theo khung chứa.
+            barcodeSvg.removeAttribute('width');
+            barcodeSvg.removeAttribute('height');
           } catch(err){
             barcodeSvg.parentElement.textContent = 'Không tạo được mã vạch: ' + err.message;
           }
