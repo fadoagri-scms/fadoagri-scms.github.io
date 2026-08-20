@@ -415,6 +415,13 @@ const titles = {
     const el = document.getElementById(id);
     return el ? el.value.trim() : '';
   }
+  // Trái bị dạt = Số lượng nhập (raw_batches.soluong) − Thành phẩm
+  // (factory_batches.finished_qty) — tự tính, không nhập tay, dùng chung cho
+  // cả cột "Trái bị dạt" ở Sản xuất lẫn "Xử lý hàng tồn & rớt" ở Tồn kho.
+  function computeCulledQty(inputTrai, finishedTrai){
+    if(inputTrai == null || finishedTrai == null) return null;
+    return Number(inputTrai) - Number(finishedTrai);
+  }
   function numOrNull(s){
     if(s === undefined || s === null || String(s).trim() === '') return null;
     const n = Number(String(s).trim());
@@ -3244,14 +3251,14 @@ const titles = {
       } else {
         new QRCode(traceQrBox, { text: url, width: 176, height: 176, correctLevel: QRCode.CorrectLevel.M });
       }
-      // Mã vạch chỉ mã hoá MÃ NGẮN (không phải nguyên link) — link đầy đủ
-      // (~55 ký tự) làm CODE128 dài/dày quá mức, khó in/quét thực tế. Quét
-      // mã vạch bằng đầu đọc thường sẽ ra đúng mã này (không tự mở trang
-      // như QR) — cần ghép với link gốc hoặc qua hệ thống nội bộ để tra ra
-      // đúng trang, đổi lại đổi lấy mã vạch ngắn gọn, dễ in/quét hơn nhiều.
-      // displayValue:false — mã này là "bí mật, khách không thấy trực
-      // tiếp" (giống QR), in chữ mã ngay dưới vạch sẽ lộ mã cho bất kỳ ai
-      // NHÌN vào tem cũng đọc được, không cần quét gì cả.
+      // Mã vạch mã hoá NGUYÊN LINK (giống hệt QR) — không chỉ mã ngắn, để
+      // khách chỉ có app quét mã vạch (không phải QR) vẫn tự mở được đúng
+      // trang. Đánh đổi: CODE128 dài ~57 ký tự nên vạch dài hơn hẳn mã ngắn
+      // trước đây — chấp nhận vì khách chỉ quét được mã vạch thì bắt buộc
+      // phải vậy mới dùng được (không có link thì quét ra chỉ là chữ vô
+      // nghĩa, không tự mở trang).
+      // displayValue:false — link vẫn chứa mã bí mật y hệt QR, in chữ ngay
+      // dưới vạch sẽ lộ mã cho bất kỳ ai NHÌN vào tem cũng đọc được.
       // margin:20 — "vùng trắng yên tĩnh" 2 bên mép đủ rộng để đầu đọc
       // nhận ra điểm bắt đầu/kết thúc mã; để quá hẹp (như 4 trước đây) là
       // nguyên nhân phổ biến nhất khiến CODE128 quét không ra.
@@ -3261,7 +3268,13 @@ const titles = {
           barcodeSvg.parentElement.textContent = 'Không tải được thư viện mã vạch — kiểm tra kết nối mạng.';
         } else {
           try{
-            JsBarcode(barcodeSvg, code, { format: 'CODE128', width: 2, height: 70, displayValue: false, margin: 20 });
+            // width 2 quét được ở độ phân giải gốc nhưng vạch quá mảnh —
+            // test giải mã lại bằng ZXing cho thấy chỉ cần thu nhỏ ảnh PNG
+            // xuất ra còn ~80-90% (như khi in tem nhỏ/máy in nhiệt hoặc
+            // camera điện thoại chụp lệch nét) là bắt đầu quét trật, kể cả
+            // với link dài. width 3 chịu được tới ~60% mới trật — chịu đựng
+            // tốt hơn hẳn dù mã đã dài hơn nhiều so với mã ngắn trước đây.
+            JsBarcode(barcodeSvg, url, { format: 'CODE128', width: 3, height: 90, displayValue: false, margin: 20 });
             // JsBarcode tự gán width/height CỐ ĐỊNH bằng px trên thẻ <svg>
             // (attribute, không phải CSS) — attribute này thắng CSS
             // width:100% trong 1 số trình duyệt, làm ảnh không kéo hết
@@ -5016,7 +5029,7 @@ const titles = {
     const factoryModalTitle = document.getElementById('add-factory-modal-title');
     const factoryModalBatchInfo = document.getElementById('factory-modal-batch-info');
     const factorySubmitBtn = document.getElementById('btn-submit-add-factory');
-    const FACTORY_COLS = 15;
+    const FACTORY_COLS = 16;
     const factoryMonthSelect = document.getElementById('factory-month-select');
     const factoryYearSelect = document.getElementById('factory-year-select');
 
@@ -5184,6 +5197,23 @@ const titles = {
         }
         tr.appendChild(lossTd);
 
+        const culledTd = document.createElement('td');
+        culledTd.rowSpan = deliveryRowspan;
+        const culledQty = computeCulledQty(inputQty, outputQty);
+        if(culledQty == null){
+          culledTd.textContent = '—';
+          culledTd.className = 'muted';
+        } else if(culledQty < 0){
+          culledTd.textContent = fmtQty(culledQty);
+          culledTd.style.color = 'var(--red)';
+          culledTd.style.fontWeight = '600';
+          culledTd.title = 'Thành phẩm lớn hơn Số lượng nhập — kiểm tra lại số liệu.';
+        } else {
+          culledTd.textContent = fmtQty(culledQty);
+          culledTd.className = culledQty > 0 ? 'warn-text' : 'muted';
+        }
+        tr.appendChild(culledTd);
+
         const startTd = document.createElement('td');
         startTd.rowSpan = deliveryRowspan;
         startTd.className = 'muted';
@@ -5288,6 +5318,20 @@ const titles = {
         lossTd.textContent = '—';
       }
       tr.appendChild(lossTd);
+
+      const culledTd = document.createElement('td');
+      const culledQty = computeCulledQty(totalInput > 0 ? totalInput : null, totalFinished);
+      if(culledQty == null){
+        culledTd.textContent = '—';
+      } else if(culledQty < 0){
+        culledTd.textContent = fmtQty(culledQty);
+        culledTd.style.color = 'var(--red)';
+        culledTd.style.fontWeight = '600';
+      } else {
+        culledTd.textContent = fmtQty(culledQty);
+        if(culledQty > 0) culledTd.className = 'warn-text';
+      }
+      tr.appendChild(culledTd);
 
       const startTd = document.createElement('td');
       startTd.textContent = '—';
@@ -6297,6 +6341,474 @@ const titles = {
         exportTableToExcel(stockTbody.closest('table'), 'ton-kho-' + todayStr() + '.xlsx', 'Tồn kho');
       });
     }
+
+    // ---- Xưởng Ba Phi: Xử lý hàng tồn & rớt ----
+    // Gộp chung 2 nguồn vào 1 luồng xử lý duy nhất:
+    //   'dat'    Hàng dạt, CHƯA đóng gói = Số lượng nhập − Thành phẩm
+    //            (computeCulledQty), tự tính theo từng lượt nhập, không lưu
+    //            cột riêng — tránh lệch với số liệu gốc.
+    //   'ton_du' Thành phẩm ĐÃ đóng gói nhưng còn dư, chưa xuất hết — CHÍNH
+    //            LÀ số ở cột "Tồn kho (trái)" của tab Xuất hàng, tính lại y
+    //            hệt công thức đó (quy_cach × (đã đóng gói − đã xuất)).
+    // Xử lý (Bán chợ / Sản xuất qua đơn khác) ghi vào factory_culled_processing.
+    // Với 'ton_du', cả 2 hướng xử lý đều cộng thẳng số thùng vào "Đã xuất"
+    // của CHÍNH lô gốc (hàng rời kho, dù rời qua đường bán chợ hay gán bù cho
+    // lô khác) — dùng field exported_qty có sẵn, không cần ledger riêng cho
+    // "Còn lại" của 'ton_du' vì nó luôn tính lại trực tiếp từ đó. Với 'dat',
+    // không có exported_qty để dùng nên "Còn lại" phải trừ dần qua ledger
+    // factory_culled_processing. "Sản xuất qua đơn khác" luôn cộng thêm số
+    // thùng vào "Đã xuất" của lô đích, dùng khi lô đích xuất nhiều hơn số tự
+    // sản xuất được nhờ bù thêm hàng tồn/rớt từ lô khác.
+    (function(){
+      const culledTbody = document.getElementById('culled-tbody');
+      const culledHistoryTbody = document.getElementById('culled-history-tbody');
+      const culledOverlay = document.getElementById('add-culled-overlay');
+      const culledForm = document.getElementById('form-add-culled');
+      const culledModalBatchInfo = document.getElementById('culled-modal-batch-info');
+      const culledSubmitBtn = document.getElementById('btn-submit-add-culled');
+      const culledTypeSelect = document.getElementById('culled-type');
+      const culledMarketGroup = document.getElementById('culled-qty-market-group');
+      const culledQtyInput = document.getElementById('culled-qty-trai');
+      const culledReassignFields = document.getElementById('culled-reassign-fields');
+      const closeCulledBtn = document.getElementById('btn-close-add-culled');
+      const cancelCulledBtn = document.getElementById('btn-cancel-add-culled');
+      const CULLED_COLS = 7;
+      const CULLED_HISTORY_COLS = 7;
+
+      if(!culledOverlay || !culledForm || !culledTbody || !sb) return;
+
+      let editingCulledRow = null;
+
+      function quyCachKeyOf(quyCach){ return quyCach == null ? '' : String(quyCach); }
+
+      function showCulledMessage(text, color){
+        culledTbody.textContent = '';
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = CULLED_COLS;
+        td.style.textAlign = 'center';
+        td.style.color = color || 'var(--ink-soft)';
+        td.style.padding = '20px';
+        td.textContent = text;
+        tr.appendChild(td);
+        culledTbody.appendChild(tr);
+      }
+
+      function showCulledHistoryMessage(text, color){
+        if(!culledHistoryTbody) return;
+        culledHistoryTbody.textContent = '';
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = CULLED_HISTORY_COLS;
+        td.style.textAlign = 'center';
+        td.style.color = color || 'var(--ink-soft)';
+        td.style.padding = '20px';
+        td.textContent = text;
+        tr.appendChild(td);
+        culledHistoryTbody.appendChild(tr);
+      }
+
+      function toggleCulledFields(){
+        const isReassign = culledTypeSelect && culledTypeSelect.value === 'reassign';
+        if(culledMarketGroup) culledMarketGroup.style.display = isReassign ? 'none' : '';
+        if(culledReassignFields) culledReassignFields.style.display = isReassign ? '' : 'none';
+      }
+      if(culledTypeSelect) culledTypeSelect.addEventListener('change', toggleCulledFields);
+
+      function openModal(){ culledOverlay.classList.add('active'); }
+      function closeModal(){ culledOverlay.classList.remove('active'); culledForm.reset(); culledTypeSelect.value = 'market'; toggleCulledFields(); editingCulledRow = null; }
+      if(closeCulledBtn) closeCulledBtn.addEventListener('click', closeModal);
+      if(cancelCulledBtn) cancelCulledBtn.addEventListener('click', closeModal);
+      culledOverlay.addEventListener('click', function(e){ if(e.target === culledOverlay) closeModal(); });
+
+      function openProcessModal(row){
+        editingCulledRow = row;
+        if(culledModalBatchInfo){
+          const typeLabel = row.sourceType === 'ton_du' ? 'Tồn kho dư' : 'Hàng dạt';
+          const sanPhamLabel = row.sanPham ? (' · Sản phẩm: ' + row.sanPham + (row.quyCach != null ? ' (' + row.quyCach + ' trái/thùng)' : '')) : '';
+          culledModalBatchInfo.textContent = 'Lô hàng: ' + row.batch + (row.chungLoai ? ' · Chủng loại: ' + row.chungLoai : '') +
+            ' · Loại: ' + typeLabel + sanPhamLabel + ' · Còn lại chưa xử lý: ' + fmtQty(row.remaining);
+        }
+        document.getElementById('culled-date').value = todayStr();
+        if(culledQtyInput) culledQtyInput.value = '';
+        document.getElementById('culled-target-batch').value = '';
+        document.getElementById('culled-target-sanpham').value = row.sanPham || '';
+        document.getElementById('culled-target-quycach').value = row.quyCach != null ? row.quyCach : '';
+        document.getElementById('culled-target-thung').value = '';
+        document.getElementById('culled-note').value = '';
+        culledTypeSelect.value = 'market';
+        toggleCulledFields();
+        openModal();
+      }
+
+      function renderCulledRows(rows){
+        culledTbody.textContent = '';
+        if(!rows.length){ showCulledMessage('Không có hàng tồn hoặc hàng rớt nào cần xử lý.'); return; }
+        rows.forEach(function(row){
+          const tr = document.createElement('tr');
+          tr.className = 'hoverable';
+
+          const batchTd = document.createElement('td');
+          batchTd.textContent = row.batch;
+          tr.appendChild(batchTd);
+
+          const chungLoaiTd = document.createElement('td');
+          chungLoaiTd.className = 'muted';
+          chungLoaiTd.textContent = row.chungLoai || '—';
+          tr.appendChild(chungLoaiTd);
+
+          const typeTd = document.createElement('td');
+          typeTd.textContent = row.sourceType === 'ton_du' ? 'Tồn kho dư' : 'Hàng dạt';
+          tr.appendChild(typeTd);
+
+          const sanPhamTd = document.createElement('td');
+          sanPhamTd.className = 'muted';
+          sanPhamTd.textContent = row.sanPham || '—';
+          tr.appendChild(sanPhamTd);
+
+          const quyCachTd = document.createElement('td');
+          quyCachTd.className = 'muted';
+          quyCachTd.textContent = row.quyCach != null ? (row.quyCach + ' trái/thùng') : '—';
+          tr.appendChild(quyCachTd);
+
+          const remainingTd = document.createElement('td');
+          remainingTd.textContent = fmtQty(row.remaining);
+          remainingTd.className = 'warn-text';
+          tr.appendChild(remainingTd);
+
+          const actionsTd = document.createElement('td');
+          actionsTd.className = 'row-actions';
+          const processBtn = document.createElement('button');
+          processBtn.type = 'button';
+          processBtn.className = 'btn-secondary';
+          processBtn.style.padding = '4px 10px';
+          processBtn.style.fontSize = '12px';
+          processBtn.textContent = 'Xử lý';
+          processBtn.addEventListener('click', function(){ openProcessModal(row); });
+          actionsTd.appendChild(processBtn);
+          tr.appendChild(actionsTd);
+
+          culledTbody.appendChild(tr);
+        });
+      }
+
+      function renderCulledHistoryRows(procRows, rawRows){
+        if(!culledHistoryTbody) return;
+        culledHistoryTbody.textContent = '';
+        if(!procRows.length){ showCulledHistoryMessage('Chưa có lịch sử xử lý.'); return; }
+        const rawById = {};
+        rawRows.forEach(function(r){ rawById[r.id] = r; });
+        const sorted = procRows.slice().sort(function(a, b){
+          const da = a.processed_date || '', db = b.processed_date || '';
+          if(da !== db) return db.localeCompare(da);
+          return (b.id || 0) - (a.id || 0);
+        });
+        sorted.forEach(function(p){
+          const tr = document.createElement('tr');
+          tr.className = 'hoverable';
+          tr.dataset.proc = JSON.stringify(p);
+
+          const sourceTd = document.createElement('td');
+          if(p.source_type === 'ton_du'){
+            sourceTd.textContent = p.source_batch + (p.source_chung_loai ? ' (' + p.source_chung_loai + ')' : '') +
+              ' — ' + (p.source_san_pham || '—') + (p.source_quy_cach != null ? ', ' + p.source_quy_cach + ' trái/thùng' : '') + ' [Tồn kho dư]';
+          } else {
+            const raw = rawById[p.raw_batch_id];
+            sourceTd.textContent = (raw ? (raw.batch + (raw.chung_loai ? ' (' + raw.chung_loai + ')' : '')) : ('Lô #' + p.raw_batch_id)) + ' [Hàng dạt]';
+          }
+          tr.appendChild(sourceTd);
+
+          const typeTd = document.createElement('td');
+          typeTd.textContent = p.xu_ly_type === 'reassign' ? 'Sản xuất qua đơn khác' : 'Bán chợ';
+          tr.appendChild(typeTd);
+
+          const dateTd = document.createElement('td');
+          dateTd.className = 'muted';
+          dateTd.textContent = p.processed_date ? fmtDate(p.processed_date) : '—';
+          tr.appendChild(dateTd);
+
+          const qtyTd = document.createElement('td');
+          qtyTd.textContent = fmtQty(p.qty_trai);
+          tr.appendChild(qtyTd);
+
+          const targetTd = document.createElement('td');
+          targetTd.className = 'muted';
+          targetTd.textContent = p.xu_ly_type === 'reassign'
+            ? (p.target_batch + ' — ' + (p.target_san_pham || '—') + ' (' + (p.target_quy_cach != null ? p.target_quy_cach + ' trái/thùng' : '—') + ', ' + fmtBoxQty(p.target_so_luong_thung) + ')')
+            : '—';
+          tr.appendChild(targetTd);
+
+          const noteTd = document.createElement('td');
+          noteTd.className = 'muted';
+          noteTd.textContent = p.note || '—';
+          tr.appendChild(noteTd);
+
+          const actionsTd = document.createElement('td');
+          actionsTd.className = 'row-actions';
+          const delBtn = document.createElement('button');
+          delBtn.type = 'button';
+          delBtn.className = 'row-delete-btn';
+          delBtn.setAttribute('aria-label', 'Xóa');
+          delBtn.innerHTML = '<i class="ti ti-trash"></i>';
+          actionsTd.appendChild(delBtn);
+          tr.appendChild(actionsTd);
+
+          culledHistoryTbody.appendChild(tr);
+        });
+      }
+
+      // Cộng dồn addThung (âm để trừ ngược khi hoàn tác) vào "Đã xuất" của
+      // đúng 1 dòng (batch, chung_loai, quy_cach, san_pham) trong
+      // factory_finished_stock — dùng chung cho cả lô gốc ('ton_du') lẫn lô
+      // đích ('reassign'), vì cùng 1 cơ chế: hàng rời kho = tăng exported_qty.
+      async function bumpExportedFor(batch, chungLoai, sanPham, quyCach, addThung, dateVal){
+        const { data: existing, error: existErr } = await sb.from('factory_finished_stock')
+          .select('exported_qty, export_date').eq('batch', batch).eq('chung_loai', chungLoai || '')
+          .eq('quy_cach', quyCach).eq('san_pham', sanPham).is('deleted_at', null).maybeSingle();
+        if(existErr) throw existErr;
+        const newExported = Math.max(0, (existing && existing.exported_qty != null ? Number(existing.exported_qty) : 0) + addThung);
+        const newExportDate = (existing && existing.export_date && (!dateVal || existing.export_date > dateVal)) ? existing.export_date : dateVal;
+        const { error: upsertErr } = await sb.from('factory_finished_stock').upsert({
+          batch: batch, chung_loai: chungLoai || '', quy_cach: quyCach, san_pham: sanPham,
+          exported_qty: newExported, export_date: newExportDate, deleted_at: null
+        }, { onConflict: 'batch,chung_loai,quy_cach,san_pham' });
+        if(upsertErr) throw upsertErr;
+      }
+      function bumpSourceExported(row, addThung, dateVal){
+        return bumpExportedFor(row.batch, row.chungLoai, normalizeSanPham(row.sanPham), row.quyCach, addThung, dateVal);
+      }
+
+      async function refreshCulledRows(){
+        try{
+          const [rawRes, stockRes, procRes] = await Promise.all([
+            sb.from('raw_batches').select('id, batch, chung_loai, soluong, factory_batches(finished_qty, production_date, factory_batch_boxes(quy_cach, so_luong_thung, san_pham))').is('deleted_at', null),
+            sb.from('factory_finished_stock').select('batch, chung_loai, san_pham, quy_cach, exported_qty').is('deleted_at', null),
+            sb.from('factory_culled_processing').select('*').is('deleted_at', null)
+          ]);
+          if(rawRes.error) throw rawRes.error;
+          if(stockRes.error) throw stockRes.error;
+          if(procRes.error) throw procRes.error;
+
+          const processedDatByRaw = {};
+          (procRes.data || []).forEach(function(p){
+            if(p.source_type !== 'dat') return;
+            processedDatByRaw[p.raw_batch_id] = (processedDatByRaw[p.raw_batch_id] || 0) + Number(p.qty_trai || 0);
+          });
+
+          const exportedByKey = {};
+          (stockRes.data || []).forEach(function(s){
+            const key = [s.batch, s.chung_loai || '', normalizeSanPham(s.san_pham), quyCachKeyOf(s.quy_cach)].join('::');
+            exportedByKey[key] = (exportedByKey[key] || 0) + Number(s.exported_qty || 0);
+          });
+
+          const rows = [];
+          (rawRes.data || []).forEach(function(r){
+            const fb = getFb(r);
+            if(!fb) return;
+
+            // Nguồn 1: Hàng dạt — chưa đóng gói.
+            if(fb.finished_qty != null){
+              const total = computeCulledQty(parseQty(r.soluong), Number(fb.finished_qty));
+              if(total != null && total > 0){
+                const processed = processedDatByRaw[r.id] || 0;
+                const remaining = total - processed;
+                if(remaining > 0){
+                  rows.push({ sourceType: 'dat', rawId: r.id, batch: r.batch, chungLoai: r.chung_loai || '', sanPham: null, quyCach: null, remaining: remaining });
+                }
+              }
+            }
+
+            // Nguồn 2: Tồn kho dư — đã đóng gói, tính lại y hệt công thức
+            // "Tồn kho (trái)" ở tab Xuất hàng, theo TỪNG tổ hợp Sản phẩm+Quy
+            // cách đã đóng gói trong chủng loại này.
+            const producedByKey = {};
+            (fb.factory_batch_boxes || []).forEach(function(box){
+              const key = normalizeSanPham(box.san_pham) + '::' + quyCachKeyOf(box.quy_cach);
+              if(!producedByKey[key]) producedByKey[key] = { sanPham: box.san_pham || '', quyCach: box.quy_cach, produced: 0 };
+              producedByKey[key].produced += (Number(box.so_luong_thung) || 0);
+            });
+            Object.keys(producedByKey).forEach(function(key){
+              const box = producedByKey[key];
+              if(box.quyCach == null) return;
+              const exportKey = [r.batch, r.chung_loai || '', normalizeSanPham(box.sanPham), quyCachKeyOf(box.quyCach)].join('::');
+              const exported = exportedByKey[exportKey] || 0;
+              const remainingTrai = box.quyCach * (box.produced - exported);
+              if(remainingTrai > 0){
+                rows.push({ sourceType: 'ton_du', batch: r.batch, chungLoai: r.chung_loai || '', sanPham: box.sanPham, quyCach: box.quyCach, remaining: remainingTrai });
+              }
+            });
+          });
+          rows.sort(function(a, b){ return b.remaining - a.remaining; });
+
+          renderCulledRows(rows);
+          renderCulledHistoryRows(procRes.data || [], rawRes.data || []);
+        } catch(err){
+          console.error('Không tải được dữ liệu hàng tồn & rớt:', err);
+          showCulledMessage('Không tải được dữ liệu — kiểm tra kết nối Supabase.', 'var(--red)');
+        }
+      }
+
+      // Dò đúng Chủng loại của lô đích khớp Sản phẩm+Quy cách đã đóng gói —
+      // factory_finished_stock bắt buộc biết Chủng loại (khoá duy nhất
+      // batch,chung_loai,quy_cach,san_pham), không được đoán bừa khi 1 lô có
+      // nhiều chủng loại. Chỉ chấp nhận khi khớp DUY NHẤT 1 chủng loại.
+      async function resolveTargetChungLoai(targetBatch, normSanPham, quyCach){
+        const { data, error } = await sb.from('raw_batches')
+          .select('chung_loai, factory_batches(factory_batch_boxes(san_pham, quy_cach))')
+          .eq('batch', targetBatch).is('deleted_at', null);
+        if(error) throw error;
+        const matched = new Set();
+        (data || []).forEach(function(r){
+          const fb = getFb(r);
+          (fb && fb.factory_batch_boxes || []).forEach(function(box){
+            if(normalizeSanPham(box.san_pham) === normSanPham && Number(box.quy_cach) === Number(quyCach)){
+              matched.add(r.chung_loai || '');
+            }
+          });
+        });
+        return Array.from(matched);
+      }
+
+      if(culledHistoryTbody){
+        culledHistoryTbody.addEventListener('click', async function(e){
+          const delBtn = e.target.closest('.row-delete-btn');
+          if(!delBtn) return;
+          const tr = delBtn.closest('tr');
+          let p; try{ p = JSON.parse(tr.dataset.proc || '{}'); } catch(err){ p = {}; }
+          if(!p.id) return;
+          const willRevertSource = p.source_type === 'ton_du';
+          const willRevertTarget = p.xu_ly_type === 'reassign';
+          const warnParts = [];
+          if(willRevertSource) warnParts.push('trừ lại ' + fmtBoxQty(p.so_luong_thung) + ' khỏi "Đã xuất" của lô gốc "' + p.source_batch + '"');
+          if(willRevertTarget) warnParts.push('trừ lại ' + fmtBoxQty(p.target_so_luong_thung) + ' khỏi "Đã xuất" của lô "' + p.target_batch + '"');
+          const label = 'lịch sử xử lý ngày ' + (p.processed_date ? fmtDate(p.processed_date) : '(chưa rõ ngày)') + (warnParts.length ? ' (sẽ ' + warnParts.join(', ') + ')' : '');
+          const ok = await confirmDialog('Xóa ' + label + '?');
+          if(!ok) return;
+          try{
+            if(willRevertSource){
+              await bumpExportedFor(p.source_batch, p.source_chung_loai, p.source_san_pham, p.source_quy_cach, -Number(p.so_luong_thung || 0), null);
+            }
+            if(willRevertTarget){
+              await bumpExportedFor(p.target_batch, p.target_chung_loai, p.target_san_pham, p.target_quy_cach, -Number(p.target_so_luong_thung || 0), null);
+            }
+            const { error } = await sb.from('factory_culled_processing').update({ deleted_at: new Date().toISOString() }).eq('id', p.id);
+            if(error) throw error;
+            await refreshCulledRows();
+            await refreshInventoryRows();
+            notifyFactoryProductionChanged();
+          } catch(err){
+            alert('Không thể xóa: ' + err.message);
+          }
+        });
+      }
+
+      culledForm.addEventListener('submit', async function(e){
+        e.preventDefault();
+        if(!editingCulledRow) return;
+        const row = editingCulledRow;
+        const type = culledTypeSelect.value;
+        const dateVal = fieldVal('culled-date') || null;
+        const note = fieldVal('culled-note') || null;
+
+        const originalLabel = culledSubmitBtn.textContent;
+        culledSubmitBtn.disabled = true;
+        culledSubmitBtn.textContent = 'Đang lưu...';
+        try{
+          if(type === 'market'){
+            // Nhập theo trái cho cả 2 nguồn — khớp đúng đơn vị của cột "Còn
+            // lại" đang hiện. Với 'ton_du', quy đổi ngược ra thùng theo Quy
+            // cách của CHÍNH dòng này để cộng vào "Đã xuất" — không chia hết
+            // thì chấp nhận số thùng lẻ (VD 7.5 thùng), vì trái mới là đơn vị
+            // đúng, thùng chỉ là cách quy đổi để khớp với cột "Đã xuất" sẵn có.
+            const qtyTrai = parseQty(fieldVal('culled-qty-trai'));
+            if(!qtyTrai || qtyTrai <= 0){ alert('Nhập số lượng trái hợp lệ.'); return; }
+            if(qtyTrai > row.remaining + 0.001){
+              if(!confirm('Số lượng nhập (' + fmtQty(qtyTrai) + ') lớn hơn số còn lại chưa xử lý (' + fmtQty(row.remaining) + '). Vẫn lưu?')) return;
+            }
+
+            if(row.sourceType === 'dat'){
+              const { error } = await sb.from('factory_culled_processing').insert({
+                source_type: 'dat', raw_batch_id: row.rawId,
+                xu_ly_type: 'market', processed_date: dateVal, qty_trai: qtyTrai, note: note
+              });
+              if(error) throw error;
+            } else {
+              const soLuongThung = qtyTrai / row.quyCach;
+              await bumpSourceExported(row, soLuongThung, dateVal);
+              const { error } = await sb.from('factory_culled_processing').insert({
+                source_type: 'ton_du', source_batch: row.batch, source_chung_loai: row.chungLoai,
+                source_san_pham: normalizeSanPham(row.sanPham), source_quy_cach: row.quyCach,
+                xu_ly_type: 'market', processed_date: dateVal, qty_trai: qtyTrai, so_luong_thung: soLuongThung, note: note
+              });
+              if(error) throw error;
+            }
+          } else {
+            const targetBatch = fieldVal('culled-target-batch');
+            const targetSanPham = fieldVal('culled-target-sanpham');
+            const targetQuyCach = parseQty(fieldVal('culled-target-quycach'));
+            const targetThung = parseQty(fieldVal('culled-target-thung'));
+            if(!targetBatch || !targetSanPham || !targetQuyCach || !targetThung){
+              alert('Điền đủ Mã lô hàng đích, Sản phẩm, Quy cách và Số lượng thùng.');
+              return;
+            }
+            const normTarget = normalizeSanPham(targetSanPham);
+            const qtyTrai = targetQuyCach * targetThung;
+            if(qtyTrai > row.remaining + 0.001){
+              if(!confirm('Số trái gán bù (' + fmtQty(qtyTrai) + ') lớn hơn số còn lại chưa xử lý (' + fmtQty(row.remaining) + '). Vẫn lưu?')) return;
+            }
+
+            const matchedChungLoai = await resolveTargetChungLoai(targetBatch, normTarget, targetQuyCach);
+            if(matchedChungLoai.length === 0){
+              alert('Không tìm thấy lô "' + targetBatch + '" nào đã đóng gói đúng Sản phẩm "' + targetSanPham + '" + Quy cách ' + targetQuyCach + ' trái/thùng — kiểm tra lại, hoặc khai báo Quy cách đó ở tab Sản xuất trước.');
+              return;
+            }
+            if(matchedChungLoai.length > 1){
+              alert('Lô "' + targetBatch + '" có nhiều Chủng loại cùng đóng Sản phẩm + Quy cách này — chưa xác định được rõ ràng gán vào chủng loại nào.');
+              return;
+            }
+            const targetChungLoai = matchedChungLoai[0];
+
+            await bumpExportedFor(targetBatch, targetChungLoai, normTarget, targetQuyCach, targetThung, dateVal);
+
+            let sourceThung = null;
+            if(row.sourceType === 'ton_du'){
+              sourceThung = qtyTrai / row.quyCach;
+              await bumpSourceExported(row, sourceThung, dateVal);
+            }
+
+            const { error: logErr } = await sb.from('factory_culled_processing').insert({
+              source_type: row.sourceType,
+              raw_batch_id: row.sourceType === 'dat' ? row.rawId : null,
+              source_batch: row.sourceType === 'ton_du' ? row.batch : null,
+              source_chung_loai: row.sourceType === 'ton_du' ? row.chungLoai : null,
+              source_san_pham: row.sourceType === 'ton_du' ? normalizeSanPham(row.sanPham) : null,
+              source_quy_cach: row.sourceType === 'ton_du' ? row.quyCach : null,
+              xu_ly_type: 'reassign', processed_date: dateVal, qty_trai: qtyTrai, so_luong_thung: sourceThung,
+              target_batch: targetBatch, target_chung_loai: targetChungLoai, target_san_pham: normTarget,
+              target_quy_cach: targetQuyCach, target_so_luong_thung: targetThung, note: note
+            });
+            if(logErr) throw logErr;
+          }
+
+          await refreshCulledRows();
+          await refreshInventoryRows();
+          closeModal();
+          notifyFactoryProductionChanged();
+        } catch(err){
+          alert('Không thể lưu vào Supabase: ' + err.message);
+        } finally {
+          culledSubmitBtn.disabled = false;
+          culledSubmitBtn.textContent = originalLabel;
+        }
+      });
+
+      showCulledMessage('Đang tải dữ liệu...');
+      showCulledHistoryMessage('Đang tải dữ liệu...');
+      refreshCulledRows();
+
+      onRawBatchesChanged(refreshCulledRows);
+      onFactoryProductionChanged(refreshCulledRows);
+    })();
 
     // ---- Hạn sử dụng theo sản phẩm (tra cứu dùng chung cho Sản xuất) ----
     initCrudModule({

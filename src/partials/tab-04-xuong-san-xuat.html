@@ -36,10 +36,10 @@
       <div class="card">
         <table>
           <thead>
-            <tr><th>Lô hàng</th><th>NCC</th><th>Chủng loại</th><th>Số lượng</th><th>Ngày nhập</th><th>Ngày sản xuất</th><th>Thành phẩm</th><th>Sản phẩm</th><th>Quy cách</th><th>Số lượng thùng</th><th>Hao hụt</th><th>Bắt đầu</th><th>Kết thúc</th><th>Tổng số lượng thùng</th><th>Thao tác</th></tr>
+            <tr><th>Lô hàng</th><th>NCC</th><th>Chủng loại</th><th>Số lượng</th><th>Ngày nhập</th><th>Ngày sản xuất</th><th>Thành phẩm</th><th>Sản phẩm</th><th>Quy cách</th><th>Số lượng thùng</th><th>Hao hụt</th><th>Trái bị dạt</th><th>Bắt đầu</th><th>Kết thúc</th><th>Tổng số lượng thùng</th><th>Thao tác</th></tr>
           </thead>
           <tbody id="factory-tbody">
-            <tr><td colspan="15" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+            <tr><td colspan="16" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
           </tbody>
         </table>
       </div>
@@ -123,6 +123,35 @@
             <tr><th>Lô hàng</th><th>Sản phẩm</th><th>Quy cách</th><th>Tồn kho (trái)</th><th>Ngày sản xuất</th><th>Hạn sử dụng</th><th>Còn lại</th></tr>
           </thead>
           <tbody id="stock-tbody">
+            <tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="section-header-row">
+        <div class="section-label">Xử lý hàng tồn & rớt</div>
+      </div>
+      <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Gộp chung 2 nguồn cần xử lý: hàng dạt lúc sản xuất (Số lượng nhập − Thành phẩm) và thành phẩm dư chưa xuất hết (cột "Tồn kho (trái)" ở tab Xuất hàng) — xử lý bằng cách bán chợ hoặc gán bù sản lượng xuất cho lô hàng khác.</div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>Lô hàng</th><th>Chủng loại</th><th>Loại</th><th>Sản phẩm</th><th>Quy cách</th><th>Còn lại chưa xử lý</th><th>Thao tác</th></tr>
+          </thead>
+          <tbody id="culled-tbody">
+            <tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="section-header-row">
+        <div class="section-label">Lịch sử xử lý</div>
+      </div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>Nguồn</th><th>Loại xử lý</th><th>Ngày xử lý</th><th>Số lượng</th><th>Lô đích / Sản phẩm</th><th>Ghi chú</th><th>Thao tác</th></tr>
+          </thead>
+          <tbody id="culled-history-tbody">
             <tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
           </tbody>
         </table>
@@ -274,6 +303,60 @@
           <div class="modal-actions">
             <button type="button" class="btn-secondary" id="btn-cancel-add-inventory">Hủy</button>
             <button type="submit" class="btn-primary" id="btn-submit-add-inventory">Lưu</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="add-culled-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">Xử lý hàng dạt</div>
+          <button class="modal-close" id="btn-close-add-culled" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <div class="muted" id="culled-modal-batch-info" style="font-size:12.5px;margin-bottom:14px;"></div>
+        <form id="form-add-culled">
+          <div class="form-group">
+            <label for="culled-type">Loại xử lý</label>
+            <select id="culled-type">
+              <option value="market">Bán chợ</option>
+              <option value="reassign">Sản xuất qua đơn khác</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="culled-date">Ngày xử lý</label>
+            <input type="date" id="culled-date">
+          </div>
+          <div class="form-group" id="culled-qty-market-group">
+            <label for="culled-qty-trai">Số lượng (trái)</label>
+            <input type="text" id="culled-qty-trai" placeholder="VD: 200">
+          </div>
+          <div id="culled-reassign-fields" style="display:none;">
+            <div class="form-group">
+              <label for="culled-target-batch">Mã lô hàng đích</label>
+              <input type="text" id="culled-target-batch" list="dl-batch-names" placeholder="VD: AGO - 01.26">
+            </div>
+            <div class="form-group">
+              <label for="culled-target-sanpham">Sản phẩm</label>
+              <input type="text" id="culled-target-sanpham" list="dl-san-pham" placeholder="VD: Dừa kim cương">
+            </div>
+            <div class="form-group">
+              <label for="culled-target-quycach">Quy cách (trái/thùng)</label>
+              <input type="text" id="culled-target-quycach" placeholder="VD: 12">
+            </div>
+            <div class="form-group">
+              <label for="culled-target-thung">Số lượng thùng</label>
+              <input type="text" id="culled-target-thung" placeholder="VD: 20">
+            </div>
+            <div class="muted" style="font-size:11px;margin:-6px 0 10px;">Phải khớp đúng Lô hàng + Sản phẩm + Quy cách đã có ở tab "Xuất hàng" — hệ thống tự cộng số thùng này vào "Đã xuất" của đúng dòng đó.</div>
+          </div>
+          <div class="form-group">
+            <label for="culled-note">Ghi chú</label>
+            <textarea id="culled-note" rows="2" placeholder="Tùy chọn"></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-culled">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-culled">Lưu</button>
           </div>
         </form>
       </div>
