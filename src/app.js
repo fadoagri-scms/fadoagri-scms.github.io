@@ -3244,19 +3244,18 @@ const titles = {
       } else {
         new QRCode(traceQrBox, { text: url, width: 176, height: 176, correctLevel: QRCode.CorrectLevel.M });
       }
-      // Mã vạch quét ra ĐÚNG cùng 1 link với mã QR ở trên — CODE128 vì đọc
-      // được cả chữ/số/ký tự URL, không giới hạn kiểu EAN chỉ nhận số.
+      // Mã vạch chỉ mã hoá MÃ NGẮN (không phải nguyên link) — link đầy đủ
+      // (~55 ký tự) làm CODE128 dài/dày quá mức, khó in/quét thực tế. Quét
+      // mã vạch bằng đầu đọc thường sẽ ra đúng mã này (không tự mở trang
+      // như QR) — cần ghép với link gốc hoặc qua hệ thống nội bộ để tra ra
+      // đúng trang, đổi lại đổi lấy mã vạch ngắn gọn, dễ in/quét hơn nhiều.
       const barcodeSvg = document.getElementById('trace-barcode-svg');
       if(barcodeSvg){
         if(typeof JsBarcode === 'undefined'){
           barcodeSvg.parentElement.textContent = 'Không tải được thư viện mã vạch — kiểm tra kết nối mạng.';
         } else {
           try{
-            // Link đầy đủ khá dài với CODE128 nên module width để tối
-            // thiểu (1) — SVG còn được CSS co theo khung (max-width:100%)
-            // để vừa modal; khi in tem thật, phóng theo kích thước tem sẽ
-            // rõ nét trở lại vì mã vạch là vector, không mất chi tiết.
-            JsBarcode(barcodeSvg, url, { format: 'CODE128', width: 1, height: 60, fontSize: 9, margin: 4 });
+            JsBarcode(barcodeSvg, code, { format: 'CODE128', width: 2, height: 60, fontSize: 12, margin: 4 });
           } catch(err){
             barcodeSvg.parentElement.textContent = 'Không tạo được mã vạch: ' + err.message;
           }
