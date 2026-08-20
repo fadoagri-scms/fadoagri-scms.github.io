@@ -3022,6 +3022,8 @@ const titles = {
     let traceQrExported = false;
     let traceBarcodeExported = false;
     const traceCopyBtn = document.getElementById('btn-copy-trace-url');
+    const traceProductsWrap = document.getElementById('trace-products-wrap');
+    const traceProductList = document.getElementById('trace-product-list');
 
     let traceCurrentBatch = null;
     let traceCurrentCode = null;
@@ -3289,6 +3291,176 @@ const titles = {
       }
     }
 
+    // ---- Mã QR riêng theo từng sản phẩm trong lô (khác mã chung cả lô ở
+    // trên) — 1 dòng/sản phẩm trong batch_trace_products, mã tra cứu riêng,
+    // quét ra chỉ đúng 1 sản phẩm (xem batch_trace_product_public). NCC/Vùng/
+    // QC/Vận chuyển vẫn dùng chung của cả lô vì qc_checks/shipments không
+    // tách theo sản phẩm — chỉ Sản phẩm/Chủng loại/Số lượng tách riêng.
+    function traceFileSafeName(s){
+      return String(s || 'ma').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '');
+    }
+
+    function renderTraceProductRow(batchCode, g, existing){
+      const row = document.createElement('div');
+      row.style.cssText = 'border:1px solid var(--border);border-radius:10px;padding:12px;';
+
+      const head = document.createElement('div');
+      head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;';
+      const nameEl = document.createElement('div');
+      nameEl.style.cssText = 'font-size:13px;font-weight:700;';
+      nameEl.textContent = g.sanPham;
+      head.appendChild(nameEl);
+
+      const toggleLabel = document.createElement('label');
+      toggleLabel.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;flex-shrink:0;';
+      const toggle = document.createElement('input');
+      toggle.type = 'checkbox';
+      toggle.style.width = 'auto';
+      toggle.checked = !!(existing && existing.trace_enabled);
+      const toggleText = document.createElement('span');
+      toggleText.className = 'muted';
+      toggleText.style.fontSize = '12px';
+      toggleText.textContent = toggle.checked ? 'Đang công khai' : 'Tắt';
+      toggleLabel.appendChild(toggle);
+      toggleLabel.appendChild(toggleText);
+      head.appendChild(toggleLabel);
+      row.appendChild(head);
+
+      const sub = document.createElement('div');
+      sub.className = 'muted';
+      sub.style.cssText = 'font-size:11px;margin-top:2px;';
+      sub.textContent = (g.varieties.length ? g.varieties.join(', ') + ' · ' : '') + g.totalThung.toLocaleString('vi-VN') + ' thùng';
+      row.appendChild(sub);
+
+      const enInput = document.createElement('input');
+      enInput.type = 'text';
+      enInput.placeholder = 'Tên tiếng Anh (tùy chọn)';
+      enInput.value = (existing && existing.san_pham_en) || '';
+      enInput.style.cssText = 'font-size:11.5px;margin-top:8px;width:100%;';
+      row.appendChild(enInput);
+
+      const bodyWrap = document.createElement('div');
+      bodyWrap.style.cssText = 'display:none;margin-top:10px;text-align:center;';
+      row.appendChild(bodyWrap);
+
+      let code = existing ? existing.public_trace_code : null;
+
+      function saveRow(extra){
+        const payload = Object.assign({
+          batch: batchCode,
+          san_pham: g.sanPham,
+          san_pham_en: enInput.value.trim() || null,
+          variety: g.varieties.join(', ') || null,
+          total_thung: g.totalThung,
+          trace_enabled: toggle.checked,
+          public_trace_code: code,
+          deleted_at: null
+        }, extra || {});
+        return sb.from('batch_trace_products').upsert(payload, { onConflict: 'batch,san_pham' });
+      }
+
+      function renderQr(){
+        bodyWrap.textContent = '';
+        if(!code) return;
+        const url = PUBLIC_TRACE_BASE_URL + '?t=' + encodeURIComponent(code);
+        const qrBox = document.createElement('div');
+        qrBox.style.cssText = 'display:inline-block;padding:8px;background:#fff;border:1px solid var(--border);border-radius:8px;';
+        bodyWrap.appendChild(qrBox);
+        if(typeof QRCode === 'undefined'){
+          qrBox.textContent = 'Không tải được thư viện QR.';
+        } else {
+          new QRCode(qrBox, { text: url, width: 132, height: 132, correctLevel: QRCode.CorrectLevel.M });
+        }
+        const dlBtn = document.createElement('button');
+        dlBtn.type = 'button';
+        dlBtn.className = 'btn-secondary';
+        dlBtn.style.cssText = 'font-size:11px;padding:5px 10px;margin-top:8px;';
+        dlBtn.innerHTML = '<i class="ti ti-download"></i> Tải QR';
+        dlBtn.addEventListener('click', function(){
+          const canvas = qrBox.querySelector('canvas');
+          if(!canvas){ alert('Chưa có mã QR để tải.'); return; }
+          downloadDataUrl(canvas.toDataURL('image/png'), 'qr-' + traceFileSafeName(batchCode) + '-' + traceFileSafeName(g.sanPham) + '.png');
+        });
+        bodyWrap.appendChild(dlBtn);
+        const urlRow = document.createElement('div');
+        urlRow.style.cssText = 'margin-top:6px;font-size:10.5px;color:var(--ink-mute);word-break:break-all;';
+        urlRow.textContent = url;
+        bodyWrap.appendChild(urlRow);
+      }
+      bodyWrap.style.display = toggle.checked ? '' : 'none';
+      if(toggle.checked) renderQr();
+
+      toggle.addEventListener('change', async function(){
+        const turningOn = toggle.checked;
+        toggle.disabled = true;
+        try{
+          if(turningOn && !code) code = genTraceCode();
+          const { error } = await saveRow();
+          if(error){
+            if(/duplicate|unique/i.test(error.message || '')){
+              toggle.checked = !turningOn;
+              alert('Mã tra cứu bị trùng — thử lại.');
+              return;
+            }
+            throw error;
+          }
+          toggleText.textContent = turningOn ? 'Đang công khai' : 'Tắt';
+          bodyWrap.style.display = turningOn ? '' : 'none';
+          if(turningOn) renderQr();
+        } catch(err){
+          toggle.checked = !turningOn;
+          alert('Không thể lưu: ' + (err.message || err));
+        } finally {
+          toggle.disabled = false;
+        }
+      });
+
+      enInput.addEventListener('change', async function(){
+        try{
+          const { error } = await saveRow();
+          if(error) throw error;
+        } catch(err){
+          alert('Không thể lưu: ' + (err.message || err));
+        }
+      });
+
+      traceProductList.appendChild(row);
+    }
+
+    async function loadTraceProducts(batchCode){
+      if(!traceProductsWrap || !traceProductList) return;
+      traceProductList.textContent = '';
+      traceProductsWrap.style.display = 'none';
+      try{
+        const [items, existingRes] = await Promise.all([
+          getBoxItemsForBatch(batchCode),
+          sb.from('batch_trace_products').select('*').eq('batch', batchCode).is('deleted_at', null)
+        ]);
+        if(existingRes.error) throw existingRes.error;
+        const existingByName = {};
+        (existingRes.data || []).forEach(function(r){ existingByName[r.san_pham] = r; });
+
+        const groups = {};
+        items.forEach(function(it){
+          if(!it.sanPham) return;
+          if(!groups[it.sanPham]) groups[it.sanPham] = { sanPham: it.sanPham, totalThung: 0, varieties: [] };
+          groups[it.sanPham].totalThung += it.soLuong;
+          if(it.nguyenLieu && groups[it.sanPham].varieties.indexOf(it.nguyenLieu) === -1) groups[it.sanPham].varieties.push(it.nguyenLieu);
+        });
+
+        const names = Object.keys(groups);
+        // Chỉ hiện khu vực này khi lô có TỪ 2 sản phẩm trở lên — 1 sản phẩm
+        // thì mã chung ở trên đã đủ dùng, không cần thêm mã riêng làm rối.
+        if(names.length < 2) return;
+        traceProductsWrap.style.display = '';
+        names.sort(function(a, b){ return a.localeCompare(b, 'vi'); }).forEach(function(name){
+          renderTraceProductRow(batchCode, groups[name], existingByName[name]);
+        });
+      } catch(err){
+        console.error('Không tải được mã QR theo sản phẩm:', err);
+      }
+    }
+
     async function openTraceModal(batchCode){
       traceCurrentBatch = batchCode;
       traceCurrentCode = null;
@@ -3336,6 +3508,7 @@ const titles = {
           traceQrWrap.style.display = '';
           renderTraceQr(traceCurrentCode);
         }
+        loadTraceProducts(batchCode);
       } catch(err){
         alert('Không tải được dữ liệu: ' + (err.message || err));
       }

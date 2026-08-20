@@ -107,8 +107,8 @@
 
     <div class="top-bar">
       <div class="lang-toggle" id="langToggle" role="group" aria-label="Chọn ngôn ngữ / Choose language">
-        <button type="button" class="lang-btn active" data-lang="vi">VI</button>
-        <button type="button" class="lang-btn" data-lang="en">EN</button>
+        <button type="button" class="lang-btn" data-lang="vi">VI</button>
+        <button type="button" class="lang-btn active" data-lang="en">EN</button>
       </div>
     </div>
 
@@ -150,6 +150,8 @@
         <div class="field-row" id="rowRegion" hidden><span class="field-label" data-vi="Vùng nguyên liệu" data-en="Growing region">Vùng nguyên liệu</span><span class="field-value" id="valRegion"></span></div>
         <div class="field-row" id="rowVariety" hidden><span class="field-label" data-vi="Chủng loại" data-en="Variety">Chủng loại</span><span class="field-value" id="valVariety"></span></div>
         <div class="field-row" id="rowHarvest" hidden><span class="field-label" data-vi="Ngày nhập nguyên liệu" data-en="Material intake date">Ngày nhập nguyên liệu</span><span class="field-value mono" id="valHarvest"></span></div>
+        <div class="field-row" id="rowQty" hidden><span class="field-label" data-vi="Số lượng đóng gói" data-en="Packed quantity">Số lượng đóng gói</span><span class="field-value mono" id="valQty"></span></div>
+        <div class="field-row" id="rowBestBefore" hidden><span class="field-label" data-vi="Hạn sử dụng" data-en="Best before">Hạn sử dụng</span><span class="field-value mono" id="valBestBefore"></span></div>
       </div>
 
       <div class="qc-block" id="qcBlock">
@@ -195,7 +197,9 @@
 (function(){
   var SUPABASE_URL = 'https://ickyibgaxczypuxzpuun.supabase.co';
   var SUPABASE_ANON_KEY = 'sb_publishable_9FLlPV6d0aFcX-m-wmKK5w_Qdc4V_0h';
-  var lang = 'vi';
+  // Mặc định mở bằng tiếng Anh (khách quốc tế quét mã là chính) — vẫn đổi
+  // qua lại VI được bằng nút góc trên.
+  var lang = 'en';
   var currentRecord = null;
   // Nội dung tự nhập (tên sản phẩm/NCC/vùng/quy cách) chỉ có bản Anh khi
   // staff tự gõ — không có thì dùng lại đúng bản tiếng Việt, còn hơn để
@@ -258,7 +262,10 @@
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>'
   };
 
-  var STAGE_ORDER = ['Trên biển', 'Thông quan', 'Cảng đến', 'Giao khách hàng', 'Khách đã nhận hàng'];
+  // Khớp với STAGE_OPTIONS nội bộ ở tab Logistics (app.js) — thêm 'Cảng đi'
+  // vào đầu danh sách (trước đây bỏ sót, luôn coi như -1/chưa xuất hàng) vì
+  // giờ có riêng bước "Ngày xuất hàng" cần biết đã tới mốc này chưa.
+  var STAGE_ORDER = ['Cảng đi', 'Trên biển', 'Thông quan', 'Cảng đến', 'Giao khách hàng', 'Khách đã nhận hàng'];
   function stageIndex(stage){
     var i = STAGE_ORDER.indexOf(stage);
     return i === -1 ? -1 : i;
@@ -335,6 +342,14 @@
     if(d.supplier_name){ $('rowSupplier').hidden = false; $('valSupplier').textContent = pick('supplier_name'); }
     if(d.region){ $('rowRegion').hidden = false; $('valRegion').textContent = pick('region'); }
     if(d.variety){ $('valVariety').textContent = pick('variety'); }
+    if(d.qty_thung != null){
+      $('rowQty').hidden = false;
+      $('valQty').textContent = Number(d.qty_thung).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US') + ' ' + (lang === 'vi' ? 'thùng' : 'boxes');
+    }
+    if(d.best_before){
+      $('rowBestBefore').hidden = false;
+      $('valBestBefore').textContent = fmtDate(d.best_before);
+    }
     // KHÔNG dùng pick('packing_text') — nó sẽ vô tình lấy field
     // packing_text_en cũ (đã bỏ dùng, có thể còn sót giá trị cũ trong DB từ
     // trước khi đổi sang cơ chế từ điển packing_terms_en). Luôn dùng thẳng
@@ -350,7 +365,7 @@
 
     if(d.variety){ $('rowVariety').hidden = false; }
     if(d.harvest_date){ $('rowHarvest').hidden = false; $('valHarvest').textContent = fmtDate(d.harvest_date); }
-    if(!d.region && !d.variety && !d.harvest_date && !d.supplier_name){ $('originCard').hidden = true; }
+    if(!d.region && !d.variety && !d.harvest_date && !d.supplier_name && d.qty_thung == null && !d.best_before){ $('originCard').hidden = true; }
     refreshDynamicText();
 
     var qcMeta = QC_META[d.qc_status] || null;
@@ -401,6 +416,10 @@
     return wrap;
   }
 
+  // 4 mốc công khai, ứng với 6 STAGE_ORDER nội bộ (0='Cảng đi' … 5='Khách đã
+  // nhận hàng'): Đóng hàng (trước 0) → Ngày xuất hàng (đúng mốc 0) → Đang
+  // vận chuyển (gộp 3 mốc giữa 1,2,3: Trên biển/Thông quan/Cảng đến, khách
+  // không cần biết chi tiết từng chặng) → Ngày khách nhận hàng (mốc 4,5).
   function renderTimeline(d){
     var idx = stageIndex(d.shipping_stage);
     var el = $('timeline');
@@ -410,27 +429,39 @@
     var packedState = (d.packed_date || idx >= 0) ? 'done' : (idx === -1 && !d.packed_date ? 'current' : '');
     el.appendChild(tlStep('Đóng hàng', 'Packed', d.packed_date ? fmtDate(d.packed_date) : '', packedState));
 
-    // Trên biển
-    var atSeaState = idx > 0 ? 'done' : (idx === 0 ? 'current' : '');
-    el.appendChild(tlStep('Trên biển', 'At sea', '', atSeaState));
+    // Ngày xuất hàng — mốc 'Cảng đi' (idx 0)
+    var shippedState = idx > 0 ? 'done' : (idx === 0 ? 'current' : '');
+    var shippedDate = d.shipping_etd ? fmtDate(d.shipping_etd) : '';
+    el.appendChild(tlStep('Ngày xuất hàng', 'Ship-out date', shippedDate, shippedState));
 
-    // Cảng đến
-    var arrivedState = idx > 2 ? 'done' : (idx === 1 || idx === 2 ? 'current' : '');
-    var arrivedDate = d.shipping_eta ? (lang === 'vi' ? 'Dự kiến ' : 'Estimated ') + fmtDate(d.shipping_eta) : '';
-    el.appendChild(tlStep('Cảng đến', 'Port of arrival', arrivedDate, arrivedState));
+    // Đang vận chuyển — gộp 'Trên biển'/'Thông quan'/'Cảng đến' (idx 1-3)
+    var transitState = idx > 3 ? 'done' : (idx >= 1 && idx <= 3 ? 'current' : '');
+    var transitDate = d.shipping_eta ? (lang === 'vi' ? 'Dự kiến ' : 'Estimated ') + fmtDate(d.shipping_eta) : '';
+    el.appendChild(tlStep('Đang vận chuyển', 'In transit', transitDate, transitState));
 
-    // Giao khách hàng
-    var deliveredState = idx === 4 ? 'done' : (idx === 3 ? 'current' : '');
+    // Ngày khách nhận hàng — 'Giao khách hàng'/'Khách đã nhận hàng' (idx 4-5)
+    var deliveredState = idx === 5 ? 'done' : (idx === 4 ? 'current' : '');
     var deliveredDate = d.shipping_received_date ? fmtDate(d.shipping_received_date) : '';
-    el.appendChild(tlStep('Giao khách hàng', 'Delivered to customer', deliveredDate, deliveredState));
+    el.appendChild(tlStep('Ngày khách nhận hàng', 'Received by customer', deliveredDate, deliveredState));
   }
 
+  // Mỗi sản phẩm trong 1 lô có thể có mã riêng (batch_trace_product_public)
+  // BÊN CẠNH mã chung của cả lô (batch_trace_public) — 2 không gian mã tách
+  // biệt, thử tra ở bảng theo sản phẩm trước (mã mới hơn), không có thì rơi
+  // về mã chung như trước (mã cũ đã in ra vẫn phải chạy được).
   function load(){
     var token = new URLSearchParams(location.search).get('t');
     if(!token){ showState('stateNotFound'); return; }
-    var url = SUPABASE_URL + '/rest/v1/batch_trace_public?trace_code=eq.' + encodeURIComponent(token) + '&select=*';
-    fetch(url, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY } })
-      .then(function(res){ if(!res.ok) throw new Error('http ' + res.status); return res.json(); })
+    var headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY };
+    function fetchRows(table){
+      var url = SUPABASE_URL + '/rest/v1/' + table + '?trace_code=eq.' + encodeURIComponent(token) + '&select=*';
+      return fetch(url, { headers: headers }).then(function(res){ if(!res.ok) throw new Error('http ' + res.status); return res.json(); });
+    }
+    fetchRows('batch_trace_product_public')
+      .then(function(rows){
+        if(rows && rows.length) return rows;
+        return fetchRows('batch_trace_public');
+      })
       .then(function(rows){
         if(!rows || !rows.length){ showState('stateNotFound'); return; }
         render(rows[0]);
@@ -438,6 +469,10 @@
       .catch(function(){ showState('stateError'); });
   }
 
+  // Áp ngôn ngữ mặc định NGAY (kể cả trước khi tải xong dữ liệu) — nếu
+  // không, các trạng thái "Đang tải..."/"Không tìm thấy..." vẫn hiện tiếng
+  // Việt cho tới khi render() chạy applyLang() lần đầu.
+  applyLang();
   load();
 })();
 </script>
