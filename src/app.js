@@ -5774,7 +5774,7 @@ const titles = {
     const inventoryModalBatchInfo = document.getElementById('inventory-modal-batch-info');
     const inventorySubmitBtn = document.getElementById('btn-submit-add-inventory');
     const INVENTORY_COLS = 10;
-    const STOCK_COLS = 7;
+    const STOCK_COLS = 6;
     const URGENT_DAYS = 5;
     const WARNING_DAYS = 15;
     const UNSPECIFIED_VARIETY = 'Chưa phân loại';
@@ -5826,11 +5826,12 @@ const titles = {
     }
 
     // Tab "Tồn kho" theo FEFO — 1 dòng/tổ hợp (Sản phẩm, Quy cách) đang CÒN
-    // TỒN (remainingTrai > 0), sắp theo Còn lại (ngày) tăng dần: sắp hết hạn
-    // nhất lên đầu, kể cả đã quá hạn (số âm) — càng cần thấy ngay, không
-    // phải thấy ít hơn. Dòng chưa biết Còn lại (thiếu Hạn dùng/Ngày sản
-    // xuất) xếp cuối cùng, không trộn lẫn với dòng đã biết vì không so sánh
-    // được "chưa rõ" với 1 con số cụ thể.
+    // TỒN (remainingTrai > 0). Dòng ĐÃ biết Còn lại (có khai báo Hạn dùng ở
+    // "Hạn sử dụng theo sản phẩm") luôn lên trước, sắp theo Còn lại tăng dần
+    // (sắp hết hạn nhất lên đầu, kể cả đã quá hạn/số âm — càng cần thấy
+    // ngay). Dòng CHƯA biết Còn lại xếp sau, không trộn lẫn vì không so sánh
+    // được "chưa rõ" với 1 con số cụ thể — trong nhóm đó, sắp theo Ngày sản
+    // xuất mới nhất lên trước (dễ rà hơn xếp theo tên lô).
     function renderStockRows(groups){
       if(!stockTbody) return;
       const rows = [];
@@ -5844,10 +5845,14 @@ const titles = {
       });
       rows.sort(function(a, b){
         const da = a.entry.remainingDays, db = b.entry.remainingDays;
-        if(da == null && db == null) return a.batch.localeCompare(b.batch);
-        if(da == null) return 1;
-        if(db == null) return -1;
-        return da - db;
+        if(da != null && db != null) return da - db;
+        if(da != null) return -1;
+        if(db != null) return 1;
+        const pa = a.entry.productionDate, pb = b.entry.productionDate;
+        if(pa && pb && pa !== pb) return pa < pb ? 1 : -1;
+        if(pa && !pb) return -1;
+        if(!pa && pb) return 1;
+        return a.batch.localeCompare(b.batch, 'vi');
       });
 
       stockTbody.textContent = '';
@@ -5881,16 +5886,11 @@ const titles = {
         prodDateTd.textContent = entry.productionDate ? fmtDate(entry.productionDate) : '—';
         tr.appendChild(prodDateTd);
 
-        const hanDungTd = document.createElement('td');
-        hanDungTd.className = 'muted';
-        hanDungTd.textContent = entry.hanSuDungNgay != null ? (entry.hanSuDungNgay + ' ngày') : '—';
-        tr.appendChild(hanDungTd);
-
         const remainingDaysTd = document.createElement('td');
         if(entry.remainingDays == null){
           remainingDaysTd.textContent = '—';
           remainingDaysTd.className = 'muted';
-          remainingDaysTd.title = 'Chưa rõ Ngày sản xuất hoặc Hạn sử dụng của dòng này — khai báo ở Xưởng sản xuất để xếp theo FEFO.';
+          remainingDaysTd.title = 'Chưa rõ Ngày sản xuất hoặc Hạn sử dụng của dòng này — khai báo ở "Hạn sử dụng theo sản phẩm" để xếp theo FEFO.';
         } else {
           const badge = document.createElement('span');
           badge.className = 'badge ' + (entry.remainingDays < 0 ? 'red' : (entry.remainingDays < URGENT_DAYS ? 'red' : (entry.remainingDays < WARNING_DAYS ? 'amber' : 'green')));
