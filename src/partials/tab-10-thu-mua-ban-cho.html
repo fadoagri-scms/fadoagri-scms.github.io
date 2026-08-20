@@ -1,0 +1,224 @@
+<section class="tab-content" id="tab-thumua">
+    <div class="subtab-bar">
+      <button class="subtab-item active" id="subtab-btn-tm-mua" data-subtab="tm-mua" type="button">Thu mua</button>
+      <button class="subtab-item" id="subtab-btn-tm-so" data-subtab="tm-so" type="button">Sơ chế</button>
+      <button class="subtab-item" id="subtab-btn-tm-ban" data-subtab="tm-ban" type="button">Bán chợ</button>
+      <button class="subtab-item" id="subtab-btn-tm-tonkho" data-subtab="tm-tonkho" type="button">Tồn kho</button>
+    </div>
+
+    <div class="subtab-panel active" id="subtab-tm-mua">
+      <div class="section-header-row">
+        <div class="section-label">Thu mua</div>
+        <div class="chart-filter-row">
+          <input type="text" id="tm-mua-search-input" placeholder="Tìm theo nguồn mua..." style="font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid var(--border);padding:7px 12px;border-radius:20px;box-shadow:var(--shadow-sm);min-width:200px;">
+          <select id="tm-mua-month-select" aria-label="Chọn tháng"></select>
+          <select id="tm-mua-year-select" aria-label="Chọn năm"></select>
+        </div>
+        <button class="btn-secondary" id="btn-export-tm-mua" type="button"><i class="ti ti-file-export"></i>Xuất Excel</button>
+        <button class="btn-primary" id="btn-open-add-tm-mua" type="button"><i class="ti ti-plus"></i>Thêm lần thu mua</button>
+      </div>
+      <div class="card table-scroll">
+        <table>
+          <thead>
+            <tr><th>Ngày mua</th><th>Nguồn mua</th><th>Số lượng (trái)</th><th>Đơn giá</th><th>Thành tiền</th><th>Còn tồn (trái)</th><th>Ghi chú</th><th>Thao tác</th></tr>
+          </thead>
+          <tbody id="tm-mua-tbody">
+            <tr><td colspan="8" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subtab-panel" id="subtab-tm-so">
+      <div class="section-header-row">
+        <div class="section-label">Sơ chế</div>
+        <div class="chart-filter-row">
+          <select id="tm-so-month-select" aria-label="Chọn tháng"></select>
+          <select id="tm-so-year-select" aria-label="Chọn năm"></select>
+        </div>
+        <button class="btn-secondary" id="btn-export-tm-so" type="button"><i class="ti ti-file-export"></i>Xuất Excel</button>
+        <button class="btn-primary" id="btn-open-add-tm-so" type="button"><i class="ti ti-plus"></i>Thêm lần sơ chế</button>
+      </div>
+      <div class="card table-scroll">
+        <table>
+          <thead>
+            <tr><th>Ngày sơ chế</th><th>Nguồn nguyên liệu</th><th>Đầu vào (trái)</th><th>Sản phẩm đầu ra</th><th>Đầu ra (trái)</th><th>Hao hụt</th><th>Ghi chú</th><th>Thao tác</th></tr>
+          </thead>
+          <tbody id="tm-so-tbody">
+            <tr><td colspan="8" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subtab-panel" id="subtab-tm-ban">
+      <div class="section-header-row">
+        <div class="section-label">Bán chợ</div>
+        <div class="chart-filter-row">
+          <input type="text" id="tm-ban-search-input" placeholder="Tìm theo khách hàng/chợ hoặc sản phẩm..." style="font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid var(--border);padding:7px 12px;border-radius:20px;box-shadow:var(--shadow-sm);min-width:200px;">
+          <select id="tm-ban-month-select" aria-label="Chọn tháng"></select>
+          <select id="tm-ban-year-select" aria-label="Chọn năm"></select>
+        </div>
+        <button class="btn-secondary" id="btn-export-tm-ban" type="button"><i class="ti ti-file-export"></i>Xuất Excel</button>
+        <button class="btn-primary" id="btn-open-add-tm-ban" type="button"><i class="ti ti-plus"></i>Thêm lần bán</button>
+      </div>
+      <div class="card table-scroll">
+        <table>
+          <thead>
+            <tr><th>Ngày bán</th><th>Khách hàng/Chợ</th><th>Sản phẩm</th><th>Số lượng (trái)</th><th>Đơn giá</th><th>Thành tiền</th><th>Ghi chú</th><th>Thao tác</th></tr>
+          </thead>
+          <tbody id="tm-ban-tbody">
+            <tr><td colspan="8" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subtab-panel" id="subtab-tm-tonkho">
+      <div class="three-col">
+        <div class="stat-block">
+          <div class="stat-title">Tồn dừa trái (chưa sơ chế)</div>
+          <div class="stat-value" id="stat-tm-ton-trai">—</div>
+          <div class="muted" style="font-size:12px;">Đã mua − đã đưa vào sơ chế</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-title">Đã sơ chế (tổng)</div>
+          <div class="stat-value" id="stat-tm-da-so-che">—</div>
+          <div class="muted" style="font-size:12px;">Tổng sản lượng đầu ra, mọi sản phẩm</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-title">Chênh lệch gộp (ước tính thô)</div>
+          <div class="stat-value" id="stat-tm-lai-gop">—</div>
+          <div class="muted" style="font-size:12px;">Doanh thu bán − chi phí mua, chưa trừ chi phí sơ chế/vận chuyển. Không phải báo cáo tài chính.</div>
+        </div>
+      </div>
+
+      <div class="section-header-row">
+        <div class="section-label">Tồn kho theo sản phẩm sơ chế</div>
+        <button class="btn-secondary" id="btn-export-tm-tonkho" type="button"><i class="ti ti-file-export"></i>Xuất Excel</button>
+      </div>
+      <div class="card table-scroll">
+        <table>
+          <thead>
+            <tr><th>Sản phẩm</th><th>Đã sản xuất (trái)</th><th>Đã bán (trái)</th><th>Tồn hiện tại (trái)</th></tr>
+          </thead>
+          <tbody id="tm-tonkho-sanpham-tbody">
+            <tr><td colspan="4" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <datalist id="dl-tm-nguon-mua"></datalist>
+    <datalist id="dl-tm-san-pham"></datalist>
+
+    <!-- Modal: Thêm/sửa lần thu mua -->
+    <div class="modal-overlay" id="add-tm-mua-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="add-tm-mua-modal-title">Thêm lần thu mua</div>
+          <button class="modal-close" id="btn-close-add-tm-mua" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <form id="form-add-tm-mua">
+          <div class="form-group">
+            <label for="f-tm-mua-nguon">Nguồn mua</label>
+            <input type="text" id="f-tm-mua-nguon" list="dl-tm-nguon-mua" placeholder="VD: Thương lái Út Bé" required>
+          </div>
+          <div class="form-group">
+            <label for="f-tm-mua-ngay">Ngày mua</label>
+            <input type="date" id="f-tm-mua-ngay">
+          </div>
+          <div class="form-group">
+            <label for="f-tm-mua-soluong">Số lượng (trái)</label>
+            <input type="text" id="f-tm-mua-soluong" placeholder="VD: 3.000">
+          </div>
+          <div class="form-group">
+            <label for="f-tm-mua-dongia">Đơn giá mua (đ/trái)</label>
+            <input type="text" id="f-tm-mua-dongia" placeholder="VD: 8.000">
+          </div>
+          <div class="form-group">
+            <label for="f-tm-mua-ghichu">Ghi chú</label>
+            <textarea id="f-tm-mua-ghichu" rows="2" placeholder="Ghi chú thêm (nếu có)"></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-tm-mua">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-tm-mua">Thêm</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Thêm/sửa lần sơ chế -->
+    <div class="modal-overlay" id="add-tm-so-overlay">
+      <div class="modal modal-wide">
+        <div class="modal-header">
+          <div class="modal-title" id="add-tm-so-modal-title">Thêm lần sơ chế</div>
+          <button class="modal-close" id="btn-close-add-tm-so" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <form id="form-add-tm-so" class="form-grid">
+          <div class="form-group">
+            <label for="f-tm-so-ngay">Ngày sơ chế</label>
+            <input type="date" id="f-tm-so-ngay">
+          </div>
+          <div class="form-group form-group-full">
+            <label for="f-tm-so-ghichu">Ghi chú</label>
+            <textarea id="f-tm-so-ghichu" rows="2" placeholder="Ghi chú thêm (nếu có)"></textarea>
+          </div>
+          <div class="form-group form-group-full">
+            <label>Nguồn nguyên liệu (từ các lô thu mua)</label>
+            <div id="tm-so-sources-list"></div>
+            <button type="button" class="btn-secondary" id="btn-tm-so-add-source" style="margin-top:4px;"><i class="ti ti-plus"></i>Thêm nguồn</button>
+          </div>
+          <div class="form-group form-group-full">
+            <label>Sản phẩm đầu ra</label>
+            <div id="tm-so-outputs-list"></div>
+            <button type="button" class="btn-secondary" id="btn-tm-so-add-output" style="margin-top:4px;"><i class="ti ti-plus"></i>Thêm sản phẩm</button>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-tm-so">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-tm-so">Thêm</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Thêm/sửa lần bán chợ -->
+    <div class="modal-overlay" id="add-tm-ban-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="add-tm-ban-modal-title">Thêm lần bán</div>
+          <button class="modal-close" id="btn-close-add-tm-ban" type="button" aria-label="Đóng">&times;</button>
+        </div>
+        <form id="form-add-tm-ban">
+          <div class="form-group">
+            <label for="f-tm-ban-sanpham">Sản phẩm</label>
+            <input type="text" id="f-tm-ban-sanpham" list="dl-tm-san-pham" placeholder="VD: Dừa gọt vỏ loại 1" required>
+          </div>
+          <div class="form-group">
+            <label for="f-tm-ban-khach">Khách hàng/Chợ</label>
+            <input type="text" id="f-tm-ban-khach" placeholder="VD: Chợ đầu mối Bến Tre">
+          </div>
+          <div class="form-group">
+            <label for="f-tm-ban-ngay">Ngày bán</label>
+            <input type="date" id="f-tm-ban-ngay">
+          </div>
+          <div class="form-group">
+            <label for="f-tm-ban-soluong">Số lượng (trái)</label>
+            <input type="text" id="f-tm-ban-soluong" placeholder="VD: 500">
+          </div>
+          <div class="form-group">
+            <label for="f-tm-ban-dongia">Đơn giá bán (đ/trái)</label>
+            <input type="text" id="f-tm-ban-dongia" placeholder="VD: 12.000">
+          </div>
+          <div class="form-group">
+            <label for="f-tm-ban-ghichu">Ghi chú</label>
+            <textarea id="f-tm-ban-ghichu" rows="2" placeholder="Ghi chú thêm (nếu có)"></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancel-add-tm-ban">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-add-tm-ban">Thêm</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>

@@ -59,13 +59,24 @@
     top:16px;
     align-self:flex-start;
     height:calc(100vh - 32px);
+  }
+  /* Logo/tên công ty đứng NGOÀI vùng cuộn — chỉ .sidebar-scroll (nav + chân
+     trang) mới overflow-y:auto khi danh sách module dài hơn màn hình, nên
+     logo không bao giờ bị cuộn mất, không cần mẹo margin âm/sticky lồng
+     nhau (dễ vỡ layout trong flex column — đã thử và bị nav đè lên logo). */
+  .sidebar-scroll{
+    flex:1;
+    min-height:0;
     overflow-y:auto;
+    display:flex;
+    flex-direction:column;
   }
   .brand{
     display:flex;
     align-items:center;
     gap:12px;
     padding:0 8px 22px;
+    flex-shrink:0;
   }
   .brand .mark{
     width:40px;height:40px;border-radius:12px;flex-shrink:0;
@@ -123,9 +134,22 @@
   }
 
   .main{flex:1;min-width:0;padding:18px 8px 60px;}
+  /* Dính sát mép trên cùng (top:0, không chừa khoảng hở) khi cuộn — chừa hở
+     dù chỉ vài px cũng để lộ dòng bảng bên dưới trôi qua đúng khe hở đó,
+     nhìn như bị chồng/nhòe. Dải gradient nhạt màu thương hiệu (sage, đồng
+     bộ sidebar) → trắng + bóng đổ để tách hẳn khỏi thẻ/bảng trắng phẳng bên
+     dưới, không còn trùng màu. Chỉ bo góc 2 đáy vì mép trên nay dán sát viền
+     trình duyệt, bo góc trên sẽ lại hở góc. */
   .topbar{
     display:flex;justify-content:space-between;align-items:center;
-    margin-bottom:28px;
+    margin:0 -8px 28px;
+    padding:14px 8px;
+    position:sticky;
+    top:0;
+    z-index:30;
+    background:linear-gradient(120deg, #E1F7F1 0%, var(--surface) 60%);
+    border-radius:0 0 var(--radius-sm) var(--radius-sm);
+    box-shadow:var(--shadow-sm);
   }
   .topbar .page-title{font-size:23px;font-weight:700;color:var(--ink);}
   .topbar .page-sub{font-size:13px;color:var(--ink-soft);margin-top:3px;}
