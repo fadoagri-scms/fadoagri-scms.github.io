@@ -84,10 +84,10 @@
       <div class="card">
         <table>
           <thead>
-            <tr><th>Lô hàng</th><th>Sản phẩm</th><th>Quy cách</th><th>Thùng đóng gói</th><th>Ngày xuất hàng</th><th>Đã xuất (thùng)</th><th>Tổng đã xuất (thùng)</th><th>Tồn kho (trái)</th><th>Thao tác</th></tr>
+            <tr><th>Lô hàng</th><th>Sản phẩm</th><th>Quy cách</th><th>Ghi chú</th><th>Thùng đóng gói</th><th>Ngày xuất hàng</th><th>Đã xuất (thùng)</th><th>Tổng đã xuất (thùng)</th><th>Tồn kho (trái)</th><th>Thao tác</th></tr>
           </thead>
           <tbody id="inventory-tbody">
-            <tr><td colspan="9" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+            <tr><td colspan="10" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
           </tbody>
         </table>
       </div>
@@ -146,13 +146,13 @@
     </div>
 
     <div class="modal-overlay" id="add-factory-overlay">
-      <div class="modal">
+      <div class="modal modal-wide">
         <div class="modal-header">
           <div class="modal-title" id="add-factory-modal-title">Cập nhật sản xuất</div>
           <button class="modal-close" id="btn-close-add-factory" type="button" aria-label="Đóng">&times;</button>
         </div>
         <div class="muted" id="factory-modal-batch-info" style="font-size:12.5px;margin-bottom:14px;"></div>
-        <form id="form-add-factory">
+        <form id="form-add-factory" class="form-grid">
           <div class="form-group">
             <label for="fac-production-date">Ngày sản xuất</label>
             <input type="date" id="fac-production-date">
@@ -161,11 +161,11 @@
             <label for="fac-finished-qty">Thành phẩm (trái)</label>
             <input type="text" id="fac-finished-qty" placeholder="VD: 2.000">
           </div>
-          <div class="form-group">
+          <div class="form-group form-group-full">
             <label>Sản phẩm &amp; Quy cách đóng thùng</label>
             <div id="fac-boxes-list"></div>
             <button type="button" class="btn-secondary" id="btn-add-box-row" style="margin-top:4px;">+ Thêm quy cách</button>
-            <div class="muted" style="font-size:11px;margin-top:4px;">Khai báo sau khi đóng gói xong — 1 đợt sản xuất có thể đóng nhiều quy cách thùng khác nhau, kể cả sản phẩm khác nhau (VD: vài thùng làm mẫu cho khách khác). "Hạn dùng" tự điền theo Sản phẩm đang gõ (tra ở bảng "Hạn sử dụng" trong tab Tồn kho) — vẫn sửa tay được riêng cho dòng này nếu cần, để trống nếu sản phẩm chưa khai báo hạn sử dụng.</div>
+            <div class="muted" style="font-size:11px;margin-top:4px;">Khai báo sau khi đóng gói xong — 1 đợt sản xuất có thể đóng nhiều quy cách thùng khác nhau, kể cả sản phẩm khác nhau (VD: vài thùng làm mẫu cho khách khác, hoặc hàng dư chưa phân đơn — ghi rõ ở ô Ghi chú của dòng đó). Hạn sử dụng tự tra theo Sản phẩm từ bảng "Hạn sử dụng" ở tab Tồn kho khi lưu, không cần nhập tay ở đây — sản phẩm chưa khai báo hạn sử dụng thì để trống, không chặn lưu.</div>
           </div>
           <div class="form-group">
             <label for="fac-start">Bắt đầu</label>

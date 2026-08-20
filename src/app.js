@@ -821,22 +821,12 @@ const titles = {
       }
 
       if(statPass){
-        // Ưu tiên trung bình theo % thủ công đã nhập từng lô (chính xác hơn
-        // đếm đạt/không đạt) — lô nào chưa nhập % thì bỏ qua khỏi trung
-        // bình, không đoán. Chỉ rơi về cách đếm theo Trạng thái cũ khi CHƯA
-        // có lô nào nhập % thủ công (dữ liệu cũ trước khi có ô này).
-        const withManualRate = rows.filter(function(d){ return d.ty_le_dat_chuan != null && d.ty_le_dat_chuan !== ''; });
-        if(withManualRate.length){
-          const avg = withManualRate.reduce(function(sum, d){ return sum + Number(d.ty_le_dat_chuan); }, 0) / withManualRate.length;
-          statPass.textContent = Math.round(avg) + '%';
+        const decided = rows.filter(function(d){ return d.trang_thai && d.trang_thai !== 'Chờ kiểm tra'; });
+        if(decided.length){
+          const passed = decided.filter(function(d){ return d.trang_thai === 'Đạt chuẩn'; }).length;
+          statPass.textContent = Math.round(passed / decided.length * 100) + '%';
         } else {
-          const decided = rows.filter(function(d){ return d.trang_thai && d.trang_thai !== 'Chờ kiểm tra'; });
-          if(decided.length){
-            const passed = decided.filter(function(d){ return d.trang_thai === 'Đạt chuẩn'; }).length;
-            statPass.textContent = Math.round(passed / decided.length * 100) + '%';
-          } else {
-            statPass.textContent = '—';
-          }
+          statPass.textContent = '—';
         }
       }
     }
@@ -908,7 +898,6 @@ const titles = {
       document.getElementById('f-ngay-hen').value = tr.dataset.ngayHenGiao || '';
       document.getElementById('f-gio-hen').value = (tr.dataset.gioHenGiao || '').slice(0, 5);
       document.getElementById('f-trangthai').value = tr.dataset.trangThai || 'Chờ kiểm tra';
-      document.getElementById('f-ty-le-dat').value = tr.dataset.tyLeDat || '';
       document.getElementById('f-ghichu').value = tr.dataset.ghiChu || '';
       modalTitle.textContent = 'Chỉnh sửa lô nguyên liệu';
       submitBtn.textContent = 'Lưu thay đổi';
@@ -977,7 +966,6 @@ const titles = {
       tr.dataset.ngayHenGiao = d.ngay_hen_giao || '';
       tr.dataset.gioHenGiao = d.gio_hen_giao || '';
       tr.dataset.trangThai = d.trang_thai;
-      tr.dataset.tyLeDat = d.ty_le_dat_chuan != null ? d.ty_le_dat_chuan : '';
       tr.dataset.ghiChu = d.ghi_chu || '';
     }
 
@@ -1019,14 +1007,6 @@ const titles = {
       badge.className = 'badge ' + statusBadge[d.trang_thai];
       badge.textContent = d.trang_thai;
       trangThaiTd.appendChild(badge);
-      if(d.ty_le_dat_chuan != null && d.ty_le_dat_chuan !== ''){
-        const rateSpan = document.createElement('span');
-        rateSpan.className = 'muted';
-        rateSpan.style.marginLeft = '6px';
-        rateSpan.style.fontSize = '11.5px';
-        rateSpan.textContent = Number(d.ty_le_dat_chuan) + '%';
-        trangThaiTd.appendChild(rateSpan);
-      }
       tr.appendChild(trangThaiTd);
 
       const ghiChuTd = document.createElement('td');
@@ -1099,16 +1079,6 @@ const titles = {
       badge.className = 'badge ' + statusBadge[worst];
       badge.textContent = worst === 'Đạt chuẩn' ? ('Đạt chuẩn (' + items.length + ')') : worst;
       statusTd.appendChild(badge);
-      const itemsWithRate = items.filter(function(d){ return d.ty_le_dat_chuan != null && d.ty_le_dat_chuan !== ''; });
-      if(itemsWithRate.length){
-        const avgRate = itemsWithRate.reduce(function(sum, d){ return sum + Number(d.ty_le_dat_chuan); }, 0) / itemsWithRate.length;
-        const rateSpan = document.createElement('span');
-        rateSpan.className = 'muted';
-        rateSpan.style.marginLeft = '6px';
-        rateSpan.style.fontSize = '11.5px';
-        rateSpan.textContent = 'TB ' + Math.round(avgRate) + '%';
-        statusTd.appendChild(rateSpan);
-      }
       tr.appendChild(statusTd);
 
       const noteCount = items.filter(function(d){ return d.ghi_chu; }).length;
@@ -1440,7 +1410,6 @@ const titles = {
       const ngayHen = document.getElementById('f-ngay-hen').value;
       const gioHen = document.getElementById('f-gio-hen').value;
       const trangthai = document.getElementById('f-trangthai').value;
-      const tyLeDatRaw = document.getElementById('f-ty-le-dat').value.trim();
       const ghichu = document.getElementById('f-ghichu').value.trim();
 
       if(!batch || !ncc){
@@ -1459,7 +1428,6 @@ const titles = {
         ngay_hen_giao: ngayHen || null,
         gio_hen_giao: gioHen || null,
         trang_thai: trangthai,
-        ty_le_dat_chuan: tyLeDatRaw === '' ? null : (isNaN(Number(tyLeDatRaw.replace(',', '.'))) ? null : Number(tyLeDatRaw.replace(',', '.'))),
         ghi_chu: ghichu
       };
 
@@ -5283,7 +5251,7 @@ const titles = {
     // Sản phẩm dùng chung cho cả đợt) — 1 đợt có thể vừa ra sản phẩm chính
     // vừa ra vài thùng sản phẩm khác (VD: mẫu cho khách khác) mà không bị
     // gắn nhầm tên sản phẩm cho toàn bộ số thùng.
-    function createBoxRow(sanPham, quyCach, soLuongThung, hanSuDung){
+    function createBoxRow(sanPham, quyCach, soLuongThung, ghiChu){
       if(!boxesListEl) return;
       const row = document.createElement('div');
       row.className = 'box-row';
@@ -5293,52 +5261,38 @@ const titles = {
       sanPhamInput.placeholder = 'Sản phẩm';
       sanPhamInput.setAttribute('list', 'dl-san-pham');
       // Dòng mới thêm (không truyền sẵn giá trị) mặc định lấy theo dòng
-      // ngay trước — đa số các dòng trong 1 đợt vẫn cùng 1 sản phẩm (và cùng
-      // hạn sử dụng), tiện hơn phải gõ lại, nhưng vẫn sửa được nếu dòng đó
-      // là sản phẩm khác.
+      // ngay trước — đa số các dòng trong 1 đợt vẫn cùng 1 sản phẩm, tiện
+      // hơn phải gõ lại, nhưng vẫn sửa được nếu dòng đó là sản phẩm khác.
       const isNewRow = sanPham == null;
       if(isNewRow){
         const existingRows = boxesListEl.querySelectorAll('.box-row');
         if(existingRows.length){
           const lastInputs = existingRows[existingRows.length - 1].querySelectorAll('input');
           sanPham = lastInputs[0].value;
-          if(hanSuDung == null) hanSuDung = lastInputs[3].value;
         }
-        // Dòng mới (kể cả copy theo dòng trước) ưu tiên tra hạn sử dụng đã
-        // khai báo sẵn cho đúng sản phẩm này (tab Tồn kho) — đáng tin hơn là
-        // chỉ copy mù theo dòng trước, vì dòng trước có thể là sản phẩm khác.
-        const looked = sharedShelfLifeMap[normalizeSanPham(sanPham)];
-        if(looked != null) hanSuDung = looked;
       }
       sanPhamInput.value = sanPham || '';
-      sanPhamInput.style.flex = '1.3';
+      sanPhamInput.style.flex = '1.2';
       const quyCachInput = document.createElement('input');
       quyCachInput.type = 'text';
       quyCachInput.placeholder = 'Quy cách (trái/thùng)';
       quyCachInput.value = quyCach != null ? quyCach : '';
-      quyCachInput.style.flex = '1';
+      quyCachInput.style.flex = '0.9';
       const soLuongInput = document.createElement('input');
       soLuongInput.type = 'text';
       soLuongInput.placeholder = 'Số lượng thùng';
       soLuongInput.value = soLuongThung != null ? soLuongThung : '';
-      soLuongInput.style.flex = '1';
-      // Hạn sử dụng (ngày) tính từ Ngày sản xuất — dùng để xếp FEFO ở tab Tồn
-      // kho. Không bắt buộc: để trống thì dòng đó chỉ không xếp được theo
-      // hạn, không chặn lưu Quy cách.
-      const hanSuDungInput = document.createElement('input');
-      hanSuDungInput.type = 'text';
-      hanSuDungInput.placeholder = 'Hạn dùng (ngày)';
-      hanSuDungInput.value = hanSuDung != null ? hanSuDung : '';
-      hanSuDungInput.style.flex = '0.8';
-      // Gõ/chọn lại Sản phẩm (kể cả khi đang sửa 1 lô đã lưu) thì tự tra lại
-      // hạn dùng theo tên mới — chỉ khi NGƯỜI DÙNG chủ động đổi (sự kiện
-      // 'change', không phải lúc gán .value bằng JS khi mở modal sửa), nên
-      // không ghi đè hạn dùng đã lưu nếu họ không đụng vào ô Sản phẩm. Vẫn
-      // sửa tay được ô Hạn dùng sau đó nếu muốn khác với bảng tra cứu.
-      sanPhamInput.addEventListener('change', function(){
-        const looked = sharedShelfLifeMap[normalizeSanPham(sanPhamInput.value)];
-        if(looked != null) hanSuDungInput.value = looked;
-      });
+      soLuongInput.style.flex = '0.9';
+      // Ghi chú tự do cho riêng dòng này — VD đánh dấu "hàng dư chưa phân
+      // đơn" hoặc lý do tách dòng, không ảnh hưởng cách hệ thống ghép dữ
+      // liệu Sản xuất ↔ Tồn kho (chỉ Sản phẩm+Quy cách mới quyết định điều
+      // đó). "Hạn dùng" không còn nhập tay ở đây — tự tra theo Sản phẩm từ
+      // bảng "Hạn sử dụng" ở tab Tồn kho ngay khi lưu, không cần ô riêng.
+      const ghiChuInput = document.createElement('input');
+      ghiChuInput.type = 'text';
+      ghiChuInput.placeholder = 'Ghi chú (không bắt buộc)';
+      ghiChuInput.value = ghiChu || '';
+      ghiChuInput.style.flex = '1';
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
       removeBtn.className = 'row-delete-btn';
@@ -5348,7 +5302,7 @@ const titles = {
       row.appendChild(sanPhamInput);
       row.appendChild(quyCachInput);
       row.appendChild(soLuongInput);
-      row.appendChild(hanSuDungInput);
+      row.appendChild(ghiChuInput);
       row.appendChild(removeBtn);
       boxesListEl.appendChild(row);
     }
@@ -5357,7 +5311,7 @@ const titles = {
       if(!boxesListEl) return;
       boxesListEl.textContent = '';
       if(boxes && boxes.length){
-        boxes.forEach(function(b){ createBoxRow(b.san_pham, b.quy_cach, b.so_luong_thung, b.han_su_dung_ngay); });
+        boxes.forEach(function(b){ createBoxRow(b.san_pham, b.quy_cach, b.so_luong_thung, b.ghi_chu); });
       } else {
         createBoxRow('');
       }
@@ -5367,11 +5321,17 @@ const titles = {
       if(!boxesListEl) return [];
       return Array.from(boxesListEl.querySelectorAll('.box-row')).map(function(row){
         const inputs = row.querySelectorAll('input');
+        const sanPham = (inputs[0].value || '').trim();
+        // Hạn dùng luôn tra tươi theo đúng Sản phẩm đang gõ lúc lưu — nguồn
+        // duy nhất là bảng "Hạn sử dụng" ở tab Tồn kho, không còn giữ giá
+        // trị cũ đã lưu trước đây theo ô nhập tay (đã bỏ).
+        const lookedRate = sharedShelfLifeMap[normalizeSanPham(sanPham)];
         return {
-          sanPham: (inputs[0].value || '').trim(),
+          sanPham: sanPham,
           quyCach: parseQty(inputs[1].value),
           soLuongThung: parseQty(inputs[2].value),
-          hanSuDungNgay: parseQty(inputs[3].value)
+          ghiChu: (inputs[3].value || '').trim(),
+          hanSuDungNgay: lookedRate != null ? lookedRate : null
         };
       }).filter(function(r){ return r.quyCach && r.soLuongThung; });
     }
@@ -5456,7 +5416,7 @@ const titles = {
           if(delErr) throw delErr;
           if(boxRows.length){
             const { error: insErr } = await sb.from('factory_batch_boxes').insert(boxRows.map(function(r){
-              return { factory_batch_id: factoryBatchId, quy_cach: r.quyCach, so_luong_thung: r.soLuongThung, san_pham: r.sanPham || '', han_su_dung_ngay: r.hanSuDungNgay };
+              return { factory_batch_id: factoryBatchId, quy_cach: r.quyCach, so_luong_thung: r.soLuongThung, san_pham: r.sanPham || '', han_su_dung_ngay: r.hanSuDungNgay, ghi_chu: r.ghiChu || null };
             }));
             if(insErr) throw insErr;
           }
@@ -5579,7 +5539,7 @@ const titles = {
     const inventoryOverlay = document.getElementById('add-inventory-overlay');
     const inventoryModalBatchInfo = document.getElementById('inventory-modal-batch-info');
     const inventorySubmitBtn = document.getElementById('btn-submit-add-inventory');
-    const INVENTORY_COLS = 9;
+    const INVENTORY_COLS = 10;
     const STOCK_COLS = 7;
     const URGENT_DAYS = 5;
     const WARNING_DAYS = 15;
@@ -5757,6 +5717,11 @@ const titles = {
             quyCachTd.textContent = entry.quyCach != null ? (entry.quyCach + ' trái/thùng') : '—';
             tr.appendChild(quyCachTd);
 
+            const ghiChuTd = document.createElement('td');
+            ghiChuTd.className = 'muted';
+            ghiChuTd.textContent = entry.ghiChu || '—';
+            tr.appendChild(ghiChuTd);
+
             const soLuongThungTd = document.createElement('td');
             soLuongThungTd.className = 'muted';
             soLuongThungTd.textContent = entry.producedThung ? fmtBoxQty(entry.producedThung) : '—';
@@ -5862,7 +5827,7 @@ const titles = {
     async function refreshInventoryRows(){
       try{
         const [rawRes, stockRes] = await Promise.all([
-          sb.from('raw_batches').select('batch, chung_loai, factory_batches(finished_qty, san_pham, production_date, factory_batch_boxes(quy_cach, so_luong_thung, san_pham, han_su_dung_ngay))').is('deleted_at', null),
+          sb.from('raw_batches').select('batch, chung_loai, factory_batches(finished_qty, san_pham, production_date, factory_batch_boxes(quy_cach, so_luong_thung, san_pham, han_su_dung_ngay, ghi_chu))').is('deleted_at', null),
           sb.from('factory_finished_stock').select('*').is('deleted_at', null)
         ]);
         if(rawRes.error) throw rawRes.error;
@@ -5892,7 +5857,7 @@ const titles = {
         function boxKeyOf(sanPham, quyCach){ return normalizeSanPham(sanPham) + '::' + quyCachKeyOf(quyCach); }
         function ensureBox(v, sanPham, quyCach){
           const key = boxKeyOf(sanPham, quyCach);
-          if(!v.boxesByKey[key]) v.boxesByKey[key] = { sanPham: sanPham || '', quyCach: quyCach, produced: 0, hanSuDungNgay: null };
+          if(!v.boxesByKey[key]) v.boxesByKey[key] = { sanPham: sanPham || '', quyCach: quyCach, produced: 0, hanSuDungNgay: null, ghiChu: null };
           return v.boxesByKey[key];
         }
         (rawRes.data || []).forEach(function(r){
@@ -5911,6 +5876,7 @@ const titles = {
             // 1 tổ hợp (sản phẩm, quy cách) — giữ hạn dùng đã khai báo gần
             // nhất nếu có, không để dòng sau ghi đè thành trống.
             if(box.han_su_dung_ngay != null) entry.hanSuDungNgay = Number(box.han_su_dung_ngay);
+            if(box.ghi_chu) entry.ghiChu = box.ghi_chu;
           });
         });
 
@@ -5948,7 +5914,7 @@ const titles = {
         Object.values(varietyMap).forEach(function(v){
           const keys = Object.keys(v.boxesByKey);
           const quyCachEntries = (keys.length ? keys : [boxKeyOf('', null)]).map(function(key){
-            const box = v.boxesByKey[key] || { sanPham: '', quyCach: null, produced: 0, hanSuDungNgay: null };
+            const box = v.boxesByKey[key] || { sanPham: '', quyCach: null, produced: 0, hanSuDungNgay: null, ghiChu: null };
             const stock = stockByFullKey[varietyKey(v.batch, v.variety) + '::' + key];
             const exportedQty = stock && stock.exported_qty != null ? Number(stock.exported_qty) : null;
             // Biết đúng Quy cách của dòng này nên quy đổi thẳng ra trái,
@@ -5964,6 +5930,7 @@ const titles = {
               stockId: stock ? stock.id : null,
               remainingTrai: remainingTrai,
               hanSuDungNgay: box.hanSuDungNgay,
+              ghiChu: box.ghiChu,
               productionDate: v.productionDate,
               remainingDays: computeRemainingDays(v.productionDate, box.hanSuDungNgay)
             };
