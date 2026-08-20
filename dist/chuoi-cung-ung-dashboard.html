@@ -8469,7 +8469,7 @@ const titles = {
           byBatch[v.batch].push(line);
         });
 
-        const groups = Object.keys(byBatch).sort(function(a, b){ return a.localeCompare(b); }).map(function(batch){
+        const groups = Object.keys(byBatch).map(function(batch){
           const lines = byBatch[batch].sort(function(a, b){ return a.variety.localeCompare(b.variety, 'vi'); });
           const totalExportedQty = lines.reduce(function(sum, l){
             return sum + l.quyCachEntries.reduce(function(s2, e){ return s2 + (e.exportedQty || 0); }, 0);
@@ -8483,6 +8483,14 @@ const titles = {
             }, latest);
           }, null);
           return { batch: batch, lines: lines, totalExportedQty: totalExportedQty, exportDate: exportDate };
+        }).sort(function(a, b){
+          // Xuất trước lên trên, xuất sau xuống dưới theo đúng Ngày xuất
+          // hàng — lô chưa xuất gì (chưa có ngày) không so sánh được nên
+          // luôn xếp xuống cuối, không trộn lẫn với lô đã có ngày thật.
+          if(!a.exportDate && !b.exportDate) return a.batch.localeCompare(b.batch, 'vi');
+          if(!a.exportDate) return 1;
+          if(!b.exportDate) return -1;
+          return a.exportDate < b.exportDate ? -1 : (a.exportDate > b.exportDate ? 1 : a.batch.localeCompare(b.batch, 'vi'));
         });
 
         // Chỉ lấy dòng còn tồn thật (remainingTrai > 0) và đã đủ dữ liệu để
