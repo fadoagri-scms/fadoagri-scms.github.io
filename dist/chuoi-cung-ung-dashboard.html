@@ -7951,7 +7951,17 @@ const titles = {
           if(!varietyMap[key]) varietyMap[key] = { batch: batch, variety: variety, boxesByKey: {}, productionDate: null };
           return varietyMap[key];
         }
-        function boxKeyOf(sanPham, quyCach){ return (sanPham || '') + '::' + quyCachKeyOf(quyCach); }
+        // Chuẩn hoá tên sản phẩm trước khi ghép khoá — 2 lần nhập cùng 1 tên
+        // (1 lần ở Sản xuất, 1 lần ở Xuất kho) có thể lệch nhau ở khoảng
+        // trắng thừa hoặc cách gõ dấu tiếng Việt khác nhau (Unicode tổ hợp
+        // vs dựng sẵn) mà nhìn y hệt trên màn hình — nếu không chuẩn hoá,
+        // 2 dòng đó bị coi là 2 sản phẩm khác nhau, tách rời "đã sản xuất"
+        // và "đã xuất" thành 2 dòng riêng, dòng thiếu "đã sản xuất" thì tính
+        // tồn kho ra âm.
+        function normalizeSanPham(sanPham){
+          return (sanPham || '').normalize('NFC').trim().replace(/\s+/g, ' ');
+        }
+        function boxKeyOf(sanPham, quyCach){ return normalizeSanPham(sanPham) + '::' + quyCachKeyOf(quyCach); }
         function ensureBox(v, sanPham, quyCach){
           const key = boxKeyOf(sanPham, quyCach);
           if(!v.boxesByKey[key]) v.boxesByKey[key] = { sanPham: sanPham || '', quyCach: quyCach, produced: 0, hanSuDungNgay: null };
