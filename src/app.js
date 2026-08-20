@@ -3249,13 +3249,19 @@ const titles = {
       // mã vạch bằng đầu đọc thường sẽ ra đúng mã này (không tự mở trang
       // như QR) — cần ghép với link gốc hoặc qua hệ thống nội bộ để tra ra
       // đúng trang, đổi lại đổi lấy mã vạch ngắn gọn, dễ in/quét hơn nhiều.
+      // displayValue:false — mã này là "bí mật, khách không thấy trực
+      // tiếp" (giống QR), in chữ mã ngay dưới vạch sẽ lộ mã cho bất kỳ ai
+      // NHÌN vào tem cũng đọc được, không cần quét gì cả.
+      // margin:20 — "vùng trắng yên tĩnh" 2 bên mép đủ rộng để đầu đọc
+      // nhận ra điểm bắt đầu/kết thúc mã; để quá hẹp (như 4 trước đây) là
+      // nguyên nhân phổ biến nhất khiến CODE128 quét không ra.
       const barcodeSvg = document.getElementById('trace-barcode-svg');
       if(barcodeSvg){
         if(typeof JsBarcode === 'undefined'){
           barcodeSvg.parentElement.textContent = 'Không tải được thư viện mã vạch — kiểm tra kết nối mạng.';
         } else {
           try{
-            JsBarcode(barcodeSvg, code, { format: 'CODE128', width: 2, height: 60, fontSize: 12, margin: 4 });
+            JsBarcode(barcodeSvg, code, { format: 'CODE128', width: 2, height: 70, displayValue: false, margin: 20 });
           } catch(err){
             barcodeSvg.parentElement.textContent = 'Không tạo được mã vạch: ' + err.message;
           }
