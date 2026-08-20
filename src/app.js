@@ -3430,10 +3430,61 @@ const titles = {
     bindTraceTypeToggle(traceQrEnabledToggle, 'trace_qr_enabled');
     bindTraceTypeToggle(traceBarcodeEnabledToggle, 'trace_barcode_enabled');
 
+    // Tên file an toàn từ tên lô — bỏ ký tự lạ, giữ lại chữ/số/gạch ngang để
+    // không lỗi khi lưu trên các hệ điều hành khác nhau.
+    function traceFileSafeBatch(){
+      return (traceCurrentBatch || 'ma-truy-xuat').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '');
+    }
+    function downloadDataUrl(dataUrl, filename){
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    // qrcodejs vẽ sẵn 1 <canvas> bên trong (kèm <img> ẩn dự phòng cho trình
+    // duyệt không hỗ trợ canvas) — lấy thẳng canvas.toDataURL() là đủ, không
+    // cần tự vẽ lại.
+    function exportTraceQrImage(){
+      const canvas = traceQrBox.querySelector('canvas');
+      if(!canvas){ alert('Chưa có mã QR để xuất — bật "Mã QR" và đợi hiện ra trước.'); return; }
+      downloadDataUrl(canvas.toDataURL('image/png'), 'qr-' + traceFileSafeBatch() + '.png');
+    }
+    // Mã vạch vẽ ra <svg> (vector) — chuyển qua canvas rồi mới xuất PNG,
+    // dùng đúng kích thước GỐC (chưa bị CSS max-width thu nhỏ trên màn
+    // hình) để ảnh tải về vẫn nét khi in.
+    function exportTraceBarcodeImage(){
+      const svg = document.getElementById('trace-barcode-svg');
+      if(!svg || !svg.childElementCount){ alert('Chưa có mã vạch để xuất — bật "Mã vạch" và đợi hiện ra trước.'); return; }
+      const width = svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width ? svg.viewBox.baseVal.width : svg.width.baseVal.value;
+      const height = svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.height ? svg.viewBox.baseVal.height : svg.height.baseVal.value;
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const svgUrl = URL.createObjectURL(new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' }));
+      const img = new Image();
+      img.onload = function(){
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, width, height);
+        URL.revokeObjectURL(svgUrl);
+        downloadDataUrl(canvas.toDataURL('image/png'), 'mavach-' + traceFileSafeBatch() + '.png');
+      };
+      img.onerror = function(){
+        URL.revokeObjectURL(svgUrl);
+        alert('Không tạo được ảnh mã vạch để tải về.');
+      };
+      img.src = svgUrl;
+    }
+
     // Đánh dấu "đã xuất" — staff bấm khi đã thật sự in/dùng mã đó, KHÔNG tự
     // động chỉ vì mở modal xem thử. Trạng thái này chỉ dùng để cảnh báo khi
-    // sau này đổi mã tra cứu (xem btn-save-trace-code).
-    function bindTraceExportBtn(btnEl, column, setFlag){
+    // sau này đổi mã tra cứu (xem btn-save-trace-code). Bấm xong luôn kèm
+    // tải ảnh PNG về để in ngay, không cần thao tác riêng.
+    function bindTraceExportBtn(btnEl, column, setFlag, downloadImage){
       if(!btnEl) return;
       btnEl.addEventListener('click', async function(){
         if(!traceCurrentBatch) return;
@@ -3445,6 +3496,7 @@ const titles = {
           if(error) throw error;
           setFlag(true);
           updateTraceExportedLabels();
+          if(downloadImage) downloadImage();
         } catch(err){
           alert('Không thể lưu: ' + (err.message || err));
         } finally {
@@ -3452,8 +3504,8 @@ const titles = {
         }
       });
     }
-    bindTraceExportBtn(traceExportQrBtn, 'trace_qr_exported', function(v){ traceQrExported = v; });
-    bindTraceExportBtn(traceExportBarcodeBtn, 'trace_barcode_exported', function(v){ traceBarcodeExported = v; });
+    bindTraceExportBtn(traceExportQrBtn, 'trace_qr_exported', function(v){ traceQrExported = v; }, exportTraceQrImage);
+    bindTraceExportBtn(traceExportBarcodeBtn, 'trace_barcode_exported', function(v){ traceBarcodeExported = v; }, exportTraceBarcodeImage);
 
     // Chỉ điền lại ô — vẫn phải bấm "Lưu mã" mới thật sự đổi, để staff kịp
     // xem qua mã mới trước khi link cũ ngừng hoạt động.

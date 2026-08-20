@@ -80,7 +80,7 @@
     </div>
 
     <div class="modal-overlay" id="trace-overlay">
-      <div class="modal" style="max-width:420px;">
+      <div class="modal" style="max-width:460px;">
         <div class="modal-header">
           <div class="modal-title" id="trace-modal-title">Truy xuất nguồn gốc</div>
           <button class="modal-close" id="btn-close-trace" type="button" aria-label="Đóng">&times;</button>
@@ -155,9 +155,9 @@
             <div class="muted" style="font-size:11px;margin-top:4px;">Đổi mã cũng đổi luôn link/QR cũ — mã cũ sẽ không dùng được nữa. Để ngẫu nhiên (mặc định) cho khó đoán — chỉ đổi khi thật sự cần.</div>
           </div>
           <div id="trace-qr-wrap" style="display:none;text-align:center;">
-            <div class="muted" style="font-size:11px;margin-bottom:10px;">Mỗi lô dùng cho tình huống khác nhau — bật loại mã cần dùng, tắt loại không dùng. Cả 2 luôn dẫn tới cùng 1 trang truy xuất.</div>
-            <div style="display:flex;gap:16px;justify-content:center;align-items:flex-start;flex-wrap:wrap;">
-              <div style="text-align:center;width:180px;">
+            <div class="muted" style="font-size:11px;margin-bottom:10px;">Mỗi lô dùng cho tình huống khác nhau — bật loại mã cần dùng, tắt loại không dùng. Cả 2 luôn dẫn tới cùng 1 trang truy xuất. Bấm "Xuất" để vừa đánh dấu đã dùng vừa tải ảnh PNG về in.</div>
+            <div style="display:flex;flex-direction:column;gap:18px;align-items:center;">
+              <div style="text-align:center;width:100%;max-width:240px;">
                 <label style="display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;margin-bottom:8px;">
                   <input type="checkbox" id="trace-qr-enabled-toggle" style="width:auto;">
                   <span style="font-size:12px;font-weight:700;">Mã QR</span>
@@ -165,22 +165,22 @@
                 <div id="trace-qr-visible-area">
                   <div id="trace-qr-box" style="display:inline-block;padding:10px;background:#fff;border:1px solid var(--border);border-radius:10px;"></div>
                   <div style="margin-top:8px;">
-                    <button type="button" class="btn-secondary" id="btn-export-trace-qr" style="font-size:11px;padding:5px 10px;">Xuất QR</button>
+                    <button type="button" class="btn-secondary" id="btn-export-trace-qr" style="font-size:11px;padding:5px 10px;"><i class="ti ti-download"></i> Xuất QR (PNG)</button>
                   </div>
                   <div class="muted" id="trace-qr-exported-label" style="font-size:10.5px;margin-top:4px;"></div>
                 </div>
               </div>
-              <div style="text-align:center;width:220px;">
+              <div style="text-align:center;width:100%;max-width:240px;">
                 <label style="display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;margin-bottom:8px;">
                   <input type="checkbox" id="trace-barcode-enabled-toggle" style="width:auto;">
                   <span style="font-size:12px;font-weight:700;">Mã vạch</span>
                 </label>
                 <div id="trace-barcode-visible-area">
-                  <div style="display:inline-block;padding:10px;background:#fff;border:1px solid var(--border);border-radius:10px;max-width:220px;">
+                  <div style="display:inline-block;padding:10px;background:#fff;border:1px solid var(--border);border-radius:10px;max-width:100%;">
                     <svg id="trace-barcode-svg" style="display:block;max-width:100%;height:auto;"></svg>
                   </div>
                   <div style="margin-top:8px;">
-                    <button type="button" class="btn-secondary" id="btn-export-trace-barcode" style="font-size:11px;padding:5px 10px;">Xuất mã vạch</button>
+                    <button type="button" class="btn-secondary" id="btn-export-trace-barcode" style="font-size:11px;padding:5px 10px;"><i class="ti ti-download"></i> Xuất mã vạch (PNG)</button>
                   </div>
                   <div class="muted" id="trace-barcode-exported-label" style="font-size:10.5px;margin-top:4px;"></div>
                 </div>

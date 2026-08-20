@@ -844,7 +844,7 @@
     </div>
 
     <div class="modal-overlay" id="trace-overlay">
-      <div class="modal" style="max-width:420px;">
+      <div class="modal" style="max-width:460px;">
         <div class="modal-header">
           <div class="modal-title" id="trace-modal-title">Truy xuất nguồn gốc</div>
           <button class="modal-close" id="btn-close-trace" type="button" aria-label="Đóng">&times;</button>
@@ -919,9 +919,9 @@
             <div class="muted" style="font-size:11px;margin-top:4px;">Đổi mã cũng đổi luôn link/QR cũ — mã cũ sẽ không dùng được nữa. Để ngẫu nhiên (mặc định) cho khó đoán — chỉ đổi khi thật sự cần.</div>
           </div>
           <div id="trace-qr-wrap" style="display:none;text-align:center;">
-            <div class="muted" style="font-size:11px;margin-bottom:10px;">Mỗi lô dùng cho tình huống khác nhau — bật loại mã cần dùng, tắt loại không dùng. Cả 2 luôn dẫn tới cùng 1 trang truy xuất.</div>
-            <div style="display:flex;gap:16px;justify-content:center;align-items:flex-start;flex-wrap:wrap;">
-              <div style="text-align:center;width:180px;">
+            <div class="muted" style="font-size:11px;margin-bottom:10px;">Mỗi lô dùng cho tình huống khác nhau — bật loại mã cần dùng, tắt loại không dùng. Cả 2 luôn dẫn tới cùng 1 trang truy xuất. Bấm "Xuất" để vừa đánh dấu đã dùng vừa tải ảnh PNG về in.</div>
+            <div style="display:flex;flex-direction:column;gap:18px;align-items:center;">
+              <div style="text-align:center;width:100%;max-width:240px;">
                 <label style="display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;margin-bottom:8px;">
                   <input type="checkbox" id="trace-qr-enabled-toggle" style="width:auto;">
                   <span style="font-size:12px;font-weight:700;">Mã QR</span>
@@ -929,22 +929,22 @@
                 <div id="trace-qr-visible-area">
                   <div id="trace-qr-box" style="display:inline-block;padding:10px;background:#fff;border:1px solid var(--border);border-radius:10px;"></div>
                   <div style="margin-top:8px;">
-                    <button type="button" class="btn-secondary" id="btn-export-trace-qr" style="font-size:11px;padding:5px 10px;">Xuất QR</button>
+                    <button type="button" class="btn-secondary" id="btn-export-trace-qr" style="font-size:11px;padding:5px 10px;"><i class="ti ti-download"></i> Xuất QR (PNG)</button>
                   </div>
                   <div class="muted" id="trace-qr-exported-label" style="font-size:10.5px;margin-top:4px;"></div>
                 </div>
               </div>
-              <div style="text-align:center;width:220px;">
+              <div style="text-align:center;width:100%;max-width:240px;">
                 <label style="display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;margin-bottom:8px;">
                   <input type="checkbox" id="trace-barcode-enabled-toggle" style="width:auto;">
                   <span style="font-size:12px;font-weight:700;">Mã vạch</span>
                 </label>
                 <div id="trace-barcode-visible-area">
-                  <div style="display:inline-block;padding:10px;background:#fff;border:1px solid var(--border);border-radius:10px;max-width:220px;">
+                  <div style="display:inline-block;padding:10px;background:#fff;border:1px solid var(--border);border-radius:10px;max-width:100%;">
                     <svg id="trace-barcode-svg" style="display:block;max-width:100%;height:auto;"></svg>
                   </div>
                   <div style="margin-top:8px;">
-                    <button type="button" class="btn-secondary" id="btn-export-trace-barcode" style="font-size:11px;padding:5px 10px;">Xuất mã vạch</button>
+                    <button type="button" class="btn-secondary" id="btn-export-trace-barcode" style="font-size:11px;padding:5px 10px;"><i class="ti ti-download"></i> Xuất mã vạch (PNG)</button>
                   </div>
                   <div class="muted" id="trace-barcode-exported-label" style="font-size:10.5px;margin-top:4px;"></div>
                 </div>
@@ -5765,10 +5765,61 @@ const titles = {
     bindTraceTypeToggle(traceQrEnabledToggle, 'trace_qr_enabled');
     bindTraceTypeToggle(traceBarcodeEnabledToggle, 'trace_barcode_enabled');
 
+    // Tên file an toàn từ tên lô — bỏ ký tự lạ, giữ lại chữ/số/gạch ngang để
+    // không lỗi khi lưu trên các hệ điều hành khác nhau.
+    function traceFileSafeBatch(){
+      return (traceCurrentBatch || 'ma-truy-xuat').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '');
+    }
+    function downloadDataUrl(dataUrl, filename){
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    // qrcodejs vẽ sẵn 1 <canvas> bên trong (kèm <img> ẩn dự phòng cho trình
+    // duyệt không hỗ trợ canvas) — lấy thẳng canvas.toDataURL() là đủ, không
+    // cần tự vẽ lại.
+    function exportTraceQrImage(){
+      const canvas = traceQrBox.querySelector('canvas');
+      if(!canvas){ alert('Chưa có mã QR để xuất — bật "Mã QR" và đợi hiện ra trước.'); return; }
+      downloadDataUrl(canvas.toDataURL('image/png'), 'qr-' + traceFileSafeBatch() + '.png');
+    }
+    // Mã vạch vẽ ra <svg> (vector) — chuyển qua canvas rồi mới xuất PNG,
+    // dùng đúng kích thước GỐC (chưa bị CSS max-width thu nhỏ trên màn
+    // hình) để ảnh tải về vẫn nét khi in.
+    function exportTraceBarcodeImage(){
+      const svg = document.getElementById('trace-barcode-svg');
+      if(!svg || !svg.childElementCount){ alert('Chưa có mã vạch để xuất — bật "Mã vạch" và đợi hiện ra trước.'); return; }
+      const width = svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width ? svg.viewBox.baseVal.width : svg.width.baseVal.value;
+      const height = svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.height ? svg.viewBox.baseVal.height : svg.height.baseVal.value;
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const svgUrl = URL.createObjectURL(new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' }));
+      const img = new Image();
+      img.onload = function(){
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, width, height);
+        URL.revokeObjectURL(svgUrl);
+        downloadDataUrl(canvas.toDataURL('image/png'), 'mavach-' + traceFileSafeBatch() + '.png');
+      };
+      img.onerror = function(){
+        URL.revokeObjectURL(svgUrl);
+        alert('Không tạo được ảnh mã vạch để tải về.');
+      };
+      img.src = svgUrl;
+    }
+
     // Đánh dấu "đã xuất" — staff bấm khi đã thật sự in/dùng mã đó, KHÔNG tự
     // động chỉ vì mở modal xem thử. Trạng thái này chỉ dùng để cảnh báo khi
-    // sau này đổi mã tra cứu (xem btn-save-trace-code).
-    function bindTraceExportBtn(btnEl, column, setFlag){
+    // sau này đổi mã tra cứu (xem btn-save-trace-code). Bấm xong luôn kèm
+    // tải ảnh PNG về để in ngay, không cần thao tác riêng.
+    function bindTraceExportBtn(btnEl, column, setFlag, downloadImage){
       if(!btnEl) return;
       btnEl.addEventListener('click', async function(){
         if(!traceCurrentBatch) return;
@@ -5780,6 +5831,7 @@ const titles = {
           if(error) throw error;
           setFlag(true);
           updateTraceExportedLabels();
+          if(downloadImage) downloadImage();
         } catch(err){
           alert('Không thể lưu: ' + (err.message || err));
         } finally {
@@ -5787,8 +5839,8 @@ const titles = {
         }
       });
     }
-    bindTraceExportBtn(traceExportQrBtn, 'trace_qr_exported', function(v){ traceQrExported = v; });
-    bindTraceExportBtn(traceExportBarcodeBtn, 'trace_barcode_exported', function(v){ traceBarcodeExported = v; });
+    bindTraceExportBtn(traceExportQrBtn, 'trace_qr_exported', function(v){ traceQrExported = v; }, exportTraceQrImage);
+    bindTraceExportBtn(traceExportBarcodeBtn, 'trace_barcode_exported', function(v){ traceBarcodeExported = v; }, exportTraceBarcodeImage);
 
     // Chỉ điền lại ô — vẫn phải bấm "Lưu mã" mới thật sự đổi, để staff kịp
     // xem qua mã mới trước khi link cũ ngừng hoạt động.
