@@ -5750,11 +5750,23 @@ const titles = {
       head.appendChild(toggleLabel);
       row.appendChild(head);
 
+      const quyCachLabel = g.quyCachs.length ? g.quyCachs.slice().sort(function(a, b){ return a - b; }).map(function(q){ return q + ' trái/thùng'; }).join(', ') : '';
+
       const sub = document.createElement('div');
       sub.className = 'muted';
       sub.style.cssText = 'font-size:11px;margin-top:2px;';
-      sub.textContent = (g.varieties.length ? g.varieties.join(', ') + ' · ' : '') + g.totalThung.toLocaleString('vi-VN') + ' thùng';
+      sub.textContent = (quyCachLabel ? quyCachLabel + ' · ' : '') + g.totalThung.toLocaleString('vi-VN') + ' thùng';
       row.appendChild(sub);
+
+      const varietyRow = document.createElement('div');
+      varietyRow.style.cssText = 'display:flex;gap:6px;margin-top:8px;';
+      const varietyInput = document.createElement('input');
+      varietyInput.type = 'text';
+      varietyInput.placeholder = 'Chủng loại';
+      varietyInput.value = (existing && existing.variety != null) ? existing.variety : g.varieties.join(', ');
+      varietyInput.style.cssText = 'font-size:11.5px;flex:1;';
+      varietyRow.appendChild(varietyInput);
+      row.appendChild(varietyRow);
 
       const enInput = document.createElement('input');
       enInput.type = 'text';
@@ -5774,7 +5786,8 @@ const titles = {
           batch: batchCode,
           san_pham: g.sanPham,
           san_pham_en: enInput.value.trim() || null,
-          variety: g.varieties.join(', ') || null,
+          variety: varietyInput.value.trim() || null,
+          quy_cach: quyCachLabel || null,
           total_thung: g.totalThung,
           trace_enabled: toggle.checked,
           public_trace_code: code,
@@ -5848,6 +5861,15 @@ const titles = {
         }
       });
 
+      varietyInput.addEventListener('change', async function(){
+        try{
+          const { error } = await saveRow();
+          if(error) throw error;
+        } catch(err){
+          alert('Không thể lưu: ' + (err.message || err));
+        }
+      });
+
       traceProductList.appendChild(row);
     }
 
@@ -5867,9 +5889,10 @@ const titles = {
         const groups = {};
         items.forEach(function(it){
           if(!it.sanPham) return;
-          if(!groups[it.sanPham]) groups[it.sanPham] = { sanPham: it.sanPham, totalThung: 0, varieties: [] };
+          if(!groups[it.sanPham]) groups[it.sanPham] = { sanPham: it.sanPham, totalThung: 0, varieties: [], quyCachs: [] };
           groups[it.sanPham].totalThung += it.soLuong;
           if(it.nguyenLieu && groups[it.sanPham].varieties.indexOf(it.nguyenLieu) === -1) groups[it.sanPham].varieties.push(it.nguyenLieu);
+          if(it.quyCach != null && groups[it.sanPham].quyCachs.indexOf(it.quyCach) === -1) groups[it.sanPham].quyCachs.push(it.quyCach);
         });
 
         const names = Object.keys(groups);

@@ -150,7 +150,6 @@
         <div class="field-row" id="rowRegion" hidden><span class="field-label" data-vi="Vùng nguyên liệu" data-en="Growing region">Vùng nguyên liệu</span><span class="field-value" id="valRegion"></span></div>
         <div class="field-row" id="rowVariety" hidden><span class="field-label" data-vi="Chủng loại" data-en="Variety">Chủng loại</span><span class="field-value" id="valVariety"></span></div>
         <div class="field-row" id="rowHarvest" hidden><span class="field-label" data-vi="Ngày nhập nguyên liệu" data-en="Material intake date">Ngày nhập nguyên liệu</span><span class="field-value mono" id="valHarvest"></span></div>
-        <div class="field-row" id="rowQty" hidden><span class="field-label" data-vi="Số lượng đóng gói" data-en="Packed quantity">Số lượng đóng gói</span><span class="field-value mono" id="valQty"></span></div>
         <div class="field-row" id="rowBestBefore" hidden><span class="field-label" data-vi="Hạn sử dụng" data-en="Best before">Hạn sử dụng</span><span class="field-value mono" id="valBestBefore"></span></div>
       </div>
 
@@ -172,7 +171,19 @@
           <span data-vi="Đóng gói" data-en="Packing">Đóng gói</span>
         </div>
         <div class="field-row" id="rowPackedDate" hidden><span class="field-label" data-vi="Ngày đóng hàng" data-en="Packed on">Ngày đóng hàng</span><span class="field-value mono" id="valPackedDate"></span></div>
+        <div class="field-row" id="rowPackProduct" hidden><span class="field-label" data-vi="Tên sản phẩm" data-en="Product name">Tên sản phẩm</span><span class="field-value" id="valPackProduct"></span></div>
+        <div class="field-row" id="rowPackSpec" hidden><span class="field-label" data-vi="Quy cách đóng gói" data-en="Packing spec">Quy cách đóng gói</span><span class="field-value" id="valPackSpec"></span></div>
+        <div class="field-row" id="rowPackQty" hidden><span class="field-label" data-vi="Số lượng thùng" data-en="Number of boxes">Số lượng thùng</span><span class="field-value mono" id="valPackQty"></span></div>
         <div id="packingLines" hidden style="display:flex;flex-direction:column;gap:8px;padding-top:2px;"></div>
+      </div>
+
+      <div class="card" id="batchInfoCard" hidden>
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="m7.5 5.5 9 5"/></svg>
+          <span data-vi="Thông tin lô hàng" data-en="Batch information">Thông tin lô hàng</span>
+        </div>
+        <div class="muted" style="font-size:11px;color:var(--ink-mute);" data-vi="Toàn bộ sản phẩm trong cùng lô hàng này" data-en="All products shipped in this same batch">Toàn bộ sản phẩm trong cùng lô hàng này</div>
+        <div id="batchPackingLines" style="display:flex;flex-direction:column;gap:8px;padding-top:2px;"></div>
       </div>
 
       <div>
@@ -277,8 +288,8 @@
   // nguyên liệu, không lặp lại nhãn nguyên liệu từng dòng). Tên riêng
   // (nguyên liệu/sản phẩm) tra qua packingTerms nếu đang xem bản EN, không
   // có bản dịch thì tự dùng lại tiếng Việt.
-  function renderPackingLines(text){
-    var terms = (currentRecord && currentRecord.packing_terms_en) || {};
+  function renderPackingLines(text, containerId, terms){
+    terms = terms || {};
     function tr(term){ return (lang === 'en' && terms[term]) ? terms[term] : term; }
 
     var groups = [];
@@ -290,7 +301,7 @@
       var qtyIdx = rest.lastIndexOf(' · ');
       var name = qtyIdx === -1 ? rest : rest.slice(0, qtyIdx);
       var qty = qtyIdx === -1 ? '' : rest.slice(qtyIdx + 3);
-      var groupKey = source || ' ';
+      var groupKey = source || ' ';
       if(!groupByName[groupKey]){
         groupByName[groupKey] = { source: source, items: [] };
         groups.push(groupByName[groupKey]);
@@ -298,7 +309,7 @@
       groupByName[groupKey].items.push({ name: name, qty: qty });
     });
 
-    var wrap = $('packingLines');
+    var wrap = $(containerId || 'packingLines');
     wrap.textContent = '';
     wrap.hidden = false;
     groups.forEach(function(g){
@@ -342,20 +353,33 @@
     if(d.supplier_name){ $('rowSupplier').hidden = false; $('valSupplier').textContent = pick('supplier_name'); }
     if(d.region){ $('rowRegion').hidden = false; $('valRegion').textContent = pick('region'); }
     if(d.variety){ $('valVariety').textContent = pick('variety'); }
-    if(d.qty_thung != null){
-      $('rowQty').hidden = false;
-      $('valQty').textContent = Number(d.qty_thung).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US') + ' ' + (lang === 'vi' ? 'thùng' : 'boxes');
-    }
     if(d.best_before){
       $('rowBestBefore').hidden = false;
       $('valBestBefore').textContent = fmtDate(d.best_before);
+    }
+    // Trang theo TỪNG sản phẩm (qty_thung != null) hiện lại tên + quy cách +
+    // số lượng trong khối "Đóng gói" — trang chung cả lô không có 3 dòng này
+    // (đã có sẵn danh sách packingLines bên dưới liệt kê hết mọi sản phẩm).
+    if(d.qty_thung != null){
+      $('rowPackProduct').hidden = false;
+      $('valPackProduct').textContent = pick('product_name');
+      if(d.quy_cach){ $('rowPackSpec').hidden = false; $('valPackSpec').textContent = d.quy_cach; }
+      $('rowPackQty').hidden = false;
+      $('valPackQty').textContent = Number(d.qty_thung).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US') + ' ' + (lang === 'vi' ? 'thùng' : 'boxes');
     }
     // KHÔNG dùng pick('packing_text') — nó sẽ vô tình lấy field
     // packing_text_en cũ (đã bỏ dùng, có thể còn sót giá trị cũ trong DB từ
     // trước khi đổi sang cơ chế từ điển packing_terms_en). Luôn dùng thẳng
     // d.packing_text (tiếng Việt) làm nguồn duy nhất, renderPackingLines() tự
     // tra packing_terms_en để dịch từng tên khi cần.
-    if(d.packing_text) renderPackingLines(d.packing_text);
+    if(d.packing_text) renderPackingLines(d.packing_text, 'packingLines', d.packing_terms_en);
+    // "Thông tin lô hàng" — chỉ có ở trang theo TỪNG sản phẩm, liệt kê lại
+    // TOÀN BỘ sản phẩm của cả lô (giống trang mã chung cũ) để khách biết
+    // trong cùng container/lô còn có sản phẩm nào khác.
+    if(d.batch_packing_text){
+      $('batchInfoCard').hidden = false;
+      renderPackingLines(d.batch_packing_text, 'batchPackingLines', d.batch_packing_terms_en);
+    }
   }
 
   function render(d){
@@ -365,7 +389,7 @@
 
     if(d.variety){ $('rowVariety').hidden = false; }
     if(d.harvest_date){ $('rowHarvest').hidden = false; $('valHarvest').textContent = fmtDate(d.harvest_date); }
-    if(!d.region && !d.variety && !d.harvest_date && !d.supplier_name && d.qty_thung == null && !d.best_before){ $('originCard').hidden = true; }
+    if(!d.region && !d.variety && !d.harvest_date && !d.supplier_name && !d.best_before){ $('originCard').hidden = true; }
     refreshDynamicText();
 
     var qcMeta = QC_META[d.qc_status] || null;
@@ -384,7 +408,7 @@
       qcBlock.hidden = true;
     }
 
-    if(d.packed_date || d.packing_text){
+    if(d.packed_date || d.packing_text || d.qty_thung != null){
       $('packingCard').hidden = false;
       if(d.packed_date){ $('rowPackedDate').hidden = false; $('valPackedDate').textContent = fmtDate(d.packed_date); }
     }
@@ -439,10 +463,10 @@
     var transitDate = d.shipping_eta ? (lang === 'vi' ? 'Dự kiến ' : 'Estimated ') + fmtDate(d.shipping_eta) : '';
     el.appendChild(tlStep('Đang vận chuyển', 'In transit', transitDate, transitState));
 
-    // Ngày khách nhận hàng — 'Giao khách hàng'/'Khách đã nhận hàng' (idx 4-5)
+    // Ngày giao hàng — 'Giao khách hàng'/'Khách đã nhận hàng' (idx 4-5)
     var deliveredState = idx === 5 ? 'done' : (idx === 4 ? 'current' : '');
     var deliveredDate = d.shipping_received_date ? fmtDate(d.shipping_received_date) : '';
-    el.appendChild(tlStep('Ngày khách nhận hàng', 'Received by customer', deliveredDate, deliveredState));
+    el.appendChild(tlStep('Ngày giao hàng', 'Delivery date', deliveredDate, deliveredState));
   }
 
   // Mỗi sản phẩm trong 1 lô có thể có mã riêng (batch_trace_product_public)
