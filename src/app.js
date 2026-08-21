@@ -3588,7 +3588,12 @@ const titles = {
       // mỗi lần tải trang nên tự lưu đè lại an toàn, không cần staff phải tự
       // bấm sửa gì để trang công khai hiện đúng "Quy cách đóng gói".
       if(existing && existing.trace_enabled && (existing.quy_cach !== (quyCachLabel || null) || Number(existing.total_thung) !== g.totalThung)){
-        saveRow().catch(function(err){ console.error('Không tự vá được quy cách:', err); });
+        // saveRow() trả về query builder của Supabase — có .then nhưng
+        // KHÔNG có .catch() (không phải Promise thật) — gọi .catch() thẳng
+        // trên nó ném TypeError ngay lập tức, làm cả thẻ sản phẩm này chưa
+        // kịp appendChild đã bị văng ra ngoài. Bọc qua Promise.resolve() để
+        // có 1 Promise thật rồi mới .catch() được an toàn.
+        Promise.resolve(saveRow()).catch(function(err){ console.error('Không tự vá được quy cách:', err); });
       }
 
       function renderQr(){
