@@ -160,6 +160,37 @@ const titles = {
     });
   }
 
+  // ---- Toast báo lỗi (thay alert() cho các thông báo không cần chặn luồng) ----
+  // alert() đứng hình cả trang, phải bấm OK mới làm tiếp được — khó chịu khi
+  // gõ liên tục nhiều dòng. Toast chỉ hiện góc dưới phải, tự biến mất, không
+  // chặn thao tác đang làm dở. Vẫn có nút đóng (X) cho ai muốn tắt ngay, và
+  // để lâu hơn "Hoàn tác" (8s so với 6s) vì không có nút nào khác giữ sự chú
+  // ý lại — người dùng cần đủ thời gian đọc hết lỗi.
+  // KHÔNG dùng cho những chỗ đã có comment giải thích rõ vì sao alert() ở đó
+  // là CỐ Ý (VD openContainerTracking — mở tab mới cướp focus ngay sau đó,
+  // toast ở tab cũ dễ bị bỏ lỡ).
+  function showErrorToast(message){
+    const container = document.getElementById('toast-container');
+    if(!container){ alert(message); return; }
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-error';
+    const icon = document.createElement('i');
+    icon.className = 'ti ti-alert-circle';
+    toast.appendChild(icon);
+    const span = document.createElement('span');
+    span.textContent = message;
+    toast.appendChild(span);
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'toast-close-btn';
+    closeBtn.setAttribute('aria-label', 'Đóng');
+    closeBtn.innerHTML = '<i class="ti ti-x"></i>';
+    closeBtn.addEventListener('click', function(){ toast.remove(); });
+    toast.appendChild(closeBtn);
+    container.appendChild(toast);
+    setTimeout(function(){ toast.remove(); }, 8000);
+  }
+
   // ---- Toast "Hoàn tác" sau khi xóa (xóa thật ra là xóa mềm — set deleted_at) ----
   // onUndo là hàm async gỡ deleted_at + tải lại danh sách; tự ẩn sau 6s nếu
   // không bấm Hoàn tác.
@@ -464,7 +495,7 @@ const titles = {
   function exportTableToExcel(tableEl, filename, sheetName, opts){
     if(!tableEl) return;
     if(typeof XLSX === 'undefined'){
-      alert('Không tải được thư viện xuất Excel — kiểm tra kết nối mạng rồi thử lại.');
+      showErrorToast('Không tải được thư viện xuất Excel — kiểm tra kết nối mạng rồi thử lại.');
       return;
     }
     const clone = tableEl.cloneNode(true);
@@ -700,12 +731,12 @@ const titles = {
         if(opts.afterSave) opts.afterSave();
         showUndoToast('Đã xóa ' + label + '.', async function(){
           const { error: restoreErr } = await sb.from(opts.table).update({ deleted_at: null }).eq('id', id);
-          if(restoreErr){ alert('Không thể hoàn tác: ' + restoreErr.message); return; }
+          if(restoreErr){ showErrorToast('Không thể hoàn tác: ' + restoreErr.message); return; }
           await refreshRows();
           if(opts.afterSave) opts.afterSave();
         });
       } catch(err){
-        alert('Không thể xóa: ' + err.message);
+        showErrorToast('Không thể xóa: ' + err.message);
       }
     }
 
@@ -782,7 +813,27 @@ const titles = {
         if(!displayRows.length){
           showMessage(rows.length ? (opts.emptyFilteredMessage || 'Không có dữ liệu trong kỳ đã chọn.') : (opts.emptyMessage || 'Chưa có dữ liệu.'));
         } else {
-          displayRows.forEach(function(d){ tbody.appendChild(createRow(d)); });
+          // Mỗi dòng dựng riêng trong try/catch của chính nó — trước đây 1
+          // dòng lỗi khi dựng (throw) sẽ rớt xuống catch NGOÀI của cả
+          // refreshRows(), xoá sạch bảng và thay bằng "Không tải được dữ
+          // liệu — kiểm tra kết nối Supabase" dù mọi dòng khác vẫn tải tốt —
+          // chẩn đoán sai (tưởng mất mạng) trong khi thật ra chỉ 1 dòng lỗi.
+          // Cô lập lỗi theo từng dòng dùng chung cho MỌI module gọi
+          // initCrudModule (Nhân sự, Logistics, NCC, Hạn sử dụng...).
+          displayRows.forEach(function(d){
+            try{
+              tbody.appendChild(createRow(d));
+            } catch(rowErr){
+              console.error('Không dựng được 1 dòng dữ liệu (' + opts.table + '):', rowErr);
+              const errTr = document.createElement('tr');
+              const errTd = document.createElement('td');
+              errTd.colSpan = opts.cellCount + 1;
+              errTd.style.cssText = 'color:var(--red);background:var(--red-bg);font-size:12px;padding:8px 12px;';
+              errTd.textContent = 'Lỗi khi hiện 1 dòng dữ liệu — xem console (F12) để biết chi tiết.';
+              errTr.appendChild(errTd);
+              tbody.appendChild(errTr);
+            }
+          });
         }
         if(opts.afterRender) opts.afterRender(rows);
       } catch(err){
@@ -799,7 +850,7 @@ const titles = {
       e.preventDefault();
       const payload = opts.readForm(form);
       if(opts.validate && !opts.validate(payload)){
-        alert(opts.validateMessage || 'Thiếu thông tin bắt buộc — vui lòng kiểm tra lại các trường bắt buộc trong form.');
+        showErrorToast(opts.validateMessage || 'Thiếu thông tin bắt buộc — vui lòng kiểm tra lại các trường bắt buộc trong form.');
         return;
       }
 
@@ -818,7 +869,7 @@ const titles = {
         closeModal();
         if(opts.afterSave) opts.afterSave();
       } catch(err){
-        alert('Không thể lưu vào Supabase: ' + err.message);
+        showErrorToast('Không thể lưu vào Supabase: ' + err.message);
       } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = originalLabel;
@@ -1012,12 +1063,12 @@ const titles = {
         notifyRawBatchesChanged();
         showUndoToast('Đã xóa ' + label + '.', async function(){
           const { error: restoreErr } = await sb.from(TABLE).update({ deleted_at: null }).eq('id', id);
-          if(restoreErr){ alert('Không thể hoàn tác: ' + restoreErr.message); return; }
+          if(restoreErr){ showErrorToast('Không thể hoàn tác: ' + restoreErr.message); return; }
           await refreshRows();
           notifyRawBatchesChanged();
         });
       } catch(err){
-        alert('Không thể xóa: ' + err.message);
+        showErrorToast('Không thể xóa: ' + err.message);
       }
     }
 
@@ -1203,21 +1254,36 @@ const titles = {
         if(!(key in groupIndex)){ groupIndex[key] = groups.length; groups.push([]); }
         groups[groupIndex[key]].push(d);
       });
+      // Mỗi lô dựng riêng trong try/catch của chính nó — 1 lô lỗi khi dựng
+      // (throw) trước đây làm forEach dừng luôn, các lô SAU nó lặng lẽ biến
+      // mất khỏi bảng (đúng lỗi đã gặp ở thẻ mã QR truy xuất). Giờ lỗi 1 lô
+      // không kéo mất các lô còn lại.
       groups.forEach(function(items){
-        if(items.length === 1){
-          tbody.appendChild(createDetailRow(items[0], true));
-          return;
+        try{
+          if(items.length === 1){
+            tbody.appendChild(createDetailRow(items[0], true));
+            return;
+          }
+          const summaryRow = createSummaryRow(items);
+          const isExpanded = expandedBatches.has(items[0].batch || '');
+          if(isExpanded) summaryRow.classList.add('expanded');
+          tbody.appendChild(summaryRow);
+          items.forEach(function(d){
+            const tr = createDetailRow(d, false);
+            tr.classList.add('batch-detail-row');
+            tr.style.display = isExpanded ? '' : 'none';
+            tbody.appendChild(tr);
+          });
+        } catch(groupErr){
+          console.error('Không dựng được lô "' + (items[0] && items[0].batch) + '":', groupErr);
+          const errTr = document.createElement('tr');
+          const errTd = document.createElement('td');
+          errTd.colSpan = 9;
+          errTd.style.cssText = 'color:var(--red);background:var(--red-bg);font-size:12px;padding:8px 12px;';
+          errTd.textContent = 'Lỗi khi hiện lô "' + ((items[0] && items[0].batch) || '') + '" — xem console (F12) để biết chi tiết.';
+          errTr.appendChild(errTd);
+          tbody.appendChild(errTr);
         }
-        const summaryRow = createSummaryRow(items);
-        const isExpanded = expandedBatches.has(items[0].batch || '');
-        if(isExpanded) summaryRow.classList.add('expanded');
-        tbody.appendChild(summaryRow);
-        items.forEach(function(d){
-          const tr = createDetailRow(d, false);
-          tr.classList.add('batch-detail-row');
-          tr.style.display = isExpanded ? '' : 'none';
-          tbody.appendChild(tr);
-        });
       });
     }
 
@@ -1512,7 +1578,7 @@ const titles = {
       const ghichu = document.getElementById('f-ghichu').value.trim();
 
       if(!batch || !ncc){
-        alert('Vui lòng nhập đủ Lô hàng và Đầu mối thu mua.');
+        showErrorToast('Vui lòng nhập đủ Lô hàng và Đầu mối thu mua.');
         return;
       }
 
@@ -1546,7 +1612,7 @@ const titles = {
         closeModal();
         notifyRawBatchesChanged();
       } catch(err){
-        alert('Không thể lưu vào Supabase: ' + err.message);
+        showErrorToast('Không thể lưu vào Supabase: ' + err.message);
       } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = originalLabel;
@@ -1631,7 +1697,7 @@ const titles = {
           closeRawSupplierModal();
           await refreshRows();
         } catch(err){
-          alert('Không thể lưu hồ sơ đầu mối: ' + err.message);
+          showErrorToast('Không thể lưu hồ sơ đầu mối: ' + err.message);
         } finally {
           rsSubmitBtn.disabled = false;
           rsSubmitBtn.textContent = originalLabel;
@@ -2201,7 +2267,7 @@ const titles = {
         }
         await loadAll();
       } catch(err){
-        alert('Không thể lưu kết quả: ' + err.message);
+        showErrorToast('Không thể lưu kết quả: ' + err.message);
       }
     }
 
@@ -2539,7 +2605,7 @@ const titles = {
         if(error) throw error;
         await loadAll();
       } catch(err){
-        alert('Không thể lưu Hình thức: ' + err.message);
+        showErrorToast('Không thể lưu Hình thức: ' + err.message);
       }
     }
 
@@ -2589,7 +2655,7 @@ const titles = {
         if(error) throw error;
         await loadAll();
       } catch(err){
-        alert('Không thể lưu Loại đơn Nội địa: ' + err.message);
+        showErrorToast('Không thể lưu Loại đơn Nội địa: ' + err.message);
       }
     }
 
@@ -2638,7 +2704,7 @@ const titles = {
         }
         await loadAll();
       } catch(err){
-        alert('Không thể lưu Trạng thái đơn hàng: ' + err.message);
+        showErrorToast('Không thể lưu Trạng thái đơn hàng: ' + err.message);
       }
     }
 
@@ -2670,7 +2736,7 @@ const titles = {
         if(error) throw error;
         await loadAll();
       } catch(err){
-        alert('Không thể lưu Ghi chú: ' + err.message);
+        showErrorToast('Không thể lưu Ghi chú: ' + err.message);
       }
     }
 
@@ -2773,7 +2839,7 @@ const titles = {
         historyTbody.appendChild(tr);
         return;
       }
-      checks.forEach(function(d){
+      function buildQcHistoryRow(d){
         const tr = document.createElement('tr');
         tr.className = 'hoverable';
         tr.dataset.id = d.id;
@@ -2848,8 +2914,27 @@ const titles = {
         deleteBtn.innerHTML = '<i class="ti ti-trash"></i>';
         actionsTd.appendChild(deleteBtn);
         tr.appendChild(actionsTd);
+        return tr;
+      }
 
-        historyTbody.appendChild(tr);
+      // Mỗi dòng dựng riêng trong try/catch — 1 lượt kiểm lỗi khi dựng
+      // (throw) trước đây sẽ làm forEach dừng luôn, các lượt kiểm SAU nó
+      // lặng lẽ biến mất khỏi lịch sử của lô (đúng lỗi đã gặp ở thẻ mã QR
+      // truy xuất — xem loadTraceProducts). Giờ lỗi 1 dòng không kéo mất
+      // các dòng còn lại, và có dòng đỏ báo rõ ngay trong bảng.
+      checks.forEach(function(d){
+        try{
+          historyTbody.appendChild(buildQcHistoryRow(d));
+        } catch(rowErr){
+          console.error('Không dựng được 1 dòng lịch sử QC:', rowErr);
+          const errTr = document.createElement('tr');
+          const errTd = document.createElement('td');
+          errTd.colSpan = 7;
+          errTd.style.cssText = 'color:var(--red);background:var(--red-bg);font-size:12px;padding:8px 12px;';
+          errTd.textContent = 'Lỗi khi hiện 1 lượt kiểm — xem console (F12) để biết chi tiết.';
+          errTr.appendChild(errTd);
+          historyTbody.appendChild(errTr);
+        }
       });
     }
 
@@ -2866,11 +2951,11 @@ const titles = {
         await loadAll();
         showUndoToast('Đã xóa ' + label + '.', async function(){
           const { error: restoreErr } = await sb.from('qc_checks').update({ deleted_at: null }).eq('id', id);
-          if(restoreErr){ alert('Không thể hoàn tác: ' + restoreErr.message); return; }
+          if(restoreErr){ showErrorToast('Không thể hoàn tác: ' + restoreErr.message); return; }
           await loadAll();
         });
       } catch(err){
-        alert('Không thể xóa: ' + err.message);
+        showErrorToast('Không thể xóa: ' + err.message);
       }
     }
 
@@ -3390,9 +3475,9 @@ const titles = {
           tracePackedDateInput.value = packedDateSuggestion;
           gotAny = true;
         }
-        if(!gotAny && !silent) alert('Chưa có dữ liệu để tự điền cho lô này — nhập tay các ô bên trên.');
+        if(!gotAny && !silent) showErrorToast('Chưa có dữ liệu để tự điền cho lô này — nhập tay các ô bên trên.');
       } catch(err){
-        if(!silent) alert('Không lấy được dữ liệu: ' + (err.message || err));
+        if(!silent) showErrorToast('Không lấy được dữ liệu: ' + (err.message || err));
       } finally {
         if(traceRefillBtn) traceRefillBtn.disabled = false;
       }
@@ -3630,7 +3715,7 @@ const titles = {
         dlBtn.innerHTML = '<i class="ti ti-download"></i> Tải QR';
         dlBtn.addEventListener('click', function(){
           const canvas = qrBox.querySelector('canvas');
-          if(!canvas){ alert('Chưa có mã QR để tải.'); return; }
+          if(!canvas){ showErrorToast('Chưa có mã QR để tải.'); return; }
           downloadDataUrl(canvas.toDataURL('image/png'), 'qr-' + traceFileSafeName(batchCode) + '-' + traceFileSafeName(g.sanPham) + '.png');
         });
         bodyWrap.appendChild(dlBtn);
@@ -3651,7 +3736,7 @@ const titles = {
           if(error){
             if(/duplicate|unique/i.test(error.message || '')){
               toggle.checked = !turningOn;
-              alert('Mã tra cứu bị trùng — thử lại.');
+              showErrorToast('Mã tra cứu bị trùng — thử lại.');
               return;
             }
             throw error;
@@ -3661,7 +3746,7 @@ const titles = {
           if(turningOn) renderQr();
         } catch(err){
           toggle.checked = !turningOn;
-          alert('Không thể lưu: ' + (err.message || err));
+          showErrorToast('Không thể lưu: ' + (err.message || err));
         } finally {
           toggle.disabled = false;
         }
@@ -3672,7 +3757,7 @@ const titles = {
           const { error } = await saveRow();
           if(error) throw error;
         } catch(err){
-          alert('Không thể lưu: ' + (err.message || err));
+          showErrorToast('Không thể lưu: ' + (err.message || err));
         }
       });
 
@@ -3681,7 +3766,7 @@ const titles = {
           const { error } = await saveRow();
           if(error) throw error;
         } catch(err){
-          alert('Không thể lưu: ' + (err.message || err));
+          showErrorToast('Không thể lưu: ' + (err.message || err));
         }
       });
 
@@ -3690,7 +3775,7 @@ const titles = {
           const { error } = await saveRow();
           if(error) throw error;
         } catch(err){
-          alert('Không thể lưu: ' + (err.message || err));
+          showErrorToast('Không thể lưu: ' + (err.message || err));
         }
       });
 
@@ -3699,7 +3784,7 @@ const titles = {
           const { error } = await saveRow();
           if(error) throw error;
         } catch(err){
-          alert('Không thể lưu: ' + (err.message || err));
+          showErrorToast('Không thể lưu: ' + (err.message || err));
         }
       });
 
@@ -3709,7 +3794,7 @@ const titles = {
             const { error } = await saveRow();
             if(error) throw error;
           } catch(err){
-            alert('Không thể lưu: ' + (err.message || err));
+            showErrorToast('Không thể lưu: ' + (err.message || err));
           }
         });
       });
@@ -3842,7 +3927,7 @@ const titles = {
         }
         loadTraceProducts(batchCode);
       } catch(err){
-        alert('Không tải được dữ liệu: ' + (err.message || err));
+        showErrorToast('Không tải được dữ liệu: ' + (err.message || err));
       }
     }
     function closeTraceModal(){
@@ -3894,7 +3979,7 @@ const titles = {
           if(error) throw error;
           closeTraceModal();
         } catch(err){
-          alert('Không thể lưu: ' + (err.message || err));
+          showErrorToast('Không thể lưu: ' + (err.message || err));
         } finally {
           traceSubmitBtn.disabled = false;
           traceSubmitBtn.textContent = originalLabel;
@@ -3920,7 +4005,7 @@ const titles = {
             // thay vì để lỗi kỹ thuật khó hiểu.
             if(/duplicate|unique/i.test(error.message || '')){
               traceEnabledToggle.checked = !turningOn;
-              alert('Mã "' + traceCurrentCode + '" đã được lô khác dùng — mở modal đó và đổi mã tra cứu trước.');
+              showErrorToast('Mã "' + traceCurrentCode + '" đã được lô khác dùng — mở modal đó và đổi mã tra cứu trước.');
               return;
             }
             throw error;
@@ -3938,7 +4023,7 @@ const titles = {
           }
         } catch(err){
           traceEnabledToggle.checked = !turningOn;
-          alert('Không thể lưu: ' + (err.message || err));
+          showErrorToast('Không thể lưu: ' + (err.message || err));
         } finally {
           traceEnabledToggle.disabled = false;
         }
@@ -3962,7 +4047,7 @@ const titles = {
           updateTraceVisibility();
         } catch(err){
           toggleEl.checked = !val;
-          alert('Không thể lưu: ' + (err.message || err));
+          showErrorToast('Không thể lưu: ' + (err.message || err));
         } finally {
           toggleEl.disabled = false;
         }
@@ -3989,7 +4074,7 @@ const titles = {
     // cần tự vẽ lại.
     function exportTraceQrImage(){
       const canvas = traceQrBox.querySelector('canvas');
-      if(!canvas){ alert('Chưa có mã QR để xuất — bật "Mã QR" và đợi hiện ra trước.'); return; }
+      if(!canvas){ showErrorToast('Chưa có mã QR để xuất — bật "Mã QR" và đợi hiện ra trước.'); return; }
       downloadDataUrl(canvas.toDataURL('image/png'), 'qr-' + traceFileSafeBatch() + '.png');
     }
     // Mã vạch vẽ ra <svg> (vector) — chuyển qua canvas rồi mới xuất PNG,
@@ -3997,7 +4082,7 @@ const titles = {
     // hình) để ảnh tải về vẫn nét khi in.
     function exportTraceBarcodeImage(){
       const svg = document.getElementById('trace-barcode-svg');
-      if(!svg || !svg.childElementCount){ alert('Chưa có mã vạch để xuất — bật "Mã vạch" và đợi hiện ra trước.'); return; }
+      if(!svg || !svg.childElementCount){ showErrorToast('Chưa có mã vạch để xuất — bật "Mã vạch" và đợi hiện ra trước.'); return; }
       const width = svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width ? svg.viewBox.baseVal.width : svg.width.baseVal.value;
       const height = svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.height ? svg.viewBox.baseVal.height : svg.height.baseVal.value;
       const svgData = new XMLSerializer().serializeToString(svg);
@@ -4016,7 +4101,7 @@ const titles = {
       };
       img.onerror = function(){
         URL.revokeObjectURL(svgUrl);
-        alert('Không tạo được ảnh mã vạch để tải về.');
+        showErrorToast('Không tạo được ảnh mã vạch để tải về.');
       };
       img.src = svgUrl;
     }
@@ -4039,7 +4124,7 @@ const titles = {
           updateTraceExportedLabels();
           if(downloadImage) downloadImage();
         } catch(err){
-          alert('Không thể lưu: ' + (err.message || err));
+          showErrorToast('Không thể lưu: ' + (err.message || err));
         } finally {
           btnEl.disabled = false;
         }
@@ -4064,7 +4149,7 @@ const titles = {
       traceSaveCodeBtn.addEventListener('click', async function(){
         if(!traceCurrentBatch) return;
         const newCode = traceCodeInput.value.trim();
-        if(!newCode){ alert('Mã tra cứu không được để trống.'); return; }
+        if(!newCode){ showErrorToast('Mã tra cứu không được để trống.'); return; }
         // Mã thật sự đổi (không chỉ gõ lại y hệt) VÀ ít nhất 1 loại đã được
         // đánh dấu "đã xuất" (đã in/dùng thật) — cảnh báo rõ trước khi đổi,
         // vì tem cũ đã phát ra sẽ không còn quét ra đúng trang nữa, ảnh
@@ -4103,7 +4188,7 @@ const titles = {
           // Vi phạm unique constraint nếu trùng mã lô khác — báo rõ thay vì
           // để lỗi kỹ thuật khó hiểu.
           const msg = /duplicate|unique/i.test(err.message || '') ? 'Mã này đã được lô khác dùng — chọn mã khác.' : (err.message || err);
-          alert('Không thể lưu mã: ' + msg);
+          showErrorToast('Không thể lưu mã: ' + msg);
         } finally {
           traceSaveCodeBtn.disabled = false;
         }
@@ -4271,7 +4356,7 @@ const titles = {
       const b = batchSummaries[currentBatch];
       const needsVariety = category === 'Dừa' && b && b.duaVarieties.length > 1;
       if(needsVariety && !chungLoai){
-        alert('Lô này có nhiều chủng loại dừa — vui lòng chọn chủng loại cần ghi kết quả kiểm.');
+        showErrorToast('Lô này có nhiều chủng loại dừa — vui lòng chọn chủng loại cần ghi kết quả kiểm.');
         return;
       }
 
@@ -4303,7 +4388,7 @@ const titles = {
         await loadAll();
         resetForm();
       } catch(err){
-        alert('Không thể lưu vào Supabase: ' + err.message);
+        showErrorToast('Không thể lưu vào Supabase: ' + err.message);
         submitBtn.textContent = originalLabel;
       } finally {
         submitBtn.disabled = false;
@@ -4416,7 +4501,7 @@ const titles = {
         e.preventDefault();
         const batch = document.getElementById('ord-batch').value.trim();
         if(!batch){
-          alert('Vui lòng nhập Tên đơn / lô hàng.');
+          showErrorToast('Vui lòng nhập Tên đơn / lô hàng.');
           return;
         }
         const hinhThuc = document.getElementById('ord-hinh-thuc').value || null;
@@ -4450,7 +4535,7 @@ const titles = {
           await loadAll();
           closeOrderModal();
         } catch(err){
-          alert('Không thể lưu đơn hàng: ' + err.message);
+          showErrorToast('Không thể lưu đơn hàng: ' + err.message);
         } finally {
           orderSubmitBtn.disabled = false;
           orderSubmitBtn.textContent = originalLabel;
@@ -4706,7 +4791,7 @@ const titles = {
     // chữ trên nút — nút nằm ở tab cũ đã mất focus nên dễ bị bỏ qua.
     async function openContainerTracking(containerNo, line){
       if(!containerNo){
-        alert('Vui lòng nhập Số container trước.');
+        showErrorToast('Vui lòng nhập Số container trước.');
         return;
       }
       const url = SHIPPING_LINE_URLS[line] || SHIPPING_LINE_URLS['khac'];
@@ -5175,7 +5260,7 @@ const titles = {
         notifyDocumentsChecklistChanged();
         closeModal();
       } catch(err){
-        alert('Không thể lưu vào Supabase: ' + err.message);
+        showErrorToast('Không thể lưu vào Supabase: ' + err.message);
       } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = originalLabel;
@@ -5307,12 +5392,12 @@ const titles = {
         notifyFeedbacksChanged();
         showUndoToast('Đã xóa ' + label + '.', async function(){
           const { error: restoreErr } = await sb.from(TABLE).update({ deleted_at: null }).eq('id', id);
-          if(restoreErr){ alert('Không thể hoàn tác: ' + restoreErr.message); return; }
+          if(restoreErr){ showErrorToast('Không thể hoàn tác: ' + restoreErr.message); return; }
           await refreshList();
           notifyFeedbacksChanged();
         });
       } catch(err){
-        alert('Không thể xóa: ' + err.message);
+        showErrorToast('Không thể xóa: ' + err.message);
       }
     }
 
@@ -5518,7 +5603,7 @@ const titles = {
         response_deadline: fieldVal('fb-deadline') || null
       };
       if(!payload.batch_code){
-        alert('Vui lòng chọn Lô hàng.');
+        showErrorToast('Vui lòng chọn Lô hàng.');
         return;
       }
 
@@ -5537,7 +5622,7 @@ const titles = {
         notifyFeedbacksChanged();
         closeModal();
       } catch(err){
-        alert('Không thể lưu vào Supabase: ' + err.message);
+        showErrorToast('Không thể lưu vào Supabase: ' + err.message);
       } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = originalLabel;
@@ -5942,7 +6027,11 @@ const titles = {
         groups[groupIndex[key]].push(r);
       });
 
+      // Mỗi lô dựng riêng trong try/catch của chính nó — 1 lô lỗi khi dựng
+      // (throw) trước đây làm forEach dừng luôn, các lô SAU nó lặng lẽ biến
+      // mất khỏi bảng. Giờ lỗi 1 lô không kéo mất các lô còn lại.
       groups.forEach(function(items){
+        try{
         // Mỗi đợt sản xuất tách thành N dòng theo đúng số Quy cách đã khai
         // báo (ít nhất 1 dòng, kể cả khi chưa có Quy cách nào — hiện "—")
         // để dễ kiểm soát từng quy cách riêng biệt thay vì gộp chung 1 ô.
@@ -5984,6 +6073,16 @@ const titles = {
             factoryTbody.appendChild(buildFactoryRow(r, fb, box, subIdx, deliveryRowspan, batchCellContent, totalCellContent, collapse, isExpanded));
           });
         });
+        } catch(groupErr){
+          console.error('Không dựng được lô "' + (items[0] && items[0].batch) + '":', groupErr);
+          const errTr = document.createElement('tr');
+          const errTd = document.createElement('td');
+          errTd.colSpan = FACTORY_COLS;
+          errTd.style.cssText = 'color:var(--red);background:var(--red-bg);font-size:12px;padding:8px 12px;';
+          errTd.textContent = 'Lỗi khi hiện lô "' + ((items[0] && items[0].batch) || '') + '" — xem console (F12) để biết chi tiết.';
+          errTr.appendChild(errTd);
+          factoryTbody.appendChild(errTr);
+        }
       });
     }
 
@@ -6196,7 +6295,7 @@ const titles = {
     factoryForm.addEventListener('submit', async function(e){
       e.preventDefault();
       if(!editingRawBatchId){
-        alert('Không xác định được đang cập nhật sản xuất cho lô nào — đóng cửa sổ này rồi bấm lại nút sửa ở đúng dòng lô hàng.');
+        showErrorToast('Không xác định được đang cập nhật sản xuất cho lô nào — đóng cửa sổ này rồi bấm lại nút sửa ở đúng dòng lô hàng.');
         return;
       }
       const startVal = fieldVal('fac-start') || null;
@@ -6241,7 +6340,7 @@ const titles = {
         closeModal();
         notifyFactoryProductionChanged();
       } catch(err){
-        alert('Không thể lưu vào Supabase: ' + err.message);
+        showErrorToast('Không thể lưu vào Supabase: ' + err.message);
       } finally {
         factorySubmitBtn.disabled = false;
         factorySubmitBtn.textContent = originalLabel;
@@ -6824,7 +6923,7 @@ const titles = {
       // nào. Bản ghi cũ (trước khi có Quy cách theo dõi riêng) vẫn sửa/xóa
       // được bình thường để dọn dữ liệu.
       if(!tr.dataset.quyCach && !tr.dataset.stockId){
-        alert('Chủng loại này chưa có Quy cách nào ở Xưởng sản xuất — cần khai báo Quy cách trước khi ghi nhận xuất hàng.');
+        showErrorToast('Chủng loại này chưa có Quy cách nào ở Xưởng sản xuất — cần khai báo Quy cách trước khi ghi nhận xuất hàng.');
         return;
       }
       editingBatch = tr.dataset.batch;
@@ -6862,12 +6961,12 @@ const titles = {
         notifyFactoryProductionChanged();
         showUndoToast('Đã xóa ' + label + '.', async function(){
           const { error: restoreErr } = await sb.from('factory_finished_stock').update({ deleted_at: null }).eq('id', stockId);
-          if(restoreErr){ alert('Không thể hoàn tác: ' + restoreErr.message); return; }
+          if(restoreErr){ showErrorToast('Không thể hoàn tác: ' + restoreErr.message); return; }
           await refreshInventoryRows();
           notifyFactoryProductionChanged();
         });
       } catch(err){
-        alert('Không thể xóa: ' + err.message);
+        showErrorToast('Không thể xóa: ' + err.message);
       }
     }
 
@@ -6904,7 +7003,7 @@ const titles = {
         // cho QC (và các module khác đang lắng nghe) biết để tự tải lại.
         notifyFactoryProductionChanged();
       } catch(err){
-        alert('Không thể lưu vào Supabase: ' + err.message);
+        showErrorToast('Không thể lưu vào Supabase: ' + err.message);
       } finally {
         inventorySubmitBtn.disabled = false;
         inventorySubmitBtn.textContent = originalLabel;
@@ -7279,7 +7378,7 @@ const titles = {
             await refreshInventoryRows();
             notifyFactoryProductionChanged();
           } catch(err){
-            alert('Không thể xóa: ' + err.message);
+            showErrorToast('Không thể xóa: ' + err.message);
           }
         });
       }
@@ -7303,7 +7402,7 @@ const titles = {
             // thì chấp nhận số thùng lẻ (VD 7.5 thùng), vì trái mới là đơn vị
             // đúng, thùng chỉ là cách quy đổi để khớp với cột "Đã xuất" sẵn có.
             const qtyTrai = parseQty(fieldVal('culled-qty-trai'));
-            if(!qtyTrai || qtyTrai <= 0){ alert('Nhập số lượng trái hợp lệ.'); return; }
+            if(!qtyTrai || qtyTrai <= 0){ showErrorToast('Nhập số lượng trái hợp lệ.'); return; }
             if(qtyTrai > row.remaining + 0.001){
               if(!confirm('Số lượng nhập (' + fmtQty(qtyTrai) + ') lớn hơn số còn lại chưa xử lý (' + fmtQty(row.remaining) + '). Vẫn lưu?')) return;
             }
@@ -7330,7 +7429,7 @@ const titles = {
             const targetQuyCach = parseQty(fieldVal('culled-target-quycach'));
             const targetThung = parseQty(fieldVal('culled-target-thung'));
             if(!targetBatch || !targetSanPham || !targetQuyCach || !targetThung){
-              alert('Điền đủ Mã lô hàng đích, Sản phẩm, Quy cách và Số lượng thùng.');
+              showErrorToast('Điền đủ Mã lô hàng đích, Sản phẩm, Quy cách và Số lượng thùng.');
               return;
             }
             const normTarget = normalizeSanPham(targetSanPham);
@@ -7341,11 +7440,11 @@ const titles = {
 
             const matchedChungLoai = await resolveTargetChungLoai(targetBatch, normTarget, targetQuyCach);
             if(matchedChungLoai.length === 0){
-              alert('Không tìm thấy lô "' + targetBatch + '" nào đã đóng gói đúng Sản phẩm "' + targetSanPham + '" + Quy cách ' + targetQuyCach + ' trái/thùng — kiểm tra lại, hoặc khai báo Quy cách đó ở tab Sản xuất trước.');
+              showErrorToast('Không tìm thấy lô "' + targetBatch + '" nào đã đóng gói đúng Sản phẩm "' + targetSanPham + '" + Quy cách ' + targetQuyCach + ' trái/thùng — kiểm tra lại, hoặc khai báo Quy cách đó ở tab Sản xuất trước.');
               return;
             }
             if(matchedChungLoai.length > 1){
-              alert('Lô "' + targetBatch + '" có nhiều Chủng loại cùng đóng Sản phẩm + Quy cách này — chưa xác định được rõ ràng gán vào chủng loại nào.');
+              showErrorToast('Lô "' + targetBatch + '" có nhiều Chủng loại cùng đóng Sản phẩm + Quy cách này — chưa xác định được rõ ràng gán vào chủng loại nào.');
               return;
             }
             const targetChungLoai = matchedChungLoai[0];
@@ -7377,7 +7476,7 @@ const titles = {
           closeModal();
           notifyFactoryProductionChanged();
         } catch(err){
-          alert('Không thể lưu vào Supabase: ' + err.message);
+          showErrorToast('Không thể lưu vào Supabase: ' + err.message);
         } finally {
           culledSubmitBtn.disabled = false;
           culledSubmitBtn.textContent = originalLabel;
@@ -8259,11 +8358,11 @@ const titles = {
         await refreshUsers();
         showUndoToast('Đã xóa ' + label + '.', async function(){
           const { error: restoreErr } = await sb.from('profiles').update({ deleted_at: null }).eq('id', u.id);
-          if(restoreErr){ alert('Không thể hoàn tác: ' + restoreErr.message); return; }
+          if(restoreErr){ showErrorToast('Không thể hoàn tác: ' + restoreErr.message); return; }
           await refreshUsers();
         });
       } catch(err){
-        alert('Không thể xóa: ' + err.message);
+        showErrorToast('Không thể xóa: ' + err.message);
       }
     }
 
@@ -8272,15 +8371,15 @@ const titles = {
     // Cần dự án đã cấu hình gửi email (SMTP) hoạt động đúng thì email mới
     // thực sự tới nơi.
     async function sendPasswordReset(u){
-      if(!u.email){ alert('Tài khoản này chưa có email.'); return; }
+      if(!u.email){ showErrorToast('Tài khoản này chưa có email.'); return; }
       const ok = await confirmDialog('Gửi email đặt lại mật khẩu tới ' + u.email + '?', { title: 'Xác nhận', okLabel: 'Gửi', danger: false });
       if(!ok) return;
       try{
         const { error } = await sb.auth.resetPasswordForEmail(u.email);
         if(error) throw error;
-        alert('Đã gửi email đặt lại mật khẩu tới ' + u.email + ' (nếu không thấy, kiểm tra thư mục spam, hoặc Supabase chưa cấu hình gửi email).');
+        showErrorToast('Đã gửi email đặt lại mật khẩu tới ' + u.email + ' (nếu không thấy, kiểm tra thư mục spam, hoặc Supabase chưa cấu hình gửi email).');
       } catch(err){
-        alert('Không thể gửi email: ' + err.message);
+        showErrorToast('Không thể gửi email: ' + err.message);
       }
     }
 
@@ -8591,7 +8690,7 @@ const titles = {
         await refreshTrash();
         if(item.cfg.notify) item.cfg.notify();
       } catch(err){
-        alert('Không thể khôi phục: ' + err.message);
+        showErrorToast('Không thể khôi phục: ' + err.message);
       }
     }
 
@@ -8604,7 +8703,7 @@ const titles = {
         if(error) throw error;
         await refreshTrash();
       } catch(err){
-        alert('Không thể xóa vĩnh viễn: ' + err.message);
+        showErrorToast('Không thể xóa vĩnh viễn: ' + err.message);
       }
     }
 
@@ -8681,7 +8780,7 @@ const titles = {
           level = next;
           paint();
         } catch(err){
-          alert('Không thể lưu quyền: ' + err.message);
+          showErrorToast('Không thể lưu quyền: ' + err.message);
         } finally {
           btn.disabled = false;
         }
@@ -9692,11 +9791,11 @@ const titles = {
         await refreshAllMarketData();
         showUndoToast('Đã xóa ' + label + '.', async function(){
           const { error: restoreErr } = await sb.from('market_processing').update({ deleted_at: null }).eq('id', id);
-          if(restoreErr){ alert('Không thể hoàn tác: ' + restoreErr.message); return; }
+          if(restoreErr){ showErrorToast('Không thể hoàn tác: ' + restoreErr.message); return; }
           await refreshAllMarketData();
         });
       } catch(err){
-        alert('Không thể xóa: ' + err.message);
+        showErrorToast('Không thể xóa: ' + err.message);
       }
     }
 
@@ -9792,8 +9891,8 @@ const titles = {
         e.preventDefault();
         const sources = readSourceRows();
         const outputs = readOutputRows();
-        if(!sources.length){ alert('Vui lòng chọn ít nhất 1 nguồn nguyên liệu (lô thu mua) với số trái sử dụng.'); return; }
-        if(!outputs.length){ alert('Vui lòng nhập ít nhất 1 sản phẩm đầu ra với số lượng.'); return; }
+        if(!sources.length){ showErrorToast('Vui lòng chọn ít nhất 1 nguồn nguyên liệu (lô thu mua) với số trái sử dụng.'); return; }
+        if(!outputs.length){ showErrorToast('Vui lòng nhập ít nhất 1 sản phẩm đầu ra với số lượng.'); return; }
 
         const payload = {
           ngay_so_che: fieldVal('f-tm-so-ngay') || null,
@@ -9832,7 +9931,7 @@ const titles = {
           await refreshAllMarketData();
           closeSoModal();
         } catch(err){
-          alert('Không thể lưu vào Supabase: ' + err.message);
+          showErrorToast('Không thể lưu vào Supabase: ' + err.message);
         } finally {
           soSubmitBtn.disabled = false;
           soSubmitBtn.textContent = originalLabel;

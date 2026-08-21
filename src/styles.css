@@ -453,6 +453,13 @@
   }
   .toast-undo-btn:hover{color:#fff;}
   @keyframes toast-in{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+  .toast-error{background:var(--red);}
+  .toast-error i.ti-alert-circle{font-size:18px;flex-shrink:0;}
+  .toast-close-btn{
+    background:none;border:none;color:rgba(255,255,255,.75);
+    font-size:15px;cursor:pointer;flex-shrink:0;padding:2px;line-height:1;
+  }
+  .toast-close-btn:hover{color:#fff;}
 
   .info-grid{
     display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
