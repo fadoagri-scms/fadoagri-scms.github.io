@@ -36,10 +36,10 @@
       <div class="card">
         <table>
           <thead>
-            <tr><th>Lô hàng</th><th>NCC</th><th>Chủng loại</th><th>Số lượng</th><th>Ngày nhập</th><th>Ngày sản xuất</th><th>Thành phẩm</th><th>Sản phẩm</th><th>Quy cách</th><th>Số lượng thùng</th><th>Hao hụt</th><th>Trái bị dạt</th><th>Bắt đầu</th><th>Kết thúc</th><th>Tổng số lượng thùng</th><th>Thao tác</th></tr>
+            <tr><th>Lô hàng</th><th>NCC</th><th>Chủng loại</th><th>Số lượng</th><th>Ngày nhập</th><th>Ngày sản xuất</th><th>Thành phẩm</th><th>Sản phẩm</th><th>Quy cách</th><th>Số lượng thùng</th><th>Hao hụt</th><th>Trái bị dạt</th><th>Ghi chú</th><th>Bắt đầu</th><th>Kết thúc</th><th>Tổng số lượng thùng</th><th>Thao tác</th></tr>
           </thead>
           <tbody id="factory-tbody">
-            <tr><td colspan="16" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+            <tr><td colspan="17" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
           </tbody>
         </table>
       </div>
@@ -189,6 +189,10 @@
           <div class="form-group">
             <label for="fac-finished-qty">Thành phẩm (trái)</label>
             <input type="text" id="fac-finished-qty" placeholder="VD: 2.000">
+          </div>
+          <div class="form-group form-group-full">
+            <label for="fac-ghichu">Ghi chú</label>
+            <textarea id="fac-ghichu" rows="2" placeholder="Đặc biệt nếu Trái bị dạt cao — ghi rõ do khâu nhập dừa, khâu gọt, hay do trích/sản xuất cho lô khác, để quản lý đánh giá được nguyên nhân."></textarea>
           </div>
           <div class="form-group form-group-full">
             <label>Sản phẩm &amp; Quy cách đóng thùng</label>

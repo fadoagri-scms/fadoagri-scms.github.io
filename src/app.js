@@ -5529,7 +5529,7 @@ const titles = {
     const factoryModalTitle = document.getElementById('add-factory-modal-title');
     const factoryModalBatchInfo = document.getElementById('factory-modal-batch-info');
     const factorySubmitBtn = document.getElementById('btn-submit-add-factory');
-    const FACTORY_COLS = 16;
+    const FACTORY_COLS = 17;
     const factoryMonthSelect = document.getElementById('factory-month-select');
     const factoryYearSelect = document.getElementById('factory-year-select');
 
@@ -5618,6 +5618,7 @@ const titles = {
       tr.dataset.start = fb && fb.start_time ? fb.start_time : '';
       tr.dataset.finish = fb && fb.expected_finish ? fb.expected_finish : '';
       tr.dataset.duration = fb && fb.duration_hours != null ? fb.duration_hours : '';
+      tr.dataset.ghiChu = fb && fb.ghi_chu ? fb.ghi_chu : '';
       tr.dataset.boxes = fb && fb.factory_batch_boxes ? JSON.stringify(fb.factory_batch_boxes) : '[]';
 
       const batchTd = document.createElement('td');
@@ -5713,6 +5714,30 @@ const titles = {
           culledTd.className = culledQty > 0 ? 'warn-text' : 'muted';
         }
         tr.appendChild(culledTd);
+
+        // Ghi chú lý do dạt (nhập dừa / gọt / trích cho lô khác...) — cùng
+        // cấp với Hao hụt/Trái bị dạt (1 đợt sản xuất), không phải theo
+        // từng dòng Quy cách. Tỷ lệ dạt > 15% (ngưỡng đã dùng cho cột Hao
+        // hụt ở trên) mà chưa ghi gì thì nhắc bằng màu cam, để giám đốc dễ
+        // thấy dòng nào cần hỏi lại thay vì phải tự cộng trừ % từng dòng.
+        const ghiChuTd = document.createElement('td');
+        ghiChuTd.rowSpan = deliveryRowspan;
+        ghiChuTd.style.textAlign = 'left';
+        ghiChuTd.style.maxWidth = '180px';
+        const culledRate = (inputQty && culledQty != null && inputQty > 0) ? (culledQty / inputQty) * 100 : null;
+        const ghiChu = fb && fb.ghi_chu;
+        if(ghiChu){
+          ghiChuTd.textContent = ghiChu;
+          ghiChuTd.className = 'muted';
+          ghiChuTd.title = ghiChu;
+        } else if(culledRate != null && culledRate > 15){
+          ghiChuTd.textContent = 'Chưa ghi chú';
+          ghiChuTd.className = 'warn-text';
+        } else {
+          ghiChuTd.textContent = '—';
+          ghiChuTd.className = 'muted';
+        }
+        tr.appendChild(ghiChuTd);
 
         const startTd = document.createElement('td');
         startTd.rowSpan = deliveryRowspan;
@@ -5832,6 +5857,14 @@ const titles = {
         if(culledQty > 0) culledTd.className = 'warn-text';
       }
       tr.appendChild(culledTd);
+
+      // Ghi chú là theo TỪNG đợt sản xuất (nhiều đợt có thể có lý do khác
+      // nhau) — dòng tổng hợp không gộp được thành 1 câu có nghĩa, phải mở
+      // rộng ra xem từng dòng chi tiết bên dưới.
+      const ghiChuTd = document.createElement('td');
+      ghiChuTd.textContent = '—';
+      ghiChuTd.className = 'muted';
+      tr.appendChild(ghiChuTd);
 
       const startTd = document.createElement('td');
       startTd.textContent = '—';
@@ -6095,6 +6128,7 @@ const titles = {
       }
       document.getElementById('fac-production-date').value = tr.dataset.productionDate || '';
       document.getElementById('fac-finished-qty').value = tr.dataset.finishedQty || '';
+      document.getElementById('fac-ghichu').value = tr.dataset.ghiChu || '';
       let boxes = [];
       try{ boxes = JSON.parse(tr.dataset.boxes || '[]'); } catch(e){ boxes = []; }
       resetBoxRows(boxes);
@@ -6139,6 +6173,7 @@ const titles = {
         raw_batch_id: editingRawBatchId,
         production_date: fieldVal('fac-production-date') || null,
         finished_qty: parseQty(fieldVal('fac-finished-qty')),
+        ghi_chu: fieldVal('fac-ghichu') || null,
         san_pham: (boxRows[0] && boxRows[0].sanPham) || null,
         start_time: startVal,
         expected_finish: finishVal,
