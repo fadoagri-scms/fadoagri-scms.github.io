@@ -29,10 +29,21 @@
   @media (min-width:700px){ .content{min-height:0;} }
 
   .top-bar{display:flex;justify-content:flex-end;}
-  .lang-select-wrap{position:relative;display:inline-flex;align-items:center;}
-  .lang-select{appearance:none;-webkit-appearance:none;-moz-appearance:none;background:var(--surface-2);border:1px solid var(--border);border-radius:18px;padding:7px 28px 7px 12px;font:700 12px/1 -apple-system,sans-serif;letter-spacing:.01em;color:var(--ink);cursor:pointer;}
-  .lang-select:focus{outline:2px solid var(--forest);outline-offset:1px;}
-  .lang-select-wrap::after{content:'';position:absolute;right:11px;top:50%;width:6px;height:6px;border-right:2px solid var(--ink-soft);border-bottom:2px solid var(--ink-soft);transform:translateY(-65%) rotate(45deg);pointer-events:none;}
+  /* Dropdown ngôn ngữ tự dựng (không dùng <select> gốc) — <option> gốc
+     không cho chèn ảnh/SVG vào từng dòng, mà cờ vẽ bằng emoji thì Windows
+     không có font hiển thị (hiện chữ "VN"/"GB" thay vì lá cờ), nên phải tự
+     vẽ cờ bằng SVG nhúng thẳng, không phụ thuộc font hệ điều hành. */
+  .lang-dd{position:relative;display:inline-block;}
+  .lang-dd-btn{display:flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:18px;padding:6px 10px;font:700 12px/1 -apple-system,sans-serif;letter-spacing:.01em;color:var(--ink);cursor:pointer;}
+  .lang-dd-btn:focus-visible{outline:2px solid var(--forest);outline-offset:1px;}
+  .lang-flag{width:18px;height:13.5px;border-radius:2.5px;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,.08);overflow:hidden;}
+  .lang-flag svg{display:block;width:100%;height:100%;}
+  .lang-dd-chevron{width:7px;height:7px;border-right:2px solid var(--ink-soft);border-bottom:2px solid var(--ink-soft);transform:rotate(45deg);margin-left:1px;transition:transform .15s;}
+  .lang-dd.open .lang-dd-chevron{transform:rotate(-135deg);}
+  .lang-dd-list{position:absolute;top:calc(100% + 6px);right:0;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 28px -10px rgba(15,40,45,.28);padding:4px;margin:0;list-style:none;min-width:150px;z-index:20;}
+  .lang-dd-opt{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;}
+  .lang-dd-opt:hover{background:var(--surface-2);}
+  .lang-dd-opt.active{background:var(--green-bg);color:#1D6B4C;}
 
   .ph-header{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding-top:6px;}
   .ph-logo{height:46px;width:auto;object-fit:contain;}
@@ -107,11 +118,13 @@
   <div class="content">
 
     <div class="top-bar">
-      <div class="lang-select-wrap">
-        <select id="langSelect" class="lang-select" aria-label="Chọn ngôn ngữ / Choose language">
-          <option value="vi">🇻🇳 Tiếng Việt</option>
-          <option value="en">🇬🇧 English</option>
-        </select>
+      <div class="lang-dd" id="langDd">
+        <button type="button" class="lang-dd-btn" id="langDdBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Chọn ngôn ngữ / Choose language">
+          <span class="lang-flag" id="langDdFlag"></span>
+          <span id="langDdLabel">English</span>
+          <span class="lang-dd-chevron"></span>
+        </button>
+        <ul class="lang-dd-list" id="langDdList" role="listbox" hidden></ul>
       </div>
     </div>
 
@@ -224,7 +237,17 @@
   // lô có khai báo) — thêm nước mới chỉ cần thêm 1 dòng ở đây + dịch các
   // chuỗi cố định bên dưới, không cần đổi cấu trúc dữ liệu.
   var EXTRA_LANG_NAMES = { ja: '日本語', ko: '한국어', zh: '中文' };
-  var LANG_FLAGS = { vi: '🇻🇳', en: '🇬🇧', ja: '🇯🇵', ko: '🇰🇷', zh: '🇨🇳' };
+  var LANG_LABELS = { vi: 'Tiếng Việt', en: 'English' };
+  // Cờ vẽ bằng SVG nhúng thẳng (không dùng emoji cờ) — Windows không cài
+  // sẵn font hiển thị emoji lá cờ (regional indicator), Chrome/Edge trên
+  // Windows chỉ hiện 2 chữ cái mã nước ("VN"/"GB"...) thay vì lá cờ thật.
+  var LANG_FLAG_SVG = {
+    vi: '<svg viewBox="0 0 20 15"><rect width="20" height="15" fill="#DA251D"/><polygon points="10,3 11.18,6.6 15,6.6 11.91,8.79 13.09,12.4 10,10.2 6.91,12.4 8.09,8.79 5,6.6 8.82,6.6" fill="#FFCD00"/></svg>',
+    en: '<svg viewBox="0 0 20 15"><rect width="20" height="15" fill="#00247D"/><path d="M0,0 L20,15 M20,0 L0,15" stroke="#fff" stroke-width="3"/><path d="M0,0 L20,15 M20,0 L0,15" stroke="#CF142B" stroke-width="1"/><path d="M10,0 V15 M0,7.5 H20" stroke="#fff" stroke-width="5"/><path d="M10,0 V15 M0,7.5 H20" stroke="#CF142B" stroke-width="3"/></svg>',
+    ja: '<svg viewBox="0 0 20 15"><rect width="20" height="15" fill="#fff"/><circle cx="10" cy="7.5" r="4.3" fill="#BC002D"/></svg>',
+    ko: '<svg viewBox="0 0 20 15"><rect width="20" height="15" fill="#fff"/><path d="M10,3.3 A4.2,4.2 0 0,1 10,11.7 A2.1,2.1 0 0,1 10,7.5 A2.1,2.1 0 0,0 10,3.3 Z" fill="#CD2E3A"/><path d="M10,3.3 A4.2,4.2 0 0,0 10,11.7 A2.1,2.1 0 0,0 10,7.5 A2.1,2.1 0 0,1 10,3.3 Z" fill="#0047A0"/></svg>',
+    zh: '<svg viewBox="0 0 20 15"><rect width="20" height="15" fill="#DE2910"/><polygon points="3.2,2.2 3.9,4.3 6.1,4.3 4.3,5.6 5,7.7 3.2,6.4 1.4,7.7 2.1,5.6 0.3,4.3 2.5,4.3" fill="#FFDE00"/></svg>'
+  };
   var UNIT_WORDS = { vi: 'thùng', en: 'boxes', ja: '箱', ko: '박스', zh: '箱' };
   var ETA_PREFIX = { vi: 'Dự kiến ', en: 'Estimated ', ja: '予定 ', ko: '예정 ', zh: '预计 ' };
   var BATCH_LABEL_PREFIX = { vi: 'Mã lô: ', en: 'Batch: ', ja: 'ロット番号: ', ko: '배치 번호: ', zh: '批次号: ' };
@@ -267,18 +290,69 @@
     document.querySelectorAll('[data-vi]').forEach(function(el){
       el.textContent = el.dataset[lang] || el.dataset.en || el.dataset.vi;
     });
-    if($('langSelect')) $('langSelect').value = lang;
+    $('langDdFlag').innerHTML = LANG_FLAG_SVG[lang] || '';
+    $('langDdLabel').textContent = LANG_LABELS[lang] || EXTRA_LANG_NAMES[lang] || lang;
+    document.querySelectorAll('.lang-dd-opt').forEach(function(li){
+      li.classList.toggle('active', li.dataset.lang === lang);
+      li.setAttribute('aria-selected', li.dataset.lang === lang ? 'true' : 'false');
+    });
   }
-  $('langSelect').addEventListener('change', function(e){
-    lang = e.target.value;
-    applyLang();
-    if(currentRecord){
-      refreshDynamicText();
-      // "Dự kiến"/"Estimated"/... gắn liền vào chuỗi ngày lúc vẽ hành trình
-      // vận chuyển — không nằm trong applyLang(), nên phải vẽ lại timeline
-      // mỗi lần đổi ngôn ngữ, không chỉ lúc tải trang.
-      renderTimeline(currentRecord);
-    }
+
+  // Danh sách ngôn ngữ trong dropdown (VI/EN luôn có, ngôn ngữ đặc biệt chỉ
+  // thêm khi lô đang xem có khai báo) — dựng lại thủ công thay vì dùng
+  // <option> gốc vì cần chèn cờ SVG vào từng dòng (xem LANG_FLAG_SVG).
+  function buildLangList(extraLang){
+    var codes = ['vi', 'en'];
+    if(extraLang && EXTRA_LANG_NAMES[extraLang]) codes.push(extraLang);
+    var list = $('langDdList');
+    list.textContent = '';
+    codes.forEach(function(code){
+      var li = document.createElement('li');
+      li.className = 'lang-dd-opt';
+      li.dataset.lang = code;
+      li.setAttribute('role', 'option');
+      var flag = document.createElement('span');
+      flag.className = 'lang-flag';
+      flag.innerHTML = LANG_FLAG_SVG[code] || '';
+      var label = document.createElement('span');
+      label.textContent = LANG_LABELS[code] || EXTRA_LANG_NAMES[code] || code;
+      li.appendChild(flag);
+      li.appendChild(label);
+      li.addEventListener('click', function(){
+        lang = code;
+        closeLangDd();
+        applyLang();
+        if(currentRecord){
+          refreshDynamicText();
+          // "Dự kiến"/"Estimated"/... gắn liền vào chuỗi ngày lúc vẽ hành
+          // trình vận chuyển — không nằm trong applyLang(), nên phải vẽ lại
+          // timeline mỗi lần đổi ngôn ngữ, không chỉ lúc tải trang.
+          renderTimeline(currentRecord);
+        }
+      });
+      list.appendChild(li);
+    });
+  }
+  buildLangList(null);
+
+  function openLangDd(){
+    $('langDd').classList.add('open');
+    $('langDdList').hidden = false;
+    $('langDdBtn').setAttribute('aria-expanded', 'true');
+  }
+  function closeLangDd(){
+    $('langDd').classList.remove('open');
+    $('langDdList').hidden = true;
+    $('langDdBtn').setAttribute('aria-expanded', 'false');
+  }
+  $('langDdBtn').addEventListener('click', function(){
+    if($('langDd').classList.contains('open')) closeLangDd(); else openLangDd();
+  });
+  document.addEventListener('click', function(e){
+    if(!$('langDd').contains(e.target)) closeLangDd();
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape') closeLangDd();
   });
 
   function showState(name){
@@ -434,27 +508,15 @@
       ja: BATCH_LABEL_PREFIX.ja + displayCode, ko: BATCH_LABEL_PREFIX.ko + displayCode, zh: BATCH_LABEL_PREFIX.zh + displayCode
     });
 
-    // Option ngôn ngữ đặc biệt (3rd) trong dropdown — chỉ thêm khi LÔ NÀY có
+    // Dòng ngôn ngữ đặc biệt (3rd) trong dropdown — chỉ thêm khi LÔ NÀY có
     // khai báo extra_lang (chọn ở modal Truy xuất nguồn gốc), tự lấy tên +
     // cờ hiển thị theo đúng mã ngôn ngữ đó. Có khai báo thì TỰ ĐỘNG mở trang
     // bằng đúng ngôn ngữ này (khách của lô đó thường đọc ngôn ngữ này hơn cả
     // tiếng Anh); không khai báo thì mặc định EN như trước — không ảnh hưởng
     // các lô khác.
-    var select = $('langSelect');
-    var extraOption = $('langOptionExtra');
-    if(d.extra_lang && EXTRA_LANG_NAMES[d.extra_lang]){
-      if(!extraOption){
-        extraOption = document.createElement('option');
-        extraOption.id = 'langOptionExtra';
-        select.appendChild(extraOption);
-      }
-      extraOption.value = d.extra_lang;
-      extraOption.textContent = (LANG_FLAGS[d.extra_lang] || '') + ' ' + EXTRA_LANG_NAMES[d.extra_lang];
-      lang = d.extra_lang;
-    } else {
-      if(extraOption) extraOption.remove();
-      lang = 'en';
-    }
+    var hasExtra = d.extra_lang && EXTRA_LANG_NAMES[d.extra_lang];
+    buildLangList(hasExtra ? d.extra_lang : null);
+    lang = hasExtra ? d.extra_lang : 'en';
 
     if(d.variety){ $('rowVariety').hidden = false; }
     if(d.harvest_date){ $('rowHarvest').hidden = false; $('valHarvest').textContent = fmtDate(d.harvest_date); }
