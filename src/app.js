@@ -3739,8 +3739,22 @@ const titles = {
         });
 
         traceProductsWrap.style.display = '';
+        // Mỗi thẻ sản phẩm dựng riêng trong try/catch của chính nó — trước
+        // đây 1 sản phẩm lỗi khi dựng thẻ (throw) sẽ làm forEach dừng luôn,
+        // các sản phẩm sau nó lặng lẽ KHÔNG hiện thẻ (không báo lỗi gì, chỉ
+        // console.error 1 dòng chung chung ở catch ngoài) — nhìn như thiếu
+        // mã QR mà không rõ vì sao. Giờ lỗi ở 1 sản phẩm không kéo sập các
+        // sản phẩm còn lại, và có dòng đỏ báo rõ đang lỗi thẻ nào.
         names.sort(function(a, b){ return a.localeCompare(b, 'vi'); }).forEach(function(name){
-          renderTraceProductRow(batchCode, groups[name], existingByName[name]);
+          try{
+            renderTraceProductRow(batchCode, groups[name], existingByName[name]);
+          } catch(rowErr){
+            console.error('Không dựng được thẻ mã QR cho sản phẩm "' + name + '":', rowErr);
+            const errEl = document.createElement('div');
+            errEl.style.cssText = 'border:1px solid var(--red);background:var(--red-bg);color:var(--red);border-radius:10px;padding:10px 12px;font-size:12px;';
+            errEl.textContent = 'Lỗi khi hiện mã cho "' + name + '": ' + (rowErr.message || rowErr);
+            traceProductList.appendChild(errEl);
+          }
         });
       } catch(err){
         console.error('Không tải được mã QR theo sản phẩm:', err);
