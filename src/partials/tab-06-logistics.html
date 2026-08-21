@@ -19,10 +19,10 @@
     <div class="card">
       <table>
         <thead>
-          <tr><th>Lô hàng</th><th>PI/PO</th><th>Sản phẩm</th><th>Giai đoạn</th><th>Vị trí hiện tại</th><th>ETD</th><th>ETA</th><th>Thao tác</th></tr>
+          <tr><th>Lô hàng</th><th>PI/PO</th><th>Sản phẩm</th><th>Giai đoạn</th><th>Vị trí hiện tại</th><th>ETD</th><th>ETA</th><th>Ghi chú</th><th>Thao tác</th></tr>
         </thead>
         <tbody id="shipment-tbody">
-          <tr><td colspan="8" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+          <tr><td colspan="9" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
         </tbody>
       </table>
     </div>
@@ -104,6 +104,10 @@
             <label for="ship-received-date">Ngày khách nhận hàng</label>
             <input type="date" id="ship-received-date">
             <div class="muted" style="font-size:11px;margin-top:4px;">Dùng để tính hạn 3 ngày khách phải gửi feedback (module Feedback KH).</div>
+          </div>
+          <div class="form-group form-group-full">
+            <label for="ship-ghichu">Ghi chú</label>
+            <textarea id="ship-ghichu" rows="2" placeholder="Đặc biệt nếu trễ hẹn giao (Ngày khách nhận hàng sau ETA) — ghi rõ nguyên nhân: kẹt cảng, chờ thông quan, đối tác giao chậm..."></textarea>
           </div>
           <div class="form-group form-group-full">
             <label class="radio-option" style="display:flex;align-items:center;gap:8px;">

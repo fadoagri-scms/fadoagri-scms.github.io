@@ -2813,9 +2813,24 @@ const titles = {
         inspectorTd.textContent = d.inspector || '—';
         tr.appendChild(inspectorTd);
 
+        // Kết quả "Không đạt 1 phần" (hoặc tỷ lệ đạt <85%, cùng ngưỡng dùng
+        // cho Hao hụt/Trái bị dạt ở Xưởng sản xuất) mà chưa ghi chú thì nhắc
+        // màu cam — để giám đốc/quản lý biết dòng nào cần hỏi lại nguyên
+        // nhân (do khâu nào, lô hàng cụ thể ra sao), giống hệt cách đang làm
+        // ở bảng Xưởng Ba Phi.
         const noteTd = document.createElement('td');
-        noteTd.className = 'muted';
-        noteTd.textContent = d.note || '—';
+        const rateForNote = checkPassRate(d);
+        const badResult = d.result === 'Không đạt 1 phần' || (rateForNote && rateForNote.pct < 85);
+        if(d.note){
+          noteTd.textContent = d.note;
+          noteTd.className = 'muted';
+        } else if(badResult){
+          noteTd.textContent = 'Chưa ghi chú';
+          noteTd.className = 'warn-text';
+        } else {
+          noteTd.textContent = '—';
+          noteTd.className = 'muted';
+        }
         tr.appendChild(noteTd);
 
         const actionsTd = document.createElement('td');
@@ -4726,7 +4741,7 @@ const titles = {
       tbodyId: 'shipment-tbody',
       modalTitleId: 'add-shipment-modal-title',
       submitBtnId: 'btn-submit-add-shipment',
-      cellCount: 7,
+      cellCount: 8,
       addTitle: 'Thêm lô vận chuyển',
       editTitle: 'Chỉnh sửa lô vận chuyển',
       addLabel: 'Thêm lô hàng',
@@ -4750,6 +4765,7 @@ const titles = {
         tr.dataset.eta = d.eta || '';
         tr.dataset.receivedDate = d.received_date || '';
         tr.dataset.featured = d.is_featured ? '1' : '';
+        tr.dataset.ghiChu = d.ghi_chu || '';
 
         tr.cells[0].textContent = d.batch_code;
         tr.cells[1].textContent = d.pi_po || '—';
@@ -4772,6 +4788,24 @@ const titles = {
         }
         tr.cells[5].textContent = fmtDate(d.etd);
         tr.cells[6].textContent = fmtDate(d.eta);
+
+        // Trễ hẹn giao = Ngày khách nhận hàng sau ETA; chưa nhận mà hôm nay
+        // đã qua ETA (và chưa chuyển sang giai đoạn cuối) cũng tính trễ —
+        // để phát hiện sớm, không phải đợi tới lúc khách nhận mới biết.
+        // Ghi chú thiếu trong trường hợp trễ thì nhắc màu cam, cùng cách
+        // đang làm ở Xưởng sản xuất/QC.
+        const isLate = !!d.eta && (d.received_date ? d.received_date > d.eta : (d.stage !== 'Khách đã nhận hàng' && todayStr() > d.eta));
+        tr.cells[7].textContent = '';
+        tr.cells[7].className = 'muted';
+        tr.cells[7].style.textAlign = 'left';
+        if(d.ghi_chu){
+          tr.cells[7].textContent = d.ghi_chu;
+        } else if(isLate){
+          tr.cells[7].textContent = 'Chưa ghi chú';
+          tr.cells[7].className = 'warn-text';
+        } else {
+          tr.cells[7].textContent = '—';
+        }
       },
       fillForm: function(form, tr){
         populateBatchSelect(tr.dataset.batch || '');
@@ -4785,6 +4819,7 @@ const titles = {
         document.getElementById('ship-eta').value = tr.dataset.eta || '';
         document.getElementById('ship-received-date').value = tr.dataset.receivedDate || '';
         document.getElementById('ship-featured').checked = !!tr.dataset.featured;
+        document.getElementById('ship-ghichu').value = tr.dataset.ghiChu || '';
       },
       readForm: function(form){
         const stage = fieldVal('ship-stage');
@@ -4802,7 +4837,8 @@ const titles = {
           // Chuyển sang "Khách đã nhận hàng" mà không nhập ngày cụ thể thì tự
           // lấy ngày hôm nay, để Feedback KH luôn tính được hạn 3 ngày ngay.
           received_date: enteredReceivedDate || (stage === 'Khách đã nhận hàng' ? todayStr() : null),
-          is_featured: document.getElementById('ship-featured').checked
+          is_featured: document.getElementById('ship-featured').checked,
+          ghi_chu: fieldVal('ship-ghichu') || null
         };
       },
       validate: function(payload){ return !!payload.batch_code; },
