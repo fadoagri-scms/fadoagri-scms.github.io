@@ -109,29 +109,30 @@
       <div class="lang-toggle" id="langToggle" role="group" aria-label="Chọn ngôn ngữ / Choose language">
         <button type="button" class="lang-btn" data-lang="vi">VI</button>
         <button type="button" class="lang-btn active" data-lang="en">EN</button>
+        <button type="button" class="lang-btn" id="langBtnExtra" hidden></button>
       </div>
     </div>
 
     <div class="ph-header">
       <img class="ph-logo" src="assets/logo-fadoagri-cropped.png" alt="FADO AGRI">
-      <div class="ph-brandline" data-vi="Truy xuất nguồn gốc" data-en="Product Traceability">Truy xuất nguồn gốc</div>
+      <div class="ph-brandline" data-vi="Truy xuất nguồn gốc" data-en="Product Traceability" data-ja="製品トレーサビリティ" data-ko="제품 이력 추적" data-zh="产品溯源">Truy xuất nguồn gốc</div>
     </div>
 
     <div id="stateLoading" class="state-block">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9"/></svg>
-      <div class="state-title" data-vi="Đang tải..." data-en="Loading...">Đang tải...</div>
+      <div class="state-title" data-vi="Đang tải..." data-en="Loading..." data-ja="読み込み中..." data-ko="로딩 중..." data-zh="加载中...">Đang tải...</div>
     </div>
 
     <div id="stateNotFound" class="state-block" hidden>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-      <div class="state-title" data-vi="Không tìm thấy thông tin" data-en="No information found">Không tìm thấy thông tin</div>
-      <div class="state-sub" data-vi="Mã tra cứu không đúng hoặc lô hàng chưa được công khai." data-en="This lookup code is invalid or the batch is not public yet.">Mã tra cứu không đúng hoặc lô hàng chưa được công khai.</div>
+      <div class="state-title" data-vi="Không tìm thấy thông tin" data-en="No information found" data-ja="情報が見つかりません" data-ko="정보를 찾을 수 없습니다" data-zh="未找到信息">Không tìm thấy thông tin</div>
+      <div class="state-sub" data-vi="Mã tra cứu không đúng hoặc lô hàng chưa được công khai." data-en="This lookup code is invalid or the batch is not public yet." data-ja="検索コードが無効か、このロットはまだ公開されていません。" data-ko="조회 코드가 올바르지 않거나 아직 공개되지 않은 배치입니다。" data-zh="查询码无效或该批次尚未公开。">Mã tra cứu không đúng hoặc lô hàng chưa được công khai.</div>
     </div>
 
     <div id="stateError" class="state-block" hidden>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
-      <div class="state-title" data-vi="Không tải được dữ liệu" data-en="Couldn't load data">Không tải được dữ liệu</div>
-      <div class="state-sub" data-vi="Kiểm tra kết nối mạng rồi thử lại." data-en="Check your connection and try again.">Kiểm tra kết nối mạng rồi thử lại.</div>
+      <div class="state-title" data-vi="Không tải được dữ liệu" data-en="Couldn't load data" data-ja="データを読み込めませんでした" data-ko="데이터를 불러올 수 없습니다" data-zh="无法加载数据">Không tải được dữ liệu</div>
+      <div class="state-sub" data-vi="Kiểm tra kết nối mạng rồi thử lại." data-en="Check your connection and try again." data-ja="ネットワーク接続を確認して再試行してください。" data-ko="네트워크 연결을 확인한 후 다시 시도해 주세요." data-zh="请检查网络连接后重试。">Kiểm tra kết nối mạng rồi thử lại.</div>
     </div>
 
     <div id="stateContent" hidden style="display:flex;flex-direction:column;gap:22px;">
@@ -144,13 +145,15 @@
       <div class="card" id="originCard">
         <div class="card-title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21c7-1 12-6 13-13"/><path d="M5 21C5 13 10 6 18 5c1 5-2 12-9 15Z"/></svg>
-          <span data-vi="Nguồn gốc" data-en="Origin">Nguồn gốc</span>
+          <span data-vi="Nguồn gốc" data-en="Origin" data-ja="原産地" data-ko="원산지" data-zh="原产地">Nguồn gốc</span>
         </div>
-        <div class="field-row" id="rowSupplier" hidden><span class="field-label" data-vi="Nhà cung cấp" data-en="Supplier">Nhà cung cấp</span><span class="field-value" id="valSupplier"></span></div>
-        <div class="field-row" id="rowRegion" hidden><span class="field-label" data-vi="Vùng nguyên liệu" data-en="Growing region">Vùng nguyên liệu</span><span class="field-value" id="valRegion"></span></div>
-        <div class="field-row" id="rowVariety" hidden><span class="field-label" data-vi="Chủng loại" data-en="Variety">Chủng loại</span><span class="field-value" id="valVariety"></span></div>
-        <div class="field-row" id="rowHarvest" hidden><span class="field-label" data-vi="Ngày nhập nguyên liệu" data-en="Material intake date">Ngày nhập nguyên liệu</span><span class="field-value mono" id="valHarvest"></span></div>
-        <div class="field-row" id="rowBestBefore" hidden><span class="field-label" data-vi="Hạn sử dụng" data-en="Best before">Hạn sử dụng</span><span class="field-value mono" id="valBestBefore"></span></div>
+        <div class="field-row" id="rowSupplier" hidden><span class="field-label" data-vi="Nhà máy" data-en="Factory" data-ja="工場" data-ko="공장" data-zh="工厂">Nhà máy</span><span class="field-value" id="valSupplier"></span></div>
+        <div class="field-row"><span class="field-label" data-vi="Đơn vị xuất khẩu" data-en="Exporter" data-ja="輸出者" data-ko="수출자" data-zh="出口商">Đơn vị xuất khẩu</span><span class="field-value" data-vi="Fado Agri" data-en="Fado Agri">Fado Agri</span></div>
+        <div class="field-row" id="rowImporter" hidden><span class="field-label" data-vi="Đơn vị nhập khẩu" data-en="Importer" data-ja="輸入者" data-ko="수입자" data-zh="进口商">Đơn vị nhập khẩu</span><span class="field-value" id="valImporter"></span></div>
+        <div class="field-row" id="rowRegion" hidden><span class="field-label" data-vi="Vùng nguyên liệu" data-en="Growing region" data-ja="産地" data-ko="재배 지역" data-zh="种植产区">Vùng nguyên liệu</span><span class="field-value" id="valRegion"></span></div>
+        <div class="field-row" id="rowVariety" hidden><span class="field-label" data-vi="Chủng loại" data-en="Variety" data-ja="品種" data-ko="품종" data-zh="品种">Chủng loại</span><span class="field-value" id="valVariety"></span></div>
+        <div class="field-row" id="rowHarvest" hidden><span class="field-label" data-vi="Ngày nhập nguyên liệu" data-en="Material intake date" data-ja="原料入荷日" data-ko="원재료 입고일" data-zh="原料入库日期">Ngày nhập nguyên liệu</span><span class="field-value mono" id="valHarvest"></span></div>
+        <div class="field-row" id="rowBestBefore" hidden><span class="field-label" data-vi="Hạn sử dụng" data-en="Best before" data-ja="賞味期限" data-ko="유통기한" data-zh="保质期至">Hạn sử dụng</span><span class="field-value mono" id="valBestBefore"></span></div>
       </div>
 
       <div class="qc-block" id="qcBlock">
@@ -161,42 +164,42 @@
         </div>
         <div class="qc-rate" id="qcRateWrap" hidden>
           <div class="qc-rate-num" id="qcRateNum"></div>
-          <div class="qc-rate-label" data-vi="Tỷ lệ đạt" data-en="Pass rate">Tỷ lệ đạt</div>
+          <div class="qc-rate-label" data-vi="Tỷ lệ đạt" data-en="Pass rate" data-ja="合格率" data-ko="합격률" data-zh="合格率">Tỷ lệ đạt</div>
         </div>
       </div>
 
       <div class="card" id="packingCard" hidden>
         <div class="card-title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
-          <span data-vi="Đóng gói" data-en="Packing">Đóng gói</span>
+          <span data-vi="Đóng gói" data-en="Packing" data-ja="梱包" data-ko="포장" data-zh="包装">Đóng gói</span>
         </div>
-        <div class="field-row" id="rowPackedDate" hidden><span class="field-label" data-vi="Ngày đóng hàng" data-en="Packed on">Ngày đóng hàng</span><span class="field-value mono" id="valPackedDate"></span></div>
-        <div class="field-row" id="rowPackProduct" hidden><span class="field-label" data-vi="Tên sản phẩm" data-en="Product name">Tên sản phẩm</span><span class="field-value" id="valPackProduct"></span></div>
-        <div class="field-row" id="rowPackSpec" hidden><span class="field-label" data-vi="Quy cách đóng gói" data-en="Packing spec">Quy cách đóng gói</span><span class="field-value" id="valPackSpec"></span></div>
-        <div class="field-row" id="rowPackQty" hidden><span class="field-label" data-vi="Số lượng thùng" data-en="Number of boxes">Số lượng thùng</span><span class="field-value mono" id="valPackQty"></span></div>
+        <div class="field-row" id="rowPackedDate" hidden><span class="field-label" data-vi="Ngày đóng hàng" data-en="Packed on" data-ja="梱包日" data-ko="포장일" data-zh="装箱日期">Ngày đóng hàng</span><span class="field-value mono" id="valPackedDate"></span></div>
+        <div class="field-row" id="rowPackProduct" hidden><span class="field-label" data-vi="Tên sản phẩm" data-en="Product name" data-ja="製品名" data-ko="제품명" data-zh="产品名称">Tên sản phẩm</span><span class="field-value" id="valPackProduct"></span></div>
+        <div class="field-row" id="rowPackSpec" hidden><span class="field-label" data-vi="Quy cách đóng gói" data-en="Packing spec" data-ja="梱包仕様" data-ko="포장 사양" data-zh="包装规格">Quy cách đóng gói</span><span class="field-value" id="valPackSpec"></span></div>
+        <div class="field-row" id="rowPackQty" hidden><span class="field-label" data-vi="Số lượng thùng" data-en="Number of boxes" data-ja="箱数" data-ko="박스 수량" data-zh="箱数">Số lượng thùng</span><span class="field-value mono" id="valPackQty"></span></div>
         <div id="packingLines" hidden style="display:flex;flex-direction:column;gap:8px;padding-top:2px;"></div>
       </div>
 
       <div class="card" id="batchInfoCard" hidden>
         <div class="card-title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="m7.5 5.5 9 5"/></svg>
-          <span data-vi="Thông tin lô hàng" data-en="Batch information">Thông tin lô hàng</span>
+          <span data-vi="Thông tin lô hàng" data-en="Batch information" data-ja="ロット情報" data-ko="배치 정보" data-zh="批次信息">Thông tin lô hàng</span>
         </div>
-        <div class="muted" style="font-size:11px;color:var(--ink-mute);" data-vi="Toàn bộ sản phẩm trong cùng lô hàng này" data-en="All products shipped in this same batch">Toàn bộ sản phẩm trong cùng lô hàng này</div>
+        <div class="muted" style="font-size:11px;color:var(--ink-mute);" data-vi="Toàn bộ sản phẩm trong cùng lô hàng này" data-en="All products shipped in this same batch" data-ja="同一ロットに含まれる全製品" data-ko="동일 배치에 포함된 전체 제품" data-zh="同批次内的全部产品">Toàn bộ sản phẩm trong cùng lô hàng này</div>
         <div id="batchPackingLines" style="display:flex;flex-direction:column;gap:8px;padding-top:2px;"></div>
       </div>
 
       <div>
         <div class="card-title" style="margin-bottom:14px;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h20"/><path d="M4 20V10l4-2 4 2 4-2 4 2v10"/><path d="M12 4v6"/></svg>
-          <span data-vi="Hành trình vận chuyển" data-en="Shipping journey">Hành trình vận chuyển</span>
+          <span data-vi="Hành trình vận chuyển" data-en="Shipping journey" data-ja="輸送状況" data-ko="운송 현황" data-zh="运输进度">Hành trình vận chuyển</span>
         </div>
         <div class="timeline" id="timeline"></div>
       </div>
 
       <div class="ph-footer">
-        <div class="contact" data-vi="fadoagri.com · hotline 090x xxx xxx" data-en="fadoagri.com · phone 090x xxx xxx">fadoagri.com · hotline 090x xxx xxx</div>
-        <div class="note" data-vi="Dữ liệu cập nhật tự động từ hệ thống quản lý chuỗi cung ứng FADO AGRI" data-en="Data updated automatically from FADO AGRI's supply chain management system">Dữ liệu cập nhật tự động từ hệ thống quản lý chuỗi cung ứng FADO AGRI</div>
+        <div class="contact" data-vi="fadoagri.com · hotline 090x xxx xxx" data-en="fadoagri.com · phone 090x xxx xxx" data-ja="fadoagri.com · お問い合わせ 090x xxx xxx" data-ko="fadoagri.com · 문의전화 090x xxx xxx" data-zh="fadoagri.com · 联系电话 090x xxx xxx">fadoagri.com · hotline 090x xxx xxx</div>
+        <div class="note" data-vi="Dữ liệu cập nhật tự động từ hệ thống quản lý chuỗi cung ứng FADO AGRI" data-en="Data updated automatically from FADO AGRI's supply chain management system" data-ja="データはFADO AGRIのサプライチェーン管理システムから自動的に更新されます" data-ko="데이터는 FADO AGRI 공급망 관리 시스템에서 자동으로 업데이트됩니다" data-zh="数据由FADO AGRI供应链管理系统自动更新">Dữ liệu cập nhật tự động từ hệ thống quản lý chuỗi cung ứng FADO AGRI</div>
       </div>
 
     </div>
@@ -209,14 +212,34 @@
   var SUPABASE_URL = 'https://ickyibgaxczypuxzpuun.supabase.co';
   var SUPABASE_ANON_KEY = 'sb_publishable_9FLlPV6d0aFcX-m-wmKK5w_Qdc4V_0h';
   // Mặc định mở bằng tiếng Anh (khách quốc tế quét mã là chính) — vẫn đổi
-  // qua lại VI được bằng nút góc trên.
+  // qua lại được bằng nút góc trên.
   var lang = 'en';
   var currentRecord = null;
-  // Nội dung tự nhập (tên sản phẩm/NCC/vùng/quy cách) chỉ có bản Anh khi
-  // staff tự gõ — không có thì dùng lại đúng bản tiếng Việt, còn hơn để
-  // trống khi khách chuyển sang EN.
+
+  // Tên hiển thị của "ngôn ngữ đặc biệt" (chỉ hiện nút khi lô có khai báo) —
+  // thêm nước mới chỉ cần thêm 1 dòng ở đây + dịch các chuỗi cố định bên
+  // dưới, không cần đổi cấu trúc dữ liệu.
+  var EXTRA_LANG_NAMES = { ja: '日本語', ko: '한국어', zh: '中文' };
+  var UNIT_WORDS = { vi: 'thùng', en: 'boxes', ja: '箱', ko: '박스', zh: '箱' };
+  var ETA_PREFIX = { vi: 'Dự kiến ', en: 'Estimated ', ja: '予定 ', ko: '예정 ', zh: '预计 ' };
+  var BATCH_LABEL_PREFIX = { vi: 'Mã lô: ', en: 'Batch: ', ja: 'ロット番号: ', ko: '배치 번호: ', zh: '批次号: ' };
+  var UNNAMED_PRODUCT = { vi: 'Sản phẩm chưa đặt tên', en: 'Unnamed product', ja: '製品名未設定', ko: '제품명 미입력', zh: '未命名产品' };
+  function tFixed(map){ return map[lang] || map.en || map.vi; }
+
+  // Nội dung tự nhập (tên sản phẩm/NCC/vùng/quy cách...) — bản EN dùng cột
+  // "_en", bản ngôn ngữ đặc biệt (JA/KO/ZH...) dùng CHUNG 1 cột "_extra" cho
+  // MỌI ngôn ngữ đặc biệt (đỡ phải thêm cột riêng từng nước) — batch_info
+  // lưu kèm mã ngôn ngữ đang chọn (extra_lang) để biết "_extra" đang là thứ
+  // tiếng gì. Chưa dịch ngôn ngữ đặc biệt thì rơi về EN trước (đối tác nước
+  // ngoài đọc tiếng Anh dễ hơn tiếng Việt), không có EN mới rơi về VI.
   function pick(field){
     if(!currentRecord) return '';
+    if(lang !== 'vi' && lang !== 'en'){
+      var extra = currentRecord[field + '_extra'];
+      if(extra) return extra;
+      var enFallback = currentRecord[field + '_en'];
+      return enFallback || currentRecord[field] || '';
+    }
     var en = currentRecord[field + '_en'];
     return (lang === 'en' && en) ? en : (currentRecord[field] || '');
   }
@@ -228,15 +251,16 @@
     var p = s.split('-');
     return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : s;
   }
-  function setBilingual(el, vi, en){
+  // translations: { vi:'...', en:'...', ja:'...', ko:'...', zh:'...' } — chỉ
+  // cần khai đủ vi/en, các ngôn ngữ đặc biệt thiếu thì tự rơi về en/vi.
+  function setMultilingual(el, translations){
     if(!el) return;
-    el.dataset.vi = vi;
-    el.dataset.en = en;
-    el.textContent = lang === 'vi' ? vi : en;
+    Object.keys(translations).forEach(function(k){ el.dataset[k] = translations[k]; });
+    el.textContent = translations[lang] || translations.en || translations.vi;
   }
   function applyLang(){
     document.querySelectorAll('[data-vi]').forEach(function(el){
-      el.textContent = el.dataset[lang];
+      el.textContent = el.dataset[lang] || el.dataset.en || el.dataset.vi;
     });
     document.querySelectorAll('.lang-btn').forEach(function(b){
       b.classList.toggle('active', b.dataset.lang === lang);
@@ -244,14 +268,14 @@
   }
   $('langToggle').addEventListener('click', function(e){
     var btn = e.target.closest('.lang-btn');
-    if(!btn) return;
+    if(!btn || btn.hidden || !btn.dataset.lang) return;
     lang = btn.dataset.lang;
     applyLang();
     if(currentRecord){
       refreshDynamicText();
-      // "Dự kiến"/"Estimated" gắn liền vào chuỗi ngày lúc vẽ hành trình vận
-      // chuyển — không nằm trong applyLang(), nên phải vẽ lại timeline mỗi
-      // lần đổi ngôn ngữ, không chỉ lúc tải trang.
+      // "Dự kiến"/"Estimated"/... gắn liền vào chuỗi ngày lúc vẽ hành trình
+      // vận chuyển — không nằm trong applyLang(), nên phải vẽ lại timeline
+      // mỗi lần đổi ngôn ngữ, không chỉ lúc tải trang.
       renderTimeline(currentRecord);
     }
   });
@@ -263,15 +287,26 @@
   }
 
   var QC_META = {
-    'Đạt':               { cls:'qc-pass',    icon:'check', vi:'Đạt chuẩn xuất khẩu', en:'Export quality passed' },
-    'Không đạt 1 phần':  { cls:'qc-partial', icon:'alert', vi:'Một phần chưa đạt chuẩn', en:'Partially below standard' },
-    'Chờ xác nhận':      { cls:'qc-pending', icon:'clock', vi:'Đang chờ kết quả kiểm định', en:'Inspection pending' }
+    'Đạt': {
+      cls:'qc-pass', icon:'check',
+      text: { vi:'Đạt chuẩn xuất khẩu', en:'Export quality passed', ja:'輸出品質基準に合格', ko:'수출 품질 기준 합격', zh:'已达到出口质量标准' }
+    },
+    'Không đạt 1 phần': {
+      cls:'qc-partial', icon:'alert',
+      text: { vi:'Một phần chưa đạt chuẩn', en:'Partially below standard', ja:'一部基準未達', ko:'일부 기준 미달', zh:'部分未达标' }
+    },
+    'Chờ xác nhận': {
+      cls:'qc-pending', icon:'clock',
+      text: { vi:'Đang chờ kết quả kiểm định', en:'Inspection pending', ja:'検査結果待ち', ko:'검사 결과 대기 중', zh:'待检验结果' }
+    }
   };
   var QC_ICONS = {
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
     alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>',
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>'
   };
+  var QC_INSPECTED = { vi:'Kiểm định ', en:'Inspected ', ja:'検査日 ', ko:'검사일 ', zh:'检验日期 ' };
+  var QC_NO_DATE = { vi:'Chưa có ngày kiểm định', en:'No inspection date yet', ja:'検査日未定', ko:'검사일 미정', zh:'尚无检验日期' };
 
   // Khớp với STAGE_OPTIONS nội bộ ở tab Logistics (app.js) — thêm 'Cảng đi'
   // vào đầu danh sách (trước đây bỏ sót, luôn coi như -1/chưa xuất hàng) vì
@@ -286,11 +321,18 @@
   // app tự sinh từ dữ liệu đóng thùng, xem formatPackingTextFromBoxes trong
   // app.js) — gộp theo nguyên liệu (nhiều sản phẩm/quy cách có thể cùng 1
   // nguyên liệu, không lặp lại nhãn nguyên liệu từng dòng). Tên riêng
-  // (nguyên liệu/sản phẩm) tra qua packingTerms nếu đang xem bản EN, không
-  // có bản dịch thì tự dùng lại tiếng Việt.
-  function renderPackingLines(text, containerId, terms){
-    terms = terms || {};
-    function tr(term){ return (lang === 'en' && terms[term]) ? terms[term] : term; }
+  // (nguyên liệu/sản phẩm) tra qua từ điển EN/ngôn ngữ đặc biệt của đúng lô
+  // đó nếu đang xem bản tương ứng, không có bản dịch thì tự dùng lại tiếng
+  // Việt. Đơn vị "thùng/boxes/..." KHÔNG tra từ điển — luôn dùng UNIT_WORDS
+  // cố định vì đây là đơn vị chung, không cần dịch riêng từng lô.
+  function renderPackingLines(text, containerId, termsEn, termsExtra){
+    termsEn = termsEn || {};
+    termsExtra = termsExtra || {};
+    function tr(term){
+      if(lang !== 'vi' && lang !== 'en') return termsExtra[term] || termsEn[term] || term;
+      if(lang === 'en') return termsEn[term] || term;
+      return term;
+    }
 
     var groups = [];
     var groupByName = {};
@@ -326,7 +368,7 @@
         row.appendChild(nameEl);
         if(it.qty){
           var qtyEl = document.createElement('span'); qtyEl.className = 'pk-qty';
-          qtyEl.textContent = it.qty + ' ' + tr('thùng');
+          qtyEl.textContent = it.qty + ' ' + tFixed(UNIT_WORDS);
           row.appendChild(qtyEl);
         }
         groupEl.appendChild(row);
@@ -337,13 +379,13 @@
 
   // Các trường tự nhập (tên sản phẩm/NCC/vùng/quy cách) đổi qua đổi lại theo
   // pick() mỗi lần chuyển ngôn ngữ — tách riêng khỏi render() vì cần gọi lại
-  // lúc bấm nút VI/EN, không chỉ lúc tải trang.
+  // lúc bấm nút VI/EN/ngôn ngữ đặc biệt, không chỉ lúc tải trang.
   function refreshDynamicText(){
     var d = currentRecord;
     // Lô nhiều sản phẩm thì product_name là chuỗi nối bằng ", " (xem
     // productNameFromBoxes trong app.js) — tách thành từng dòng riêng, cỡ
     // chữ vừa phải, thay vì nhồi cả cụm vào 1 dòng tiêu đề lớn dễ vỡ dòng.
-    var productName = pick('product_name') || (lang === 'vi' ? 'Sản phẩm chưa đặt tên' : 'Unnamed product');
+    var productName = pick('product_name') || tFixed(UNNAMED_PRODUCT);
     var heroEl = $('heroTitle');
     heroEl.textContent = '';
     productName.split(', ').forEach(function(p){
@@ -351,6 +393,7 @@
       heroEl.appendChild(line);
     });
     if(d.supplier_name){ $('rowSupplier').hidden = false; $('valSupplier').textContent = pick('supplier_name'); }
+    if(d.importer_name){ $('rowImporter').hidden = false; $('valImporter').textContent = pick('importer_name'); }
     if(d.region){ $('rowRegion').hidden = false; $('valRegion').textContent = pick('region'); }
     if(d.variety){ $('valVariety').textContent = pick('variety'); }
     if(d.best_before){
@@ -365,31 +408,50 @@
       $('valPackProduct').textContent = pick('product_name');
       if(d.quy_cach){ $('rowPackSpec').hidden = false; $('valPackSpec').textContent = d.quy_cach; }
       $('rowPackQty').hidden = false;
-      $('valPackQty').textContent = Number(d.qty_thung).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US') + ' ' + (lang === 'vi' ? 'thùng' : 'boxes');
+      $('valPackQty').textContent = Number(d.qty_thung).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US') + ' ' + tFixed(UNIT_WORDS);
     }
     // KHÔNG dùng pick('packing_text') — nó sẽ vô tình lấy field
     // packing_text_en cũ (đã bỏ dùng, có thể còn sót giá trị cũ trong DB từ
     // trước khi đổi sang cơ chế từ điển packing_terms_en). Luôn dùng thẳng
     // d.packing_text (tiếng Việt) làm nguồn duy nhất, renderPackingLines() tự
-    // tra packing_terms_en để dịch từng tên khi cần.
-    if(d.packing_text) renderPackingLines(d.packing_text, 'packingLines', d.packing_terms_en);
+    // tra packing_terms_en/packing_terms_extra để dịch từng tên khi cần.
+    if(d.packing_text) renderPackingLines(d.packing_text, 'packingLines', d.packing_terms_en, d.packing_terms_extra);
     // "Thông tin lô hàng" — chỉ có ở trang theo TỪNG sản phẩm, liệt kê lại
     // TOÀN BỘ sản phẩm của cả lô (giống trang mã chung cũ) để khách biết
     // trong cùng container/lô còn có sản phẩm nào khác.
     if(d.batch_packing_text){
       $('batchInfoCard').hidden = false;
-      renderPackingLines(d.batch_packing_text, 'batchPackingLines', d.batch_packing_terms_en);
+      renderPackingLines(d.batch_packing_text, 'batchPackingLines', d.batch_packing_terms_en, d.batch_packing_terms_extra);
     }
   }
 
   function render(d){
     currentRecord = d;
     var displayCode = d.batch_label || d.trace_code;
-    setBilingual($('batchChip'), 'Mã lô: ' + displayCode, 'Batch: ' + displayCode);
+    setMultilingual($('batchChip'), {
+      vi: BATCH_LABEL_PREFIX.vi + displayCode, en: BATCH_LABEL_PREFIX.en + displayCode,
+      ja: BATCH_LABEL_PREFIX.ja + displayCode, ko: BATCH_LABEL_PREFIX.ko + displayCode, zh: BATCH_LABEL_PREFIX.zh + displayCode
+    });
+
+    // Nút ngôn ngữ đặc biệt (3rd) — chỉ hiện khi LÔ NÀY có khai báo
+    // extra_lang (chọn ở modal Truy xuất nguồn gốc), tự lấy tên hiển thị
+    // theo đúng mã ngôn ngữ đó. Không khai báo thì trang chỉ có VI/EN như
+    // trước — không ảnh hưởng các lô khác.
+    var extraBtn = $('langBtnExtra');
+    if(d.extra_lang && EXTRA_LANG_NAMES[d.extra_lang]){
+      extraBtn.hidden = false;
+      extraBtn.textContent = EXTRA_LANG_NAMES[d.extra_lang];
+      extraBtn.dataset.lang = d.extra_lang;
+    } else {
+      extraBtn.hidden = true;
+      delete extraBtn.dataset.lang;
+      if(lang !== 'vi' && lang !== 'en') lang = 'en';
+    }
 
     if(d.variety){ $('rowVariety').hidden = false; }
     if(d.harvest_date){ $('rowHarvest').hidden = false; $('valHarvest').textContent = fmtDate(d.harvest_date); }
-    if(!d.region && !d.variety && !d.harvest_date && !d.supplier_name && !d.best_before){ $('originCard').hidden = true; }
+    // originCard giờ luôn hiện — có 2 dòng cố định (Đơn vị xuất/nhập khẩu)
+    // không phụ thuộc dữ liệu lô nào cả, không còn trường hợp "rỗng" để ẩn.
     refreshDynamicText();
 
     var qcMeta = QC_META[d.qc_status] || null;
@@ -397,9 +459,16 @@
     if(qcMeta){
       qcBlock.className = 'qc-block ' + qcMeta.cls;
       $('qcBadge').innerHTML = QC_ICONS[qcMeta.icon];
-      setBilingual($('qcTitle'), qcMeta.vi, qcMeta.en);
+      setMultilingual($('qcTitle'), qcMeta.text);
       var qcDateTxt = d.qc_date ? fmtDate(d.qc_date) : '';
-      setBilingual($('qcSub'), qcDateTxt ? ('Kiểm định ' + qcDateTxt) : 'Chưa có ngày kiểm định', qcDateTxt ? ('Inspected ' + qcDateTxt) : 'No inspection date yet');
+      if(qcDateTxt){
+        setMultilingual($('qcSub'), {
+          vi: QC_INSPECTED.vi + qcDateTxt, en: QC_INSPECTED.en + qcDateTxt,
+          ja: QC_INSPECTED.ja + qcDateTxt, ko: QC_INSPECTED.ko + qcDateTxt, zh: QC_INSPECTED.zh + qcDateTxt
+        });
+      } else {
+        setMultilingual($('qcSub'), QC_NO_DATE);
+      }
       if(d.qc_pass_rate != null){
         $('qcRateWrap').hidden = false;
         $('qcRateNum').textContent = Math.round(d.qc_pass_rate) + '%';
@@ -418,14 +487,14 @@
     showState('stateContent');
   }
 
-  function tlStep(labelVi, labelEn, dateText, state){
+  function tlStep(labels, dateText, state){
     var wrap = document.createElement('div');
     wrap.className = 'tl-step' + (state ? ' ' + state : '');
     var rail = document.createElement('div'); rail.className = 'tl-rail';
     rail.innerHTML = '<div class="tl-dot"></div><div class="tl-line"></div>';
     var body = document.createElement('div'); body.className = 'tl-body';
     var label = document.createElement('div'); label.className = 'tl-label';
-    setBilingual(label, labelVi, labelEn);
+    setMultilingual(label, labels);
     body.appendChild(label);
     if(dateText){
       var dateEl = document.createElement('div'); dateEl.className = 'tl-date'; dateEl.textContent = dateText;
@@ -433,7 +502,7 @@
     }
     if(state === 'current'){
       var tag = document.createElement('span'); tag.className = 'tl-now-tag';
-      setBilingual(tag, 'Đang ở bước này', 'Current stage');
+      setMultilingual(tag, { vi:'Đang ở bước này', en:'Current stage', ja:'現在のステータス', ko:'현재 단계', zh:'当前阶段' });
       body.appendChild(tag);
     }
     wrap.appendChild(rail); wrap.appendChild(body);
@@ -443,7 +512,7 @@
   // 4 mốc công khai, ứng với 6 STAGE_ORDER nội bộ (0='Cảng đi' … 5='Khách đã
   // nhận hàng'): Đóng hàng (trước 0) → Ngày xuất hàng (đúng mốc 0) → Đang
   // vận chuyển (gộp 3 mốc giữa 1,2,3: Trên biển/Thông quan/Cảng đến, khách
-  // không cần biết chi tiết từng chặng) → Ngày khách nhận hàng (mốc 4,5).
+  // không cần biết chi tiết từng chặng) → Ngày giao hàng (mốc 4,5).
   function renderTimeline(d){
     var idx = stageIndex(d.shipping_stage);
     var el = $('timeline');
@@ -451,22 +520,22 @@
 
     // Đóng hàng — coi là "done" nếu đã có ngày đóng hàng hoặc lô đã có bất kỳ mốc vận chuyển nào.
     var packedState = (d.packed_date || idx >= 0) ? 'done' : (idx === -1 && !d.packed_date ? 'current' : '');
-    el.appendChild(tlStep('Đóng hàng', 'Packed', d.packed_date ? fmtDate(d.packed_date) : '', packedState));
+    el.appendChild(tlStep({ vi:'Đóng hàng', en:'Packed', ja:'梱包完了', ko:'포장 완료', zh:'已装箱' }, d.packed_date ? fmtDate(d.packed_date) : '', packedState));
 
     // Ngày xuất hàng — mốc 'Cảng đi' (idx 0)
     var shippedState = idx > 0 ? 'done' : (idx === 0 ? 'current' : '');
     var shippedDate = d.shipping_etd ? fmtDate(d.shipping_etd) : '';
-    el.appendChild(tlStep('Ngày xuất hàng', 'Ship-out date', shippedDate, shippedState));
+    el.appendChild(tlStep({ vi:'Ngày xuất hàng', en:'Ship-out date', ja:'出荷日', ko:'출고일', zh:'出运日期' }, shippedDate, shippedState));
 
     // Đang vận chuyển — gộp 'Trên biển'/'Thông quan'/'Cảng đến' (idx 1-3)
     var transitState = idx > 3 ? 'done' : (idx >= 1 && idx <= 3 ? 'current' : '');
-    var transitDate = d.shipping_eta ? (lang === 'vi' ? 'Dự kiến ' : 'Estimated ') + fmtDate(d.shipping_eta) : '';
-    el.appendChild(tlStep('Đang vận chuyển', 'In transit', transitDate, transitState));
+    var transitDate = d.shipping_eta ? tFixed(ETA_PREFIX) + fmtDate(d.shipping_eta) : '';
+    el.appendChild(tlStep({ vi:'Đang vận chuyển', en:'In transit', ja:'輸送中', ko:'운송 중', zh:'运输中' }, transitDate, transitState));
 
     // Ngày giao hàng — 'Giao khách hàng'/'Khách đã nhận hàng' (idx 4-5)
     var deliveredState = idx === 5 ? 'done' : (idx === 4 ? 'current' : '');
     var deliveredDate = d.shipping_received_date ? fmtDate(d.shipping_received_date) : '';
-    el.appendChild(tlStep('Ngày giao hàng', 'Delivery date', deliveredDate, deliveredState));
+    el.appendChild(tlStep({ vi:'Ngày giao hàng', en:'Delivery date', ja:'配送日', ko:'배송일', zh:'送达日期' }, deliveredDate, deliveredState));
   }
 
   // Mỗi sản phẩm trong 1 lô có thể có mã riêng (batch_trace_product_public)

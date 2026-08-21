@@ -860,26 +860,46 @@
             <div class="muted" style="font-size:11px;margin-top:4px;">Chỉ để khách <em>nhìn thấy</em> — khác với "Mã tra cứu" bên dưới (mã bí mật thật sự nằm trong link/QR, không đổi theo ô này).</div>
           </div>
           <div class="form-group">
+            <label for="trace-extra-lang">Ngôn ngữ đặc biệt cho lô này (tùy chọn)</label>
+            <select id="trace-extra-lang">
+              <option value="">Không có — chỉ dùng song ngữ Việt/Anh</option>
+              <option value="ja">日本語 (Tiếng Nhật)</option>
+              <option value="ko">한국어 (Tiếng Hàn)</option>
+              <option value="zh">中文 (Tiếng Trung)</option>
+            </select>
+            <div class="muted" style="font-size:11px;margin-top:4px;">Chọn xong sẽ hiện thêm ô dịch riêng bên dưới — trang công khai tự hiện thêm 1 nút ngôn ngữ này cho đúng lô đã chọn, không ảnh hưởng các lô khác.</div>
+          </div>
+          <div class="form-group">
             <label for="trace-product-name">Tên sản phẩm (hiển thị công khai)</label>
             <input type="text" id="trace-product-name" placeholder="VD: Dừa xiêm xanh gọt vỏ">
             <div class="muted" style="font-size:11px;margin-top:4px;">Riêng với trang công khai — không lấy từ ô "Sản phẩm" ở Thêm đơn hàng, vì lô có thể gồm nhiều loại hàng khác nhau.</div>
             <input type="text" id="trace-product-name-en" placeholder="(Tiếng Anh, tùy chọn) VD: Peeled young coconut" style="margin-top:6px;font-size:12px;">
+            <input type="text" id="trace-product-name-extra" class="trace-extra-input" style="display:none;margin-top:6px;font-size:12px;">
           </div>
           <div class="form-group">
-            <label for="trace-supplier-name">Nhà cung cấp (hiển thị công khai)</label>
+            <label for="trace-supplier-name">Nhà máy (hiển thị công khai)</label>
             <input type="text" id="trace-supplier-name" placeholder="VD: Ba Phi">
             <input type="text" id="trace-supplier-name-en" placeholder="(Tiếng Anh, tùy chọn)" style="margin-top:6px;font-size:12px;">
+            <input type="text" id="trace-supplier-name-extra" class="trace-extra-input" style="display:none;margin-top:6px;font-size:12px;">
+          </div>
+          <div class="form-group">
+            <label for="trace-importer-name">Đơn vị nhập khẩu (hiển thị công khai)</label>
+            <input type="text" id="trace-importer-name" placeholder="VD: Tsubasa — chỉ ghi tên chung chung, không ghi chi tiết khách hàng thật">
+            <input type="text" id="trace-importer-name-en" placeholder="(Tiếng Anh, tùy chọn)" style="margin-top:6px;font-size:12px;">
+            <input type="text" id="trace-importer-name-extra" class="trace-extra-input" style="display:none;margin-top:6px;font-size:12px;">
           </div>
           <div class="form-group">
             <label for="trace-variety">Chủng loại (hiển thị công khai)</label>
             <input type="text" id="trace-variety" placeholder="VD: Xiêm xanh, Dừa trọc">
             <input type="text" id="trace-variety-en" placeholder="(Tiếng Anh, tùy chọn)" style="margin-top:6px;font-size:12px;">
+            <input type="text" id="trace-variety-extra" class="trace-extra-input" style="display:none;margin-top:6px;font-size:12px;">
           </div>
           <div class="form-group">
             <label for="trace-region">Vùng nguyên liệu (hiển thị công khai)</label>
             <input type="text" id="trace-region" placeholder="VD: Bến Tre">
             <div class="muted" style="font-size:11px;margin-top:4px;">"Lấy từ hệ thống" điền tạm nguyên địa chỉ đầu mối thu mua đã khai — nên rút gọn lại về đúng vùng/tỉnh trước khi lưu, tránh lộ địa chỉ chi tiết.</div>
             <input type="text" id="trace-region-en" placeholder="(Tiếng Anh, tùy chọn)" style="margin-top:6px;font-size:12px;">
+            <input type="text" id="trace-region-extra" class="trace-extra-input" style="display:none;margin-top:6px;font-size:12px;">
           </div>
           <div class="form-group">
             <label for="trace-packed-date">Ngày đóng hàng</label>
@@ -891,8 +911,8 @@
             <div class="muted" style="font-size:11px;margin-top:4px;">Tự sinh từ dữ liệu đóng thùng thật, gộp theo nguyên liệu. Không cần sửa tay ô này.</div>
           </div>
           <div class="form-group" id="trace-terms-group" style="display:none;">
-            <label style="margin-bottom:2px;">Bản dịch tiếng Anh cho từng tên (tùy chọn)</label>
-            <div class="muted" style="font-size:11px;margin-bottom:8px;">Chỉ cần gõ đúng tên riêng, không cần theo cấu trúc gì — hệ thống tự ghép vào đúng vị trí khi khách chuyển sang EN.</div>
+            <label style="margin-bottom:2px;">Bản dịch cho từng tên (tùy chọn)</label>
+            <div class="muted" style="font-size:11px;margin-bottom:8px;">Chỉ cần gõ đúng tên riêng, không cần theo cấu trúc gì — hệ thống tự ghép vào đúng vị trí khi khách chuyển ngôn ngữ.</div>
             <div id="trace-terms-list" style="display:flex;flex-direction:column;gap:6px;"></div>
           </div>
           <div class="modal-actions" style="justify-content:space-between;">
@@ -5410,14 +5430,22 @@ const titles = {
     const traceForm = document.getElementById('form-trace');
     const traceSubmitBtn = document.getElementById('btn-submit-trace');
     const traceBatchLabelInput = document.getElementById('trace-batch-label');
+    const traceExtraLangSelect = document.getElementById('trace-extra-lang');
     const traceProductNameInput = document.getElementById('trace-product-name');
     const traceProductNameEnInput = document.getElementById('trace-product-name-en');
+    const traceProductNameExtraInput = document.getElementById('trace-product-name-extra');
     const traceSupplierNameInput = document.getElementById('trace-supplier-name');
     const traceSupplierNameEnInput = document.getElementById('trace-supplier-name-en');
+    const traceSupplierNameExtraInput = document.getElementById('trace-supplier-name-extra');
+    const traceImporterNameInput = document.getElementById('trace-importer-name');
+    const traceImporterNameEnInput = document.getElementById('trace-importer-name-en');
+    const traceImporterNameExtraInput = document.getElementById('trace-importer-name-extra');
     const traceVarietyInput = document.getElementById('trace-variety');
     const traceVarietyEnInput = document.getElementById('trace-variety-en');
+    const traceVarietyExtraInput = document.getElementById('trace-variety-extra');
     const traceRegionInput = document.getElementById('trace-region');
     const traceRegionEnInput = document.getElementById('trace-region-en');
+    const traceRegionExtraInput = document.getElementById('trace-region-extra');
     const tracePackedDateInput = document.getElementById('trace-packed-date');
     const tracePackingTextInput = document.getElementById('trace-packing-text');
     const traceTermsGroup = document.getElementById('trace-terms-group');
@@ -5452,15 +5480,35 @@ const titles = {
     let traceCurrentBatch = null;
     let traceCurrentCode = null;
     let traceTermTranslations = {};
+    let traceTermTranslationsExtra = {};
 
-    // 1 ô EN nhỏ / tên riêng (nguyên liệu hoặc sản phẩm) xuất hiện trong
-    // "Đóng gói" — thay cho việc bắt gõ nguyên đoạn tiếng Anh đúng cấu trúc
-    // "Nguyên liệu → Sản phẩm · Số lượng" (dễ gõ sai dấu, xem phản hồi
-    // 2026-08-19). Danh sách tên lấy từ uniqueTermsFromBoxes(items).
+    // Ẩn/hiện toàn bộ ô "ngôn ngữ đặc biệt" (Tên sản phẩm/Nhà máy/Đơn vị
+    // nhập khẩu/Chủng loại/Vùng nguyên liệu) theo đúng lựa chọn ở dropdown —
+    // chưa chọn ngôn ngữ nào thì ẩn hết, đỡ rối form cho các lô dùng
+    // song ngữ Việt/Anh bình thường (đa số).
+    function toggleTraceExtraFields(){
+      const on = !!(traceExtraLangSelect && traceExtraLangSelect.value);
+      document.querySelectorAll('.trace-extra-input').forEach(function(el){
+        el.style.display = on ? '' : 'none';
+      });
+      // Cột dịch theo từng tên (đóng gói) cũng cần vẽ lại — có/không cột
+      // ngôn ngữ đặc biệt phụ thuộc đúng lựa chọn hiện tại.
+      if(traceTermsGroup.style.display !== 'none'){
+        renderTraceTerms(Array.from(traceTermsList.querySelectorAll('[data-term]')).map(function(el){ return el.dataset.term; }));
+      }
+    }
+    if(traceExtraLangSelect) traceExtraLangSelect.addEventListener('change', toggleTraceExtraFields);
+
+    // 1 ô EN nhỏ + 1 ô ngôn ngữ đặc biệt (nếu lô có chọn) / tên riêng (nguyên
+    // liệu hoặc sản phẩm) xuất hiện trong "Đóng gói" — thay cho việc bắt gõ
+    // nguyên đoạn dịch đúng cấu trúc "Nguyên liệu → Sản phẩm · Số lượng" (dễ
+    // gõ sai dấu, xem phản hồi 2026-08-19). Danh sách tên lấy từ
+    // uniqueTermsFromBoxes(items).
     function renderTraceTerms(terms){
       traceTermsList.textContent = '';
       if(!terms.length){ traceTermsGroup.style.display = 'none'; return; }
       traceTermsGroup.style.display = '';
+      const extraLang = traceExtraLangSelect ? traceExtraLangSelect.value : '';
       terms.forEach(function(term){
         const row = document.createElement('div');
         row.style.cssText = 'display:flex;align-items:center;gap:8px;';
@@ -5471,10 +5519,19 @@ const titles = {
         input.type = 'text';
         input.dataset.term = term;
         input.placeholder = '(EN)';
-        input.value = traceTermTranslations[term] || (term === 'thùng' ? 'boxes' : '');
+        input.value = traceTermTranslations[term] || '';
         input.style.cssText = 'flex:1;font-size:12px;';
         row.appendChild(label);
         row.appendChild(input);
+        if(extraLang){
+          const inputExtra = document.createElement('input');
+          inputExtra.type = 'text';
+          inputExtra.dataset.termExtra = term;
+          inputExtra.placeholder = '(' + extraLang.toUpperCase() + ')';
+          inputExtra.value = traceTermTranslationsExtra[term] || '';
+          inputExtra.style.cssText = 'flex:1;font-size:12px;';
+          row.appendChild(inputExtra);
+        }
         traceTermsList.appendChild(row);
       });
     }
@@ -5483,6 +5540,14 @@ const titles = {
       Array.from(traceTermsList.querySelectorAll('input[data-term]')).forEach(function(inp){
         const v = inp.value.trim();
         if(v) result[inp.dataset.term] = v;
+      });
+      return result;
+    }
+    function readTraceTermsExtra(){
+      const result = {};
+      Array.from(traceTermsList.querySelectorAll('input[data-term-extra]')).forEach(function(inp){
+        const v = inp.value.trim();
+        if(v) result[inp.dataset.termExtra] = v;
       });
       return result;
     }
@@ -5541,10 +5606,9 @@ const titles = {
           if(t && !seen.has(t)){ seen.add(t); terms.push(t); }
         });
       });
-      // "thùng" (đơn vị số lượng) cũng là 1 tên cần dịch như bao tên khác —
-      // luôn thêm vào cuối danh sách nếu có ít nhất 1 dòng đóng gói, kèm gợi
-      // ý mặc định "boxes" nếu staff chưa từng dịch (xem renderTraceTerms).
-      if(items.length && !seen.has('thùng')) terms.push('thùng');
+      // Đơn vị "thùng" KHÔNG cần dịch riêng từng lô nữa — trace.html giờ tự
+      // hiện "boxes"/"箱"/... theo 1 bảng cố định (UNIT_WORDS), không đọc từ
+      // điển này nữa.
       return terms;
     }
     // Tên sản phẩm công khai lấy từ chính danh sách đóng thùng thật (không
@@ -5759,6 +5823,11 @@ const titles = {
       sub.textContent = (quyCachLabel ? quyCachLabel + ' · ' : '') + g.totalThung.toLocaleString('vi-VN') + ' thùng';
       row.appendChild(sub);
 
+      // Ngôn ngữ đặc biệt (nếu lô này có chọn ở trên) — chỉ hiện thêm 3 ô dịch
+      // riêng (Tên sản phẩm/Chủng loại/Vùng nguyên liệu) khi dropdown chính
+      // đang chọn 1 ngôn ngữ, giống hệt cách ô EN vẫn luôn hiện.
+      const extraLang = traceExtraLangSelect ? traceExtraLangSelect.value : '';
+
       const varietyRow = document.createElement('div');
       varietyRow.style.cssText = 'display:flex;gap:6px;margin-top:8px;';
       const varietyInput = document.createElement('input');
@@ -5768,6 +5837,13 @@ const titles = {
       varietyInput.style.cssText = 'font-size:11.5px;flex:1;';
       varietyRow.appendChild(varietyInput);
       row.appendChild(varietyRow);
+
+      const varietyExtraInput = document.createElement('input');
+      varietyExtraInput.type = 'text';
+      varietyExtraInput.placeholder = 'Chủng loại (' + extraLang.toUpperCase() + ', tùy chọn)';
+      varietyExtraInput.value = (existing && existing.variety_extra) || '';
+      varietyExtraInput.style.cssText = 'font-size:11.5px;margin-top:6px;width:100%;' + (extraLang ? '' : 'display:none;');
+      row.appendChild(varietyExtraInput);
 
       // Vùng nguyên liệu gợi ý theo ĐÚNG đầu mối đã ra sản phẩm này (không
       // dùng chung địa chỉ gộp cả lô) — vẫn sửa tay được, giống ô Chủng loại,
@@ -5779,12 +5855,33 @@ const titles = {
       regionInput.style.cssText = 'font-size:11.5px;margin-top:6px;width:100%;';
       row.appendChild(regionInput);
 
+      const regionEnInput = document.createElement('input');
+      regionEnInput.type = 'text';
+      regionEnInput.placeholder = 'Vùng nguyên liệu (Tiếng Anh, tùy chọn) — VD: Ben Tre Province';
+      regionEnInput.value = (existing && existing.region_en) || '';
+      regionEnInput.style.cssText = 'font-size:11.5px;margin-top:6px;width:100%;';
+      row.appendChild(regionEnInput);
+
+      const regionExtraInput = document.createElement('input');
+      regionExtraInput.type = 'text';
+      regionExtraInput.placeholder = 'Vùng nguyên liệu (' + extraLang.toUpperCase() + ', tùy chọn)';
+      regionExtraInput.value = (existing && existing.region_extra) || '';
+      regionExtraInput.style.cssText = 'font-size:11.5px;margin-top:6px;width:100%;' + (extraLang ? '' : 'display:none;');
+      row.appendChild(regionExtraInput);
+
       const enInput = document.createElement('input');
       enInput.type = 'text';
       enInput.placeholder = 'Tên tiếng Anh (tùy chọn)';
       enInput.value = (existing && existing.san_pham_en) || '';
       enInput.style.cssText = 'font-size:11.5px;margin-top:8px;width:100%;';
       row.appendChild(enInput);
+
+      const sanPhamExtraInput = document.createElement('input');
+      sanPhamExtraInput.type = 'text';
+      sanPhamExtraInput.placeholder = 'Tên sản phẩm (' + extraLang.toUpperCase() + ', tùy chọn)';
+      sanPhamExtraInput.value = (existing && existing.san_pham_extra) || '';
+      sanPhamExtraInput.style.cssText = 'font-size:11.5px;margin-top:6px;width:100%;' + (extraLang ? '' : 'display:none;');
+      row.appendChild(sanPhamExtraInput);
 
       const bodyWrap = document.createElement('div');
       bodyWrap.style.cssText = 'display:none;margin-top:10px;text-align:center;';
@@ -5797,8 +5894,12 @@ const titles = {
           batch: batchCode,
           san_pham: g.sanPham,
           san_pham_en: enInput.value.trim() || null,
+          san_pham_extra: extraLang ? (sanPhamExtraInput.value.trim() || null) : null,
           variety: varietyInput.value.trim() || null,
+          variety_extra: extraLang ? (varietyExtraInput.value.trim() || null) : null,
           region: regionInput.value.trim() || null,
+          region_en: regionEnInput.value.trim() || null,
+          region_extra: extraLang ? (regionExtraInput.value.trim() || null) : null,
           quy_cach: quyCachLabel || null,
           total_thung: g.totalThung,
           trace_enabled: toggle.checked,
@@ -5891,6 +5992,26 @@ const titles = {
         }
       });
 
+      regionEnInput.addEventListener('change', async function(){
+        try{
+          const { error } = await saveRow();
+          if(error) throw error;
+        } catch(err){
+          alert('Không thể lưu: ' + (err.message || err));
+        }
+      });
+
+      [varietyExtraInput, regionExtraInput, sanPhamExtraInput].forEach(function(inputEl){
+        inputEl.addEventListener('change', async function(){
+          try{
+            const { error } = await saveRow();
+            if(error) throw error;
+          } catch(err){
+            alert('Không thể lưu: ' + (err.message || err));
+          }
+        });
+      });
+
       traceProductList.appendChild(row);
     }
 
@@ -5950,6 +6071,8 @@ const titles = {
       traceModalTitle.textContent = 'Truy xuất nguồn gốc — ' + batchCode;
       traceForm.reset();
       traceTermTranslations = {};
+      traceTermTranslationsExtra = {};
+      toggleTraceExtraFields();
       traceTermsGroup.style.display = 'none';
       traceTermsList.textContent = '';
       tracePublicSection.style.display = 'none';
@@ -5957,21 +6080,31 @@ const titles = {
       traceQrWrap.style.display = 'none';
       traceOverlay.classList.add('active');
       try{
-        const { data, error } = await sb.from('batch_info').select('trace_batch_label,trace_product_name,trace_product_name_en,trace_supplier_name,trace_supplier_name_en,trace_variety,trace_variety_en,trace_region,trace_region_en,trace_packed_date,trace_packing_text,trace_packing_terms_en,trace_enabled,public_trace_code,trace_qr_enabled,trace_barcode_enabled,trace_qr_exported,trace_barcode_exported').eq('batch', batchCode).maybeSingle();
+        const { data, error } = await sb.from('batch_info').select('trace_batch_label,trace_product_name,trace_product_name_en,trace_product_name_extra,trace_supplier_name,trace_supplier_name_en,trace_supplier_name_extra,trace_importer_name,trace_importer_name_en,trace_importer_name_extra,trace_variety,trace_variety_en,trace_variety_extra,trace_region,trace_region_en,trace_region_extra,trace_packed_date,trace_packing_text,trace_packing_terms_en,trace_packing_terms_extra,trace_extra_lang,trace_enabled,public_trace_code,trace_qr_enabled,trace_barcode_enabled,trace_qr_exported,trace_barcode_exported').eq('batch', batchCode).maybeSingle();
         if(error) throw error;
         const bi = data || {};
         traceBatchLabelInput.value = bi.trace_batch_label || '';
+        if(traceExtraLangSelect) traceExtraLangSelect.value = bi.trace_extra_lang || '';
         traceProductNameInput.value = bi.trace_product_name || '';
         traceProductNameEnInput.value = bi.trace_product_name_en || '';
+        if(traceProductNameExtraInput) traceProductNameExtraInput.value = bi.trace_product_name_extra || '';
         traceSupplierNameInput.value = bi.trace_supplier_name || '';
         traceSupplierNameEnInput.value = bi.trace_supplier_name_en || '';
+        if(traceSupplierNameExtraInput) traceSupplierNameExtraInput.value = bi.trace_supplier_name_extra || '';
+        traceImporterNameInput.value = bi.trace_importer_name || '';
+        traceImporterNameEnInput.value = bi.trace_importer_name_en || '';
+        if(traceImporterNameExtraInput) traceImporterNameExtraInput.value = bi.trace_importer_name_extra || '';
         traceVarietyInput.value = bi.trace_variety || '';
         traceVarietyEnInput.value = bi.trace_variety_en || '';
+        if(traceVarietyExtraInput) traceVarietyExtraInput.value = bi.trace_variety_extra || '';
         traceRegionInput.value = bi.trace_region || '';
         traceRegionEnInput.value = bi.trace_region_en || '';
+        if(traceRegionExtraInput) traceRegionExtraInput.value = bi.trace_region_extra || '';
         tracePackedDateInput.value = bi.trace_packed_date || '';
         tracePackingTextInput.value = bi.trace_packing_text || '';
         traceTermTranslations = bi.trace_packing_terms_en || {};
+        traceTermTranslationsExtra = bi.trace_packing_terms_extra || {};
+        toggleTraceExtraFields();
         refillTraceFromSystem(true, true);
         traceCurrentCode = bi.public_trace_code || null;
         tracePublicSection.style.display = '';
@@ -6014,20 +6147,30 @@ const titles = {
         traceSubmitBtn.disabled = true;
         traceSubmitBtn.textContent = 'Đang lưu...';
         try{
+          const extraLangVal = traceExtraLangSelect ? traceExtraLangSelect.value : '';
           const { error } = await sb.from('batch_info').upsert({
             batch: traceCurrentBatch,
             trace_batch_label: traceBatchLabelInput.value.trim().toUpperCase() || null,
+            trace_extra_lang: extraLangVal || null,
             trace_product_name: traceProductNameInput.value.trim() || null,
             trace_product_name_en: traceProductNameEnInput.value.trim() || null,
+            trace_product_name_extra: extraLangVal ? (traceProductNameExtraInput.value.trim() || null) : null,
             trace_supplier_name: traceSupplierNameInput.value.trim() || null,
             trace_supplier_name_en: traceSupplierNameEnInput.value.trim() || null,
+            trace_supplier_name_extra: extraLangVal ? (traceSupplierNameExtraInput.value.trim() || null) : null,
+            trace_importer_name: traceImporterNameInput.value.trim() || null,
+            trace_importer_name_en: traceImporterNameEnInput.value.trim() || null,
+            trace_importer_name_extra: extraLangVal ? (traceImporterNameExtraInput.value.trim() || null) : null,
             trace_variety: traceVarietyInput.value.trim() || null,
             trace_variety_en: traceVarietyEnInput.value.trim() || null,
+            trace_variety_extra: extraLangVal ? (traceVarietyExtraInput.value.trim() || null) : null,
             trace_region: traceRegionInput.value.trim() || null,
             trace_region_en: traceRegionEnInput.value.trim() || null,
+            trace_region_extra: extraLangVal ? (traceRegionExtraInput.value.trim() || null) : null,
             trace_packed_date: tracePackedDateInput.value || null,
             trace_packing_text: tracePackingTextInput.value.trim() || null,
             trace_packing_terms_en: readTraceTerms(),
+            trace_packing_terms_extra: extraLangVal ? readTraceTermsExtra() : {},
             // Dọn field cũ (đã bỏ dùng, thay bằng trace_packing_terms_en ở
             // trên) — tránh còn sót giá trị cũ làm trang công khai đọc nhầm.
             trace_packing_text_en: null

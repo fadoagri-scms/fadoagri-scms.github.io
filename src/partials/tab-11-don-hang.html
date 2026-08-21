@@ -96,26 +96,46 @@
             <div class="muted" style="font-size:11px;margin-top:4px;">Chỉ để khách <em>nhìn thấy</em> — khác với "Mã tra cứu" bên dưới (mã bí mật thật sự nằm trong link/QR, không đổi theo ô này).</div>
           </div>
           <div class="form-group">
+            <label for="trace-extra-lang">Ngôn ngữ đặc biệt cho lô này (tùy chọn)</label>
+            <select id="trace-extra-lang">
+              <option value="">Không có — chỉ dùng song ngữ Việt/Anh</option>
+              <option value="ja">日本語 (Tiếng Nhật)</option>
+              <option value="ko">한국어 (Tiếng Hàn)</option>
+              <option value="zh">中文 (Tiếng Trung)</option>
+            </select>
+            <div class="muted" style="font-size:11px;margin-top:4px;">Chọn xong sẽ hiện thêm ô dịch riêng bên dưới — trang công khai tự hiện thêm 1 nút ngôn ngữ này cho đúng lô đã chọn, không ảnh hưởng các lô khác.</div>
+          </div>
+          <div class="form-group">
             <label for="trace-product-name">Tên sản phẩm (hiển thị công khai)</label>
             <input type="text" id="trace-product-name" placeholder="VD: Dừa xiêm xanh gọt vỏ">
             <div class="muted" style="font-size:11px;margin-top:4px;">Riêng với trang công khai — không lấy từ ô "Sản phẩm" ở Thêm đơn hàng, vì lô có thể gồm nhiều loại hàng khác nhau.</div>
             <input type="text" id="trace-product-name-en" placeholder="(Tiếng Anh, tùy chọn) VD: Peeled young coconut" style="margin-top:6px;font-size:12px;">
+            <input type="text" id="trace-product-name-extra" class="trace-extra-input" style="display:none;margin-top:6px;font-size:12px;">
           </div>
           <div class="form-group">
-            <label for="trace-supplier-name">Nhà cung cấp (hiển thị công khai)</label>
+            <label for="trace-supplier-name">Nhà máy (hiển thị công khai)</label>
             <input type="text" id="trace-supplier-name" placeholder="VD: Ba Phi">
             <input type="text" id="trace-supplier-name-en" placeholder="(Tiếng Anh, tùy chọn)" style="margin-top:6px;font-size:12px;">
+            <input type="text" id="trace-supplier-name-extra" class="trace-extra-input" style="display:none;margin-top:6px;font-size:12px;">
+          </div>
+          <div class="form-group">
+            <label for="trace-importer-name">Đơn vị nhập khẩu (hiển thị công khai)</label>
+            <input type="text" id="trace-importer-name" placeholder="VD: Tsubasa — chỉ ghi tên chung chung, không ghi chi tiết khách hàng thật">
+            <input type="text" id="trace-importer-name-en" placeholder="(Tiếng Anh, tùy chọn)" style="margin-top:6px;font-size:12px;">
+            <input type="text" id="trace-importer-name-extra" class="trace-extra-input" style="display:none;margin-top:6px;font-size:12px;">
           </div>
           <div class="form-group">
             <label for="trace-variety">Chủng loại (hiển thị công khai)</label>
             <input type="text" id="trace-variety" placeholder="VD: Xiêm xanh, Dừa trọc">
             <input type="text" id="trace-variety-en" placeholder="(Tiếng Anh, tùy chọn)" style="margin-top:6px;font-size:12px;">
+            <input type="text" id="trace-variety-extra" class="trace-extra-input" style="display:none;margin-top:6px;font-size:12px;">
           </div>
           <div class="form-group">
             <label for="trace-region">Vùng nguyên liệu (hiển thị công khai)</label>
             <input type="text" id="trace-region" placeholder="VD: Bến Tre">
             <div class="muted" style="font-size:11px;margin-top:4px;">"Lấy từ hệ thống" điền tạm nguyên địa chỉ đầu mối thu mua đã khai — nên rút gọn lại về đúng vùng/tỉnh trước khi lưu, tránh lộ địa chỉ chi tiết.</div>
             <input type="text" id="trace-region-en" placeholder="(Tiếng Anh, tùy chọn)" style="margin-top:6px;font-size:12px;">
+            <input type="text" id="trace-region-extra" class="trace-extra-input" style="display:none;margin-top:6px;font-size:12px;">
           </div>
           <div class="form-group">
             <label for="trace-packed-date">Ngày đóng hàng</label>
@@ -127,8 +147,8 @@
             <div class="muted" style="font-size:11px;margin-top:4px;">Tự sinh từ dữ liệu đóng thùng thật, gộp theo nguyên liệu. Không cần sửa tay ô này.</div>
           </div>
           <div class="form-group" id="trace-terms-group" style="display:none;">
-            <label style="margin-bottom:2px;">Bản dịch tiếng Anh cho từng tên (tùy chọn)</label>
-            <div class="muted" style="font-size:11px;margin-bottom:8px;">Chỉ cần gõ đúng tên riêng, không cần theo cấu trúc gì — hệ thống tự ghép vào đúng vị trí khi khách chuyển sang EN.</div>
+            <label style="margin-bottom:2px;">Bản dịch cho từng tên (tùy chọn)</label>
+            <div class="muted" style="font-size:11px;margin-bottom:8px;">Chỉ cần gõ đúng tên riêng, không cần theo cấu trúc gì — hệ thống tự ghép vào đúng vị trí khi khách chuyển ngôn ngữ.</div>
             <div id="trace-terms-list" style="display:flex;flex-direction:column;gap:6px;"></div>
           </div>
           <div class="modal-actions" style="justify-content:space-between;">
