@@ -252,7 +252,20 @@
   var ETA_PREFIX = { vi: 'Dự kiến ', en: 'Estimated ', ja: '予定 ', ko: '예정 ', zh: '预计 ' };
   var BATCH_LABEL_PREFIX = { vi: 'Mã lô: ', en: 'Batch: ', ja: 'ロット番号: ', ko: '배치 번호: ', zh: '批次号: ' };
   var UNNAMED_PRODUCT = { vi: 'Sản phẩm chưa đặt tên', en: 'Unnamed product', ja: '製品名未設定', ko: '제품명 미입력', zh: '未命名产品' };
+  var QUY_CACH_UNIT = { vi: 'trái/thùng', en: 'fruits/box', ja: '個/箱', ko: '개/박스', zh: '个/箱' };
   function tFixed(map){ return map[lang] || map.en || map.vi; }
+
+  // "Quy cách" (VD "12 trái/thùng, 24 trái/thùng") do app sinh sẵn thành
+  // CHUỖI TIẾNG VIỆT cố định (xem quyCachLabel trong app.js) — không có cột
+  // _en/_extra riêng để pick() dùng như các trường khác, nên phải tách số ra
+  // rồi tự ghép lại đúng đơn vị theo ngôn ngữ đang xem.
+  function localizeQuyCach(raw){
+    if(!raw) return raw;
+    return String(raw).split(',').map(function(part){
+      var m = part.trim().match(/^(\d+)\s*trái\/th[uù]ng$/i);
+      return m ? (m[1] + ' ' + tFixed(QUY_CACH_UNIT)) : part.trim();
+    }).join(', ');
+  }
 
   // Nội dung tự nhập (tên sản phẩm/NCC/vùng/quy cách...) — bản EN dùng cột
   // "_en", bản ngôn ngữ đặc biệt (JA/KO/ZH...) dùng CHUNG 1 cột "_extra" cho
@@ -260,15 +273,34 @@
   // lưu kèm mã ngôn ngữ đang chọn (extra_lang) để biết "_extra" đang là thứ
   // tiếng gì. Chưa dịch ngôn ngữ đặc biệt thì rơi về EN trước (đối tác nước
   // ngoài đọc tiếng Anh dễ hơn tiếng Việt), không có EN mới rơi về VI.
+  // Trang theo TỪNG sản phẩm có ô dịch riêng (product_name_en/_extra, nhập ở
+  // mục "Mã riêng theo từng sản phẩm") NHƯNG staff hay quên điền, trong khi
+  // đúng cái tên đó THƯỜNG đã có sẵn bản dịch trong từ điển "Đóng gói"
+  // (packing_terms_en/_extra, nhập chung 1 lần cho cả lô lúc gõ "Đóng gói")
+  // — dùng làm lớp dự phòng trước khi rơi hẳn về tiếng Việt, đỡ hiện lộn qua
+  // tiếng Anh dù đang xem bản ngôn ngữ đặc biệt chỉ vì thiếu đúng 1 ô nhập.
+  function productTermFallback(isExtra){
+    if(!currentRecord || !currentRecord.product_name) return '';
+    // Trang cả lô có "packing_terms_*" (từ điển của chính packing_text lô
+    // đó); trang theo TỪNG sản phẩm không có 2 cột này, chỉ có
+    // "batch_packing_terms_*" (từ điển của khối "Thông tin lô hàng" liệt kê
+    // lại cả lô) — thử cả 2 tên cột, chỉ đúng 1 trong 2 tồn tại tuỳ loại
+    // trang.
+    var dict = isExtra
+      ? (currentRecord.packing_terms_extra || currentRecord.batch_packing_terms_extra)
+      : (currentRecord.packing_terms_en || currentRecord.batch_packing_terms_en);
+    return (dict && dict[currentRecord.product_name]) || '';
+  }
   function pick(field){
     if(!currentRecord) return '';
+    var isProduct = field === 'product_name';
     if(lang !== 'vi' && lang !== 'en'){
-      var extra = currentRecord[field + '_extra'];
+      var extra = currentRecord[field + '_extra'] || (isProduct ? productTermFallback(true) : '');
       if(extra) return extra;
-      var enFallback = currentRecord[field + '_en'];
+      var enFallback = currentRecord[field + '_en'] || (isProduct ? productTermFallback(false) : '');
       return enFallback || currentRecord[field] || '';
     }
-    var en = currentRecord[field + '_en'];
+    var en = currentRecord[field + '_en'] || (isProduct ? productTermFallback(false) : '');
     return (lang === 'en' && en) ? en : (currentRecord[field] || '');
   }
 
@@ -481,7 +513,7 @@
     if(d.qty_thung != null){
       $('rowPackProduct').hidden = false;
       $('valPackProduct').textContent = pick('product_name');
-      if(d.quy_cach){ $('rowPackSpec').hidden = false; $('valPackSpec').textContent = d.quy_cach; }
+      if(d.quy_cach){ $('rowPackSpec').hidden = false; $('valPackSpec').textContent = localizeQuyCach(d.quy_cach); }
       $('rowPackQty').hidden = false;
       $('valPackQty').textContent = Number(d.qty_thung).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US') + ' ' + tFixed(UNIT_WORDS);
     }
