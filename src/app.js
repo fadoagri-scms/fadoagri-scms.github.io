@@ -3079,7 +3079,7 @@ const titles = {
     // (VD Xiêm xanh → Dừa nón lá, Dừa trọc → Dừa trọc chóp), gộp phẳng mất
     // hết mối liên hệ này nên phải giữ theo từng raw_batches.
     async function getBoxItemsForBatch(batchCode){
-      const { data, error } = await sb.from('raw_batches').select('batch, chung_loai, factory_batches(factory_batch_boxes(san_pham,quy_cach,so_luong_thung))').eq('batch', batchCode).is('deleted_at', null);
+      const { data, error } = await sb.from('raw_batches').select('batch, chung_loai, ncc, factory_batches(factory_batch_boxes(san_pham,quy_cach,so_luong_thung))').eq('batch', batchCode).is('deleted_at', null);
       if(error) throw error;
       const boxMap = {};
       (data || []).forEach(function(r){
@@ -3087,8 +3087,9 @@ const titles = {
         if(!fb) return;
         (fb.factory_batch_boxes || []).forEach(function(box){
           const key = (r.chung_loai || '') + '::' + (box.san_pham || '') + '::' + (box.quy_cach == null ? '' : box.quy_cach);
-          if(!boxMap[key]) boxMap[key] = { nguyenLieu: r.chung_loai || '', sanPham: box.san_pham || '', quyCach: box.quy_cach, soLuong: 0 };
+          if(!boxMap[key]) boxMap[key] = { nguyenLieu: r.chung_loai || '', sanPham: box.san_pham || '', quyCach: box.quy_cach, soLuong: 0, nccs: [] };
           boxMap[key].soLuong += Number(box.so_luong_thung) || 0;
+          if(r.ncc && boxMap[key].nccs.indexOf(r.ncc) === -1) boxMap[key].nccs.push(r.ncc);
         });
       });
       return Object.values(boxMap);
@@ -3344,6 +3345,16 @@ const titles = {
       varietyRow.appendChild(varietyInput);
       row.appendChild(varietyRow);
 
+      // Vùng nguyên liệu gợi ý theo ĐÚNG đầu mối đã ra sản phẩm này (không
+      // dùng chung địa chỉ gộp cả lô) — vẫn sửa tay được, giống ô Chủng loại,
+      // vì địa chỉ đầu mối thường chi tiết hơn mức cần công khai.
+      const regionInput = document.createElement('input');
+      regionInput.type = 'text';
+      regionInput.placeholder = 'Vùng nguyên liệu';
+      regionInput.value = (existing && existing.region != null) ? existing.region : (g.regionSuggestion || '');
+      regionInput.style.cssText = 'font-size:11.5px;margin-top:6px;width:100%;';
+      row.appendChild(regionInput);
+
       const enInput = document.createElement('input');
       enInput.type = 'text';
       enInput.placeholder = 'Tên tiếng Anh (tùy chọn)';
@@ -3363,6 +3374,7 @@ const titles = {
           san_pham: g.sanPham,
           san_pham_en: enInput.value.trim() || null,
           variety: varietyInput.value.trim() || null,
+          region: regionInput.value.trim() || null,
           quy_cach: quyCachLabel || null,
           total_thung: g.totalThung,
           trace_enabled: toggle.checked,
@@ -3446,6 +3458,15 @@ const titles = {
         }
       });
 
+      regionInput.addEventListener('change', async function(){
+        try{
+          const { error } = await saveRow();
+          if(error) throw error;
+        } catch(err){
+          alert('Không thể lưu: ' + (err.message || err));
+        }
+      });
+
       traceProductList.appendChild(row);
     }
 
@@ -3465,16 +3486,31 @@ const titles = {
         const groups = {};
         items.forEach(function(it){
           if(!it.sanPham) return;
-          if(!groups[it.sanPham]) groups[it.sanPham] = { sanPham: it.sanPham, totalThung: 0, varieties: [], quyCachs: [] };
+          if(!groups[it.sanPham]) groups[it.sanPham] = { sanPham: it.sanPham, totalThung: 0, varieties: [], quyCachs: [], nccs: [] };
           groups[it.sanPham].totalThung += it.soLuong;
           if(it.nguyenLieu && groups[it.sanPham].varieties.indexOf(it.nguyenLieu) === -1) groups[it.sanPham].varieties.push(it.nguyenLieu);
           if(it.quyCach != null && groups[it.sanPham].quyCachs.indexOf(it.quyCach) === -1) groups[it.sanPham].quyCachs.push(it.quyCach);
+          (it.nccs || []).forEach(function(n){ if(groups[it.sanPham].nccs.indexOf(n) === -1) groups[it.sanPham].nccs.push(n); });
         });
 
         const names = Object.keys(groups);
         // Chỉ hiện khu vực này khi lô có TỪ 2 sản phẩm trở lên — 1 sản phẩm
         // thì mã chung ở trên đã đủ dùng, không cần thêm mã riêng làm rối.
         if(names.length < 2) return;
+
+        // Vùng nguyên liệu gợi ý riêng cho TỪNG sản phẩm — theo đúng đầu mối
+        // thật đã cung cấp nguyên liệu ra sản phẩm đó, không dùng chung địa
+        // chỉ gộp cả lô (dễ ra 2-3 tỉnh dính vào 1 dòng nếu lô có nhiều NCC).
+        const allNccNames = Array.from(new Set(Object.values(groups).reduce(function(acc, g){ return acc.concat(g.nccs); }, [])));
+        const addressByNcc = {};
+        if(allNccNames.length){
+          const { data: suppliers } = await sb.from('raw_suppliers').select('name,address').in('name', allNccNames);
+          (suppliers || []).forEach(function(s){ if(s.address) addressByNcc[s.name] = s.address; });
+        }
+        Object.values(groups).forEach(function(g){
+          g.regionSuggestion = Array.from(new Set(g.nccs.map(function(n){ return addressByNcc[n]; }).filter(Boolean))).join('; ');
+        });
+
         traceProductsWrap.style.display = '';
         names.sort(function(a, b){ return a.localeCompare(b, 'vi'); }).forEach(function(name){
           renderTraceProductRow(batchCode, groups[name], existingByName[name]);
