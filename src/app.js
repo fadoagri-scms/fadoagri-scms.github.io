@@ -14,13 +14,71 @@ const titles = {
 
   const ACTIVE_TAB_STORAGE_KEY = 'fadoagri_active_tab';
 
-  function goTab(tab){
+  // ---- Điều hướng tab/subtab qua URL (#tab hoặc #tab/subtab) ----
+  // Trước đây chuyển tab/subtab chỉ đổi class .active trên DOM, KHÔNG ghi
+  // gì vào lịch sử trình duyệt — nên nút chuột Back/Forward luôn thoát
+  // thẳng ra khỏi app (cả phiên chỉ có đúng 1 mục trong lịch sử: lần tải
+  // trang ban đầu). Giờ mỗi lần chuyển tab/subtab đều pushState 1 mốc mới;
+  // Back/Forward chỉ đổi DOM qua popstate (KHÔNG tải lại trang, không mất
+  // dữ liệu form/modal đang mở ở chỗ khác), đi lại đúng giữa các tab/subtab
+  // đã xem — chỉ thật sự thoát app khi đã lùi hết các mốc đó.
+  function currentSubtabOf(tab){
+    const panel = document.getElementById('tab-' + tab);
+    if(!panel) return null;
+    const activeBtn = panel.querySelector('.subtab-item.active');
+    return activeBtn ? activeBtn.dataset.subtab : null;
+  }
+  function hashFor(tab, subtab){
+    return '#' + tab + (subtab ? '/' + subtab : '');
+  }
+  function parseHash(){
+    const raw = (location.hash || '').replace(/^#\/?/, '');
+    if(!raw) return null;
+    const parts = raw.split('/');
+    return { tab: parts[0] || null, subtab: parts[1] || null };
+  }
+
+  // Đổi DOM theo đúng tab/subtab — dùng chung cho click (goTab/goSubtab) lẫn
+  // popstate (Back/Forward), khác nhau ở việc CÓ ghi thêm 1 mốc lịch sử mới
+  // hay không (pushHistory). Chỉ cuộn lên đầu trang khi TAB thật sự đổi —
+  // giữ đúng hành vi cũ: chuyển subtab trong cùng 1 tab không tự cuộn.
+  function applyView(tab, subtab, pushHistory){
+    if(!titles[tab]) return;
+    const tabPanel = document.getElementById('tab-' + tab);
+    const tabChanged = !tabPanel || !tabPanel.classList.contains('active');
     document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
     document.querySelectorAll('.tab-content').forEach(el => el.classList.toggle('active', el.id === 'tab-' + tab));
     document.getElementById('page-title').textContent = titles[tab][0];
     document.getElementById('page-sub').textContent = titles[tab][1];
-    window.scrollTo({top:0, behavior:'smooth'});
+    if(tabChanged) window.scrollTo({top:0, behavior:'smooth'});
     try{ localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tab); }catch(e){}
+
+    let resolvedSubtab = null;
+    if(tabPanel){
+      const btns = tabPanel.querySelectorAll('.subtab-item');
+      if(btns.length){
+        const panels = tabPanel.querySelectorAll(':scope > .subtab-panel');
+        const wanted = subtab && tabPanel.querySelector('.subtab-item[data-subtab="' + subtab + '"]') ? subtab : (currentSubtabOf(tab) || btns[0].dataset.subtab);
+        resolvedSubtab = wanted;
+        btns.forEach(function(b){ b.classList.toggle('active', b.dataset.subtab === wanted); });
+        panels.forEach(function(p){ p.classList.toggle('active', p.id === 'subtab-' + wanted); });
+      }
+    }
+
+    const url = hashFor(tab, resolvedSubtab);
+    if(location.hash !== url){
+      if(pushHistory) history.pushState({ tab: tab, subtab: resolvedSubtab }, '', url);
+      // Không push (VD lúc tải trang lần đầu) vẫn đồng bộ URL cho khớp,
+      // nhưng dùng replaceState để không đẻ thêm mốc lịch sử thừa.
+      else history.replaceState({ tab: tab, subtab: resolvedSubtab }, '', url);
+    }
+  }
+
+  function goTab(tab){
+    applyView(tab, currentSubtabOf(tab), true);
+  }
+  function goSubtab(tab, subtab){
+    applyView(tab, subtab, true);
   }
 
   // Cho phép các module khác (Tổng quan...) điều hướng thẳng tới 1 lô hàng
@@ -32,17 +90,35 @@ const titles = {
     if(traceModuleOpen) traceModuleOpen(batchCode);
   }
 
-  // Refresh trang xong vẫn ở đúng module đang xem trước đó — chỉ khôi phục
-  // sau khi quyền theo vai trò đã áp dụng (applyRolePermissions), để không
-  // nhảy vào 1 module mà role hiện tại không có quyền xem.
+  // Refresh trang xong vẫn ở đúng module đang xem trước đó — ưu tiên đọc từ
+  // URL (VD người dùng bấm Back/Forward rồi tải lại trang, hoặc chia sẻ
+  // link), không có thì rơi về mục đã lưu ở lần trước (localStorage). Chỉ
+  // khôi phục sau khi quyền theo vai trò đã áp dụng (applyRolePermissions),
+  // để không nhảy vào 1 module mà role hiện tại không có quyền xem.
   function restoreActiveTab(){
+    const fromHash = parseHash();
+    if(fromHash && fromHash.tab && titles[fromHash.tab]){
+      const navBtn = document.querySelector('.nav-item[data-tab="' + fromHash.tab + '"]');
+      if(navBtn && navBtn.style.display !== 'none'){
+        applyView(fromHash.tab, fromHash.subtab, false);
+        return;
+      }
+    }
     let saved;
     try{ saved = localStorage.getItem(ACTIVE_TAB_STORAGE_KEY); }catch(e){ saved = null; }
     if(!saved || !titles[saved]) return;
     const navBtn = document.querySelector('.nav-item[data-tab="' + saved + '"]');
     if(!navBtn || navBtn.style.display === 'none') return;
-    goTab(saved);
+    applyView(saved, null, false);
   }
+
+  window.addEventListener('popstate', function(e){
+    const state = (e.state && e.state.tab) ? e.state : parseHash();
+    if(!state || !state.tab || !titles[state.tab]) return;
+    const navBtn = document.querySelector('.nav-item[data-tab="' + state.tab + '"]');
+    if(!navBtn || navBtn.style.display === 'none') return;
+    applyView(state.tab, state.subtab, false);
+  });
 
   document.querySelectorAll('.nav-item').forEach(btn=>{
     btn.addEventListener('click', ()=> goTab(btn.dataset.tab));
@@ -122,10 +198,17 @@ const titles = {
   document.querySelectorAll('.subtab-bar').forEach(function(bar){
     const btns = bar.querySelectorAll('.subtab-item');
     const panels = bar.parentElement.querySelectorAll(':scope > .subtab-panel');
+    const tabContentEl = bar.closest('.tab-content');
+    const tabName = tabContentEl ? tabContentEl.id.replace(/^tab-/, '') : null;
     btns.forEach(function(btn){
       btn.addEventListener('click', function(){
         btns.forEach(function(b){ b.classList.toggle('active', b === btn); });
         panels.forEach(function(p){ p.classList.toggle('active', p.id === 'subtab-' + btn.dataset.subtab); });
+        // Ghi vào lịch sử trình duyệt để Back/Forward đi lại đúng subtab đã
+        // xem — xem applyView/goSubtab ở đầu file. DOM đã tự đổi ở 2 dòng
+        // trên rồi nên goSubtab chỉ cần lo phần URL/lịch sử, gọi lại
+        // applyView 1 lần nữa cũng vô hại (idempotent).
+        if(tabName) goSubtab(tabName, btn.dataset.subtab);
       });
     });
   });
@@ -1103,6 +1186,12 @@ const titles = {
     }
 
     function renderRows(rows){
+      // Nhớ lại các lô đang mở rộng (accordion) TRƯỚC khi xoá bảng để vẽ lại
+      // — không thì mỗi lần lưu/sửa 1 dòng (VD đổi Trạng thái) bảng lại thu
+      // gọn hết về mặc định, phải bấm mở lại mới thấy kết quả vừa lưu.
+      const expandedBatches = new Set(
+        Array.from(tbody.querySelectorAll('.batch-summary-row.expanded')).map(function(el){ return el.dataset.batch; })
+      );
       tbody.textContent = '';
       // Gom theo lô hàng, giữ nguyên thứ tự xuất hiện đầu tiên của mỗi lô
       // (không sắp xếp lại) — rows đã sắp theo ngày nhập/created_at mới nhất
@@ -1119,11 +1208,14 @@ const titles = {
           tbody.appendChild(createDetailRow(items[0], true));
           return;
         }
-        tbody.appendChild(createSummaryRow(items));
+        const summaryRow = createSummaryRow(items);
+        const isExpanded = expandedBatches.has(items[0].batch || '');
+        if(isExpanded) summaryRow.classList.add('expanded');
+        tbody.appendChild(summaryRow);
         items.forEach(function(d){
           const tr = createDetailRow(d, false);
           tr.classList.add('batch-detail-row');
-          tr.style.display = 'none';
+          tr.style.display = isExpanded ? '' : 'none';
           tbody.appendChild(tr);
         });
       });
@@ -3043,9 +3135,15 @@ const titles = {
     // chưa chọn ngôn ngữ nào thì ẩn hết, đỡ rối form cho các lô dùng
     // song ngữ Việt/Anh bình thường (đa số).
     function toggleTraceExtraFields(){
-      const on = !!(traceExtraLangSelect && traceExtraLangSelect.value);
+      const langCode = traceExtraLangSelect ? traceExtraLangSelect.value : '';
+      const on = !!langCode;
       document.querySelectorAll('.trace-extra-input').forEach(function(el){
         el.style.display = on ? '' : 'none';
+      });
+      // Nhãn ngôn ngữ trên mỗi ô đổi theo đúng lựa chọn (VD "JA") — luôn
+      // hiện, không như placeholder cũ (biến mất ngay khi có chữ).
+      document.querySelectorAll('.trace-extra-tag').forEach(function(el){
+        el.textContent = langCode.toUpperCase();
       });
       // Cột dịch theo từng tên (đóng gói) cũng cần vẽ lại — có/không cột
       // ngôn ngữ đặc biệt phụ thuộc đúng lựa chọn hiện tại.
@@ -3071,22 +3169,30 @@ const titles = {
         const label = document.createElement('div');
         label.style.cssText = 'font-size:12px;color:var(--ink-soft);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
         label.textContent = term;
+        row.appendChild(label);
+
+        const wrapEn = document.createElement('div');
+        wrapEn.className = 'trace-lang-field';
+        wrapEn.style.cssText = 'flex:1;margin-top:0;';
+        const tagEn = document.createElement('span'); tagEn.className = 'trace-lang-tag'; tagEn.textContent = 'EN';
         const input = document.createElement('input');
         input.type = 'text';
         input.dataset.term = term;
-        input.placeholder = '(EN)';
         input.value = traceTermTranslations[term] || '';
-        input.style.cssText = 'flex:1;font-size:12px;';
-        row.appendChild(label);
-        row.appendChild(input);
+        wrapEn.appendChild(tagEn); wrapEn.appendChild(input);
+        row.appendChild(wrapEn);
+
         if(extraLang){
+          const wrapExtra = document.createElement('div');
+          wrapExtra.className = 'trace-lang-field';
+          wrapExtra.style.cssText = 'flex:1;margin-top:0;';
+          const tagExtra = document.createElement('span'); tagExtra.className = 'trace-lang-tag'; tagExtra.textContent = extraLang.toUpperCase();
           const inputExtra = document.createElement('input');
           inputExtra.type = 'text';
           inputExtra.dataset.termExtra = term;
-          inputExtra.placeholder = '(' + extraLang.toUpperCase() + ')';
           inputExtra.value = traceTermTranslationsExtra[term] || '';
-          inputExtra.style.cssText = 'flex:1;font-size:12px;';
-          row.appendChild(inputExtra);
+          wrapExtra.appendChild(tagExtra); wrapExtra.appendChild(inputExtra);
+          row.appendChild(wrapExtra);
         }
         traceTermsList.appendChild(row);
       });
@@ -3345,6 +3451,25 @@ const titles = {
       return String(s || 'ma').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '');
     }
 
+    // Ô dịch có nhãn ngôn ngữ LUÔN HIỆN (không phải placeholder, biến mất
+    // ngay khi gõ chữ) — dùng cho các ô EN/ngôn ngữ đặc biệt trong mục "Mã
+    // riêng theo từng sản phẩm", tái dùng đúng class .trace-lang-field ở
+    // modal chính để đồng bộ giao diện.
+    function createTraceLangInput(tagText, value, isExtra){
+      const wrap = document.createElement('div');
+      wrap.className = 'trace-lang-field' + (isExtra ? ' trace-extra-input' : '');
+      wrap.style.cssText = 'width:100%;' + (isExtra ? 'display:none;' : '');
+      const tag = document.createElement('span');
+      tag.className = 'trace-lang-tag' + (isExtra ? ' trace-extra-tag' : '');
+      tag.textContent = tagText;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = value || '';
+      wrap.appendChild(tag);
+      wrap.appendChild(input);
+      return { wrap: wrap, input: input };
+    }
+
     function renderTraceProductRow(batchCode, g, existing){
       const row = document.createElement('div');
       row.style.cssText = 'border:1px solid var(--border);border-radius:10px;padding:12px;';
@@ -3379,65 +3504,57 @@ const titles = {
       sub.textContent = (quyCachLabel ? quyCachLabel + ' · ' : '') + g.totalThung.toLocaleString('vi-VN') + ' thùng';
       row.appendChild(sub);
 
-      // Ngôn ngữ đặc biệt (nếu lô này có chọn ở trên) — chỉ hiện thêm 3 ô dịch
+      // Ngôn ngữ đặc biệt (nếu lô này có chọn ở trên) — chỉ hiện thêm ô dịch
       // riêng (Tên sản phẩm/Chủng loại/Vùng nguyên liệu) khi dropdown chính
-      // đang chọn 1 ngôn ngữ, giống hệt cách ô EN vẫn luôn hiện.
+      // đang chọn 1 ngôn ngữ, giống hệt cách ô EN vẫn luôn hiện. Mỗi NHÓM
+      // trường có 1 nhãn nhỏ cố định phía trên (VD "Chủng loại") — không chỉ
+      // dựa vào placeholder (biến mất ngay khi gõ chữ, khiến không phân biệt
+      // được ô nào đang là ô gì một khi đã điền xong).
       const extraLang = traceExtraLangSelect ? traceExtraLangSelect.value : '';
+      function addMiniLabel(text){
+        const lbl = document.createElement('div');
+        lbl.textContent = text;
+        lbl.style.cssText = 'font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;margin-top:10px;';
+        row.appendChild(lbl);
+      }
 
-      const varietyRow = document.createElement('div');
-      varietyRow.style.cssText = 'display:flex;gap:6px;margin-top:8px;';
-      const varietyInput = document.createElement('input');
-      varietyInput.type = 'text';
-      varietyInput.placeholder = 'Chủng loại';
-      varietyInput.value = (existing && existing.variety != null) ? existing.variety : g.varieties.join(', ');
-      varietyInput.style.cssText = 'font-size:11.5px;flex:1;';
-      varietyRow.appendChild(varietyInput);
-      row.appendChild(varietyRow);
+      addMiniLabel('Chủng loại');
+      const varietyVi = createTraceLangInput('VI', (existing && existing.variety != null) ? existing.variety : g.varieties.join(', '), false);
+      varietyVi.wrap.style.marginTop = '2px';
+      row.appendChild(varietyVi.wrap);
+      const varietyInput = varietyVi.input;
 
-      const varietyExtraInput = document.createElement('input');
-      varietyExtraInput.type = 'text';
-      varietyExtraInput.placeholder = 'Chủng loại (' + extraLang.toUpperCase() + ', tùy chọn)';
-      varietyExtraInput.value = (existing && existing.variety_extra) || '';
-      varietyExtraInput.style.cssText = 'font-size:11.5px;margin-top:6px;width:100%;' + (extraLang ? '' : 'display:none;');
-      row.appendChild(varietyExtraInput);
+      const varietyExtra = createTraceLangInput(extraLang.toUpperCase(), existing && existing.variety_extra, true);
+      row.appendChild(varietyExtra.wrap);
+      const varietyExtraInput = varietyExtra.input;
 
       // Vùng nguyên liệu gợi ý theo ĐÚNG đầu mối đã ra sản phẩm này (không
       // dùng chung địa chỉ gộp cả lô) — vẫn sửa tay được, giống ô Chủng loại,
       // vì địa chỉ đầu mối thường chi tiết hơn mức cần công khai.
-      const regionInput = document.createElement('input');
-      regionInput.type = 'text';
-      regionInput.placeholder = 'Vùng nguyên liệu';
-      regionInput.value = (existing && existing.region != null) ? existing.region : (g.regionSuggestion || '');
-      regionInput.style.cssText = 'font-size:11.5px;margin-top:6px;width:100%;';
-      row.appendChild(regionInput);
+      addMiniLabel('Vùng nguyên liệu');
+      const regionVi = createTraceLangInput('VI', (existing && existing.region != null) ? existing.region : (g.regionSuggestion || ''), false);
+      regionVi.wrap.style.marginTop = '2px';
+      row.appendChild(regionVi.wrap);
+      const regionInput = regionVi.input;
 
-      const regionEnInput = document.createElement('input');
-      regionEnInput.type = 'text';
-      regionEnInput.placeholder = 'Vùng nguyên liệu (Tiếng Anh, tùy chọn) — VD: Ben Tre Province';
-      regionEnInput.value = (existing && existing.region_en) || '';
-      regionEnInput.style.cssText = 'font-size:11.5px;margin-top:6px;width:100%;';
-      row.appendChild(regionEnInput);
+      const regionEn = createTraceLangInput('EN', existing && existing.region_en, false);
+      regionEn.input.placeholder = 'VD: Ben Tre Province';
+      row.appendChild(regionEn.wrap);
+      const regionEnInput = regionEn.input;
 
-      const regionExtraInput = document.createElement('input');
-      regionExtraInput.type = 'text';
-      regionExtraInput.placeholder = 'Vùng nguyên liệu (' + extraLang.toUpperCase() + ', tùy chọn)';
-      regionExtraInput.value = (existing && existing.region_extra) || '';
-      regionExtraInput.style.cssText = 'font-size:11.5px;margin-top:6px;width:100%;' + (extraLang ? '' : 'display:none;');
-      row.appendChild(regionExtraInput);
+      const regionExtra = createTraceLangInput(extraLang.toUpperCase(), existing && existing.region_extra, true);
+      row.appendChild(regionExtra.wrap);
+      const regionExtraInput = regionExtra.input;
 
-      const enInput = document.createElement('input');
-      enInput.type = 'text';
-      enInput.placeholder = 'Tên tiếng Anh (tùy chọn)';
-      enInput.value = (existing && existing.san_pham_en) || '';
-      enInput.style.cssText = 'font-size:11.5px;margin-top:8px;width:100%;';
-      row.appendChild(enInput);
+      addMiniLabel('Tên sản phẩm (bản dịch, tùy chọn)');
+      const en = createTraceLangInput('EN', existing && existing.san_pham_en, false);
+      en.wrap.style.marginTop = '2px';
+      row.appendChild(en.wrap);
+      const enInput = en.input;
 
-      const sanPhamExtraInput = document.createElement('input');
-      sanPhamExtraInput.type = 'text';
-      sanPhamExtraInput.placeholder = 'Tên sản phẩm (' + extraLang.toUpperCase() + ', tùy chọn)';
-      sanPhamExtraInput.value = (existing && existing.san_pham_extra) || '';
-      sanPhamExtraInput.style.cssText = 'font-size:11.5px;margin-top:6px;width:100%;' + (extraLang ? '' : 'display:none;');
-      row.appendChild(sanPhamExtraInput);
+      const sanPhamExtra = createTraceLangInput(extraLang.toUpperCase(), existing && existing.san_pham_extra, true);
+      row.appendChild(sanPhamExtra.wrap);
+      const sanPhamExtraInput = sanPhamExtra.input;
 
       const bodyWrap = document.createElement('div');
       bodyWrap.style.cssText = 'display:none;margin-top:10px;text-align:center;';
@@ -3463,6 +3580,15 @@ const titles = {
           deleted_at: null
         }, extra || {});
         return sb.from('batch_trace_products').upsert(payload, { onConflict: 'batch,san_pham' });
+      }
+
+      // Tự vá lại "quy_cach"/"total_thung" cho các dòng ĐÃ bật công khai từ
+      // trước khi 2 cột này được thêm (hoặc trước khi có thêm quy cách/lô
+      // hàng mới) — 2 giá trị này luôn tính lại tươi (quyCachLabel/g.totalThung)
+      // mỗi lần tải trang nên tự lưu đè lại an toàn, không cần staff phải tự
+      // bấm sửa gì để trang công khai hiện đúng "Quy cách đóng gói".
+      if(existing && existing.trace_enabled && (existing.quy_cach !== (quyCachLabel || null) || Number(existing.total_thung) !== g.totalThung)){
+        saveRow().catch(function(err){ console.error('Không tự vá được quy cách:', err); });
       }
 
       function renderQr(){
@@ -5458,10 +5584,10 @@ const titles = {
     // (accordion) — bấm vào để mở/đóng, giống bảng Lô nguyên liệu ở Vùng
     // nguyên liệu. batchCellContent/totalCellContent = null nghĩa là ô rỗng
     // (không dùng rowSpan nữa vì rowSpan sẽ vỡ khi ẩn/hiện dòng bên dưới).
-    function buildFactoryRow(r, fb, box, subIdx, deliveryRowspan, batchCellContent, totalCellContent, hidden){
+    function buildFactoryRow(r, fb, box, subIdx, deliveryRowspan, batchCellContent, totalCellContent, collapse, startVisible){
       const tr = document.createElement('tr');
       tr.className = 'hoverable';
-      if(hidden){ tr.classList.add('batch-detail-row'); tr.style.display = 'none'; }
+      if(collapse){ tr.classList.add('batch-detail-row'); tr.style.display = startVisible ? '' : 'none'; }
       tr.dataset.rawId = r.id;
       tr.dataset.factoryId = fb ? fb.id : '';
       tr.dataset.batch = r.batch || '';
@@ -5709,6 +5835,12 @@ const titles = {
     }
 
     function renderFactoryRows(rawRows){
+      // Nhớ lại các lô đang mở rộng (accordion) TRƯỚC khi xoá bảng để vẽ lại
+      // — không thì mỗi lần lưu/sửa 1 dòng bảng lại thu gọn hết về mặc định,
+      // phải bấm mở lại mới thấy kết quả vừa lưu.
+      const expandedBatches = new Set(
+        Array.from(factoryTbody.querySelectorAll('.batch-summary-row.expanded')).map(function(el){ return el.dataset.batch; })
+      );
       factoryTbody.textContent = '';
       if(!rawRows.length){ showFactoryMessage('Chưa có lô nguyên liệu nào.'); return; }
 
@@ -5743,7 +5875,12 @@ const titles = {
         });
 
         const collapse = rowCount > 1;
-        if(collapse) factoryTbody.appendChild(createFactorySummaryRow(items, totalBoxes, rowCount));
+        const isExpanded = collapse && expandedBatches.has(items[0].batch || '');
+        if(collapse){
+          const summaryRow = createFactorySummaryRow(items, totalBoxes, rowCount);
+          if(isExpanded) summaryRow.classList.add('expanded');
+          factoryTbody.appendChild(summaryRow);
+        }
 
         let firstRowDone = false;
         items.forEach(function(r, itemIdx){
@@ -5756,7 +5893,7 @@ const titles = {
             firstRowDone = true;
             const batchCellContent = (!collapse && isVeryFirst) ? r.batch : null;
             const totalCellContent = (!collapse && isVeryFirst) ? fmtBoxQty(totalBoxes) : null;
-            factoryTbody.appendChild(buildFactoryRow(r, fb, box, subIdx, deliveryRowspan, batchCellContent, totalCellContent, collapse));
+            factoryTbody.appendChild(buildFactoryRow(r, fb, box, subIdx, deliveryRowspan, batchCellContent, totalCellContent, collapse, isExpanded));
           });
         });
       });

@@ -29,9 +29,10 @@
   @media (min-width:700px){ .content{min-height:0;} }
 
   .top-bar{display:flex;justify-content:flex-end;}
-  .lang-toggle{display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:18px;padding:2px;gap:2px;}
-  .lang-btn{border:none;background:transparent;font:700 10px/1 -apple-system,sans-serif;letter-spacing:.03em;color:var(--ink-soft);padding:5px 11px;border-radius:14px;cursor:pointer;}
-  .lang-btn.active{background:var(--forest);color:#fff;}
+  .lang-select-wrap{position:relative;display:inline-flex;align-items:center;}
+  .lang-select{appearance:none;-webkit-appearance:none;-moz-appearance:none;background:var(--surface-2);border:1px solid var(--border);border-radius:18px;padding:7px 28px 7px 12px;font:700 12px/1 -apple-system,sans-serif;letter-spacing:.01em;color:var(--ink);cursor:pointer;}
+  .lang-select:focus{outline:2px solid var(--forest);outline-offset:1px;}
+  .lang-select-wrap::after{content:'';position:absolute;right:11px;top:50%;width:6px;height:6px;border-right:2px solid var(--ink-soft);border-bottom:2px solid var(--ink-soft);transform:translateY(-65%) rotate(45deg);pointer-events:none;}
 
   .ph-header{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding-top:6px;}
   .ph-logo{height:46px;width:auto;object-fit:contain;}
@@ -106,10 +107,11 @@
   <div class="content">
 
     <div class="top-bar">
-      <div class="lang-toggle" id="langToggle" role="group" aria-label="Chọn ngôn ngữ / Choose language">
-        <button type="button" class="lang-btn" data-lang="vi">VI</button>
-        <button type="button" class="lang-btn active" data-lang="en">EN</button>
-        <button type="button" class="lang-btn" id="langBtnExtra" hidden></button>
+      <div class="lang-select-wrap">
+        <select id="langSelect" class="lang-select" aria-label="Chọn ngôn ngữ / Choose language">
+          <option value="vi">🇻🇳 Tiếng Việt</option>
+          <option value="en">🇬🇧 English</option>
+        </select>
       </div>
     </div>
 
@@ -211,15 +213,18 @@
 (function(){
   var SUPABASE_URL = 'https://ickyibgaxczypuxzpuun.supabase.co';
   var SUPABASE_ANON_KEY = 'sb_publishable_9FLlPV6d0aFcX-m-wmKK5w_Qdc4V_0h';
-  // Mặc định mở bằng tiếng Anh (khách quốc tế quét mã là chính) — vẫn đổi
-  // qua lại được bằng nút góc trên.
+  // Mặc định: KHÔNG khai báo ngôn ngữ đặc biệt cho lô thì mở bằng tiếng Anh
+  // (khách quốc tế quét mã là chính); có khai báo thì tự mở đúng ngôn ngữ đó
+  // (xem render() — ghi đè biến này ngay khi có dữ liệu lô). Vẫn đổi qua lại
+  // được bằng dropdown góc trên.
   var lang = 'en';
   var currentRecord = null;
 
-  // Tên hiển thị của "ngôn ngữ đặc biệt" (chỉ hiện nút khi lô có khai báo) —
-  // thêm nước mới chỉ cần thêm 1 dòng ở đây + dịch các chuỗi cố định bên
-  // dưới, không cần đổi cấu trúc dữ liệu.
+  // Tên hiển thị + cờ quốc gia của "ngôn ngữ đặc biệt" (chỉ hiện option khi
+  // lô có khai báo) — thêm nước mới chỉ cần thêm 1 dòng ở đây + dịch các
+  // chuỗi cố định bên dưới, không cần đổi cấu trúc dữ liệu.
   var EXTRA_LANG_NAMES = { ja: '日本語', ko: '한국어', zh: '中文' };
+  var LANG_FLAGS = { vi: '🇻🇳', en: '🇬🇧', ja: '🇯🇵', ko: '🇰🇷', zh: '🇨🇳' };
   var UNIT_WORDS = { vi: 'thùng', en: 'boxes', ja: '箱', ko: '박스', zh: '箱' };
   var ETA_PREFIX = { vi: 'Dự kiến ', en: 'Estimated ', ja: '予定 ', ko: '예정 ', zh: '预计 ' };
   var BATCH_LABEL_PREFIX = { vi: 'Mã lô: ', en: 'Batch: ', ja: 'ロット番号: ', ko: '배치 번호: ', zh: '批次号: ' };
@@ -262,14 +267,10 @@
     document.querySelectorAll('[data-vi]').forEach(function(el){
       el.textContent = el.dataset[lang] || el.dataset.en || el.dataset.vi;
     });
-    document.querySelectorAll('.lang-btn').forEach(function(b){
-      b.classList.toggle('active', b.dataset.lang === lang);
-    });
+    if($('langSelect')) $('langSelect').value = lang;
   }
-  $('langToggle').addEventListener('click', function(e){
-    var btn = e.target.closest('.lang-btn');
-    if(!btn || btn.hidden || !btn.dataset.lang) return;
-    lang = btn.dataset.lang;
+  $('langSelect').addEventListener('change', function(e){
+    lang = e.target.value;
     applyLang();
     if(currentRecord){
       refreshDynamicText();
@@ -433,19 +434,26 @@
       ja: BATCH_LABEL_PREFIX.ja + displayCode, ko: BATCH_LABEL_PREFIX.ko + displayCode, zh: BATCH_LABEL_PREFIX.zh + displayCode
     });
 
-    // Nút ngôn ngữ đặc biệt (3rd) — chỉ hiện khi LÔ NÀY có khai báo
-    // extra_lang (chọn ở modal Truy xuất nguồn gốc), tự lấy tên hiển thị
-    // theo đúng mã ngôn ngữ đó. Không khai báo thì trang chỉ có VI/EN như
-    // trước — không ảnh hưởng các lô khác.
-    var extraBtn = $('langBtnExtra');
+    // Option ngôn ngữ đặc biệt (3rd) trong dropdown — chỉ thêm khi LÔ NÀY có
+    // khai báo extra_lang (chọn ở modal Truy xuất nguồn gốc), tự lấy tên +
+    // cờ hiển thị theo đúng mã ngôn ngữ đó. Có khai báo thì TỰ ĐỘNG mở trang
+    // bằng đúng ngôn ngữ này (khách của lô đó thường đọc ngôn ngữ này hơn cả
+    // tiếng Anh); không khai báo thì mặc định EN như trước — không ảnh hưởng
+    // các lô khác.
+    var select = $('langSelect');
+    var extraOption = $('langOptionExtra');
     if(d.extra_lang && EXTRA_LANG_NAMES[d.extra_lang]){
-      extraBtn.hidden = false;
-      extraBtn.textContent = EXTRA_LANG_NAMES[d.extra_lang];
-      extraBtn.dataset.lang = d.extra_lang;
+      if(!extraOption){
+        extraOption = document.createElement('option');
+        extraOption.id = 'langOptionExtra';
+        select.appendChild(extraOption);
+      }
+      extraOption.value = d.extra_lang;
+      extraOption.textContent = (LANG_FLAGS[d.extra_lang] || '') + ' ' + EXTRA_LANG_NAMES[d.extra_lang];
+      lang = d.extra_lang;
     } else {
-      extraBtn.hidden = true;
-      delete extraBtn.dataset.lang;
-      if(lang !== 'vi' && lang !== 'en') lang = 'en';
+      if(extraOption) extraOption.remove();
+      lang = 'en';
     }
 
     if(d.variety){ $('rowVariety').hidden = false; }

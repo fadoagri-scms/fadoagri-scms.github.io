@@ -395,11 +395,18 @@
      hạn trong .modal vì cùng 1 kiểu form-grid này còn dùng cho khối nhập
      liệu nhúng thẳng trên trang (không phải modal). */
   .modal.modal-wide{max-width:640px;}
+  /* Riêng cho modal Truy xuất nguồn gốc — nhiều trường + mỗi trường có tới
+     3 ô ngôn ngữ (VI/EN/đặc biệt) nên cần rộng hơn hẳn modal-wide thường
+     mới đỡ chật, vẫn dùng chung lưới 2 cột form-grid như trên. */
+  .modal.modal-xl{max-width:920px;}
   form.form-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:16px;}
   .form-group-full{grid-column:1 / -1;}
   form.form-grid .modal-actions{grid-column:1 / -1;}
+  @media (max-width:960px){
+    .modal.modal-xl{max-width:640px;}
+  }
   @media (max-width:640px){
-    .modal.modal-wide{max-width:480px;}
+    .modal.modal-wide, .modal.modal-xl{max-width:480px;}
     form.form-grid{grid-template-columns:1fr;}
   }
   .modal-confirm-body{font-size:13.5px;color:var(--ink-soft);line-height:1.5;}
@@ -485,6 +492,24 @@
   .form-group textarea:focus{outline:2px solid var(--sage);outline-offset:-1px;}
   .form-group input[readonly],
   .form-group select:disabled{color:var(--ink-soft);cursor:not-allowed;}
+
+  /* Ô dịch (EN / ngôn ngữ đặc biệt) trong modal Truy xuất nguồn gốc — gắn
+     kèm 1 nhãn ngôn ngữ LUÔN HIỆN (không phải placeholder, vốn biến mất
+     ngay khi gõ chữ vào, khiến nhiều dòng input xếp chồng nhìn y hệt nhau
+     không phân biệt được dòng nào là VI/EN/ngôn ngữ đặc biệt). */
+  .trace-lang-field{
+    display:flex;align-items:center;gap:6px;margin-top:6px;
+    background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);
+    padding:0 4px 0 10px;
+  }
+  .trace-lang-field .trace-lang-tag{
+    font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--forest-deep);
+    flex-shrink:0;min-width:16px;
+  }
+  .trace-lang-field input[type="text"]{
+    border:none;background:transparent;padding:7px 6px 7px 0;font-size:12px;width:100%;
+  }
+  .trace-lang-field input[type="text"]:focus{outline:none;}
 
   .radio-row{display:flex;gap:18px;}
   .radio-option{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:500;color:var(--ink);cursor:pointer;}
