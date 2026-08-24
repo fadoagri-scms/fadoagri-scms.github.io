@@ -3379,25 +3379,46 @@ const titles = {
       return result;
     }
 
+    // Số kiểm tra EAN-13 chuẩn (thuật toán GS1: trọng số xen kẽ 1-3 từ
+    // trái, modulo 10) — tính từ 12 số đầu, KHÔNG được chọn tùy ý. Xem
+    // genTraceCode() bên dưới.
+    function eanCheckDigit(digits12){
+      var sum = 0;
+      for(var i = 0; i < 12; i++){
+        var d = Number(digits12[i]);
+        sum += (i % 2 === 0) ? d : d * 3;
+      }
+      return (10 - (sum % 10)) % 10;
+    }
+
     // Mã bí mật nằm trong link/QR/mã vạch — LUÔN ngẫu nhiên, không liên quan
     // tên lô, để không ai dò/đoán ra link được (xem trace_batch_label bên
     // dưới cho phần "Mã lô" hiển thị công khai — tách riêng, không liên quan
-    // mã này). Toàn CHỮ SỐ (không còn lẫn chữ a-f như trước) — để mã vạch
-    // quét ra đúng toàn số theo yêu cầu, và khách gõ tay được ở Cổng tra cứu
-    // (tra-cuu.html) khi không có QR để quét. Đánh đổi: 12 chữ số ~ 10^12
-    // khả năng, ít hơn ~3 bậc so với 12 ký tự hex trước đây (~2.8×10^14) —
-    // vẫn đủ khó đoán mò cho mục đích này (không phải dữ liệu tài chính,
-    // staff còn phải tự bật "Đang công khai" cho từng lô).
+    // mã này).
+    // Định dạng: "893" (mã quốc gia Việt Nam, cố định) + 9 số ngẫu nhiên +
+    // 1 số kiểm tra tính theo công thức EAN-13 chuẩn = 13 số, ĐÚNG DÁNG DẤP
+    // 1 mã EAN-13 thật. LƯU Ý QUAN TRỌNG: đoạn 9 số sau "893" đáng lẽ phải
+    // do GS1 Việt Nam cấp (mã doanh nghiệp + mã mặt hàng) — công ty CHƯA
+    // đăng ký đầu số này, nên đoạn đó tạm random theo yêu cầu người dùng
+    // (đã trao đổi rõ rủi ro: có thể trùng dải số 1 công ty khác đã đăng ký
+    // thật, hệ thống GS1 quốc tế sẽ tra ra sai công ty nếu bị đối chiếu).
+    // Khi có đầu số GS1 thật, thay ĐÚNG đoạn 9 số random này bằng đầu số +
+    // mã mặt hàng thật, giữ nguyên "893" + cách tính số kiểm tra.
+    // Đánh đổi entropy: 9 số ngẫu nhiên ~ 10^9 khả năng (ít hơn hẳn 12 số
+    // ngẫu nhiên hoàn toàn ~10^12 trước đây) — vẫn đủ khó đoán mò cho mục
+    // đích này (không phải dữ liệu tài chính, staff còn phải tự bật "Đang
+    // công khai" cho từng lô).
     function genTraceCode(){
-      var digits = '';
+      var mid = '';
       if(typeof crypto !== 'undefined' && crypto.getRandomValues){
-        var arr = new Uint32Array(12);
+        var arr = new Uint32Array(9);
         crypto.getRandomValues(arr);
-        for(var i = 0; i < 12; i++) digits += arr[i] % 10;
+        for(var i = 0; i < 9; i++) mid += arr[i] % 10;
       } else {
-        for(var i = 0; i < 12; i++) digits += Math.floor(Math.random() * 10);
+        for(var i = 0; i < 9; i++) mid += Math.floor(Math.random() * 10);
       }
-      return digits;
+      var base12 = '893' + mid;
+      return base12 + eanCheckDigit(base12);
     }
 
     // Gộp Sản phẩm+Quy cách trên mọi đợt sản xuất của 1 lô lại (1 lô có thể
