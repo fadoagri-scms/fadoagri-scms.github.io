@@ -6206,7 +6206,8 @@ const titles = {
           if(fb.san_pham) sanPhamNames[fb.san_pham] = true;
           (fb.factory_batch_boxes || []).forEach(function(box){ if(box.san_pham) sanPhamNames[box.san_pham] = true; });
         });
-        fillDatalist('dl-san-pham', Object.keys(sanPhamNames).sort(function(a, b){ return a.localeCompare(b, 'vi'); }));
+        knownSanPhamNames = Object.keys(sanPhamNames).sort(function(a, b){ return a.localeCompare(b, 'vi'); });
+        fillDatalist('dl-san-pham', knownSanPhamNames);
       } catch(err){
         console.error('Không tải được dữ liệu Xưởng Ba Phi:', err);
         showFactoryMessage('Không tải được dữ liệu — kiểm tra kết nối Supabase.', 'var(--red)');
@@ -6217,6 +6218,10 @@ const titles = {
     // Số lượng thùng), thêm/xóa tùy ý vì chỉ biết được sau khi đóng gói.
     const boxesListEl = document.getElementById('fac-boxes-list');
     const addBoxRowBtn = document.getElementById('btn-add-box-row');
+    const NEW_SAN_PHAM_VALUE = '__new__';
+    // Danh sách tên Sản phẩm đã từng khai báo — dùng để dựng dropdown chọn
+    // ở createBoxRow, cập nhật lại mỗi lần refreshFactoryRows() chạy xong.
+    let knownSanPhamNames = [];
 
     // Sản phẩm giờ khai báo riêng cho TỪNG dòng Quy cách (không còn 1 ô
     // Sản phẩm dùng chung cho cả đợt) — 1 đợt có thể vừa ra sản phẩm chính
@@ -6227,30 +6232,81 @@ const titles = {
       const row = document.createElement('div');
       row.className = 'box-row';
       row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;';
-      const sanPhamInput = document.createElement('input');
-      sanPhamInput.type = 'text';
-      sanPhamInput.placeholder = 'Sản phẩm';
-      sanPhamInput.setAttribute('list', 'dl-san-pham');
+      // Sản phẩm giờ CHỌN từ danh sách đã khai báo trước (không gõ tay tự
+      // do nữa) — đây từng là ô duy nhất trong app còn cho gõ tự do, chỉ
+      // cần lệch 1 chữ (thừa dấu cách, thiếu/thừa từ...) là Xưởng Ba Phi và
+      // Tồn kho coi như 2 sản phẩm khác nhau, tồn kho tính sai mà không ai
+      // biết. Vẫn thêm được tên hoàn toàn mới qua lựa chọn "+ Thêm sản phẩm
+      // mới" — chỉ gõ tự do đúng 1 lần lúc đó, các lần sau chọn lại đúng
+      // tên đã có.
+      const sanPhamWrap = document.createElement('div');
+      sanPhamWrap.style.cssText = 'flex:1.2;display:flex;flex-direction:column;gap:4px;';
+      const sanPhamSelect = document.createElement('select');
+      sanPhamSelect.className = 'box-row-sanpham-select';
+      const blankOpt = document.createElement('option');
+      blankOpt.value = '';
+      blankOpt.textContent = '— Chọn sản phẩm —';
+      sanPhamSelect.appendChild(blankOpt);
+      knownSanPhamNames.forEach(function(name){
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        sanPhamSelect.appendChild(opt);
+      });
+      const newOpt = document.createElement('option');
+      newOpt.value = NEW_SAN_PHAM_VALUE;
+      newOpt.textContent = '+ Thêm sản phẩm mới…';
+      sanPhamSelect.appendChild(newOpt);
+
+      const sanPhamNewInput = document.createElement('input');
+      sanPhamNewInput.type = 'text';
+      sanPhamNewInput.className = 'box-row-sanpham-new';
+      sanPhamNewInput.placeholder = 'Gõ tên sản phẩm mới';
+      sanPhamNewInput.style.display = 'none';
+
+      function syncSanPhamNewVisibility(){
+        sanPhamNewInput.style.display = sanPhamSelect.value === NEW_SAN_PHAM_VALUE ? '' : 'none';
+      }
+      sanPhamSelect.addEventListener('change', function(){
+        if(sanPhamSelect.value !== NEW_SAN_PHAM_VALUE) sanPhamNewInput.value = '';
+        syncSanPhamNewVisibility();
+      });
+
       // Dòng mới thêm (không truyền sẵn giá trị) mặc định lấy theo dòng
       // ngay trước — đa số các dòng trong 1 đợt vẫn cùng 1 sản phẩm, tiện
-      // hơn phải gõ lại, nhưng vẫn sửa được nếu dòng đó là sản phẩm khác.
+      // hơn phải chọn lại, nhưng vẫn sửa được nếu dòng đó là sản phẩm khác.
       const isNewRow = sanPham == null;
       if(isNewRow){
         const existingRows = boxesListEl.querySelectorAll('.box-row');
         if(existingRows.length){
-          const lastInputs = existingRows[existingRows.length - 1].querySelectorAll('input');
-          sanPham = lastInputs[0].value;
+          const lastSelect = existingRows[existingRows.length - 1].querySelector('.box-row-sanpham-select');
+          const lastNewInput = existingRows[existingRows.length - 1].querySelector('.box-row-sanpham-new');
+          sanPham = lastSelect && lastSelect.value === NEW_SAN_PHAM_VALUE ? lastNewInput.value : (lastSelect ? lastSelect.value : '');
         }
       }
-      sanPhamInput.value = sanPham || '';
-      sanPhamInput.style.flex = '1.2';
+      // Tên đã có trong danh sách thì chọn đúng option đó; tên lạ (VD dữ
+      // liệu cũ gõ tay trước khi đổi sang dropdown) thì rơi về "+ Thêm sản
+      // phẩm mới" kèm sẵn giá trị cũ, không làm mất/đổi tên đang lưu.
+      if(sanPham && knownSanPhamNames.indexOf(sanPham) !== -1){
+        sanPhamSelect.value = sanPham;
+      } else if(sanPham){
+        sanPhamSelect.value = NEW_SAN_PHAM_VALUE;
+        sanPhamNewInput.value = sanPham;
+      }
+      syncSanPhamNewVisibility();
+
+      sanPhamWrap.appendChild(sanPhamSelect);
+      sanPhamWrap.appendChild(sanPhamNewInput);
+
       const quyCachInput = document.createElement('input');
       quyCachInput.type = 'text';
+      quyCachInput.className = 'box-row-quycach';
       quyCachInput.placeholder = 'Quy cách (trái/thùng)';
       quyCachInput.value = quyCach != null ? quyCach : '';
       quyCachInput.style.flex = '0.9';
       const soLuongInput = document.createElement('input');
       soLuongInput.type = 'text';
+      soLuongInput.className = 'box-row-soluong';
       soLuongInput.placeholder = 'Số lượng thùng';
       soLuongInput.value = soLuongThung != null ? soLuongThung : '';
       soLuongInput.style.flex = '0.9';
@@ -6261,6 +6317,7 @@ const titles = {
       // bảng "Hạn sử dụng" ở tab Tồn kho ngay khi lưu, không cần ô riêng.
       const ghiChuInput = document.createElement('input');
       ghiChuInput.type = 'text';
+      ghiChuInput.className = 'box-row-ghichu';
       ghiChuInput.placeholder = 'Ghi chú (không bắt buộc)';
       ghiChuInput.value = ghiChu || '';
       ghiChuInput.style.flex = '1';
@@ -6270,7 +6327,7 @@ const titles = {
       removeBtn.setAttribute('aria-label', 'Xóa dòng quy cách');
       removeBtn.innerHTML = '<i class="ti ti-trash"></i>';
       removeBtn.addEventListener('click', function(){ row.remove(); });
-      row.appendChild(sanPhamInput);
+      row.appendChild(sanPhamWrap);
       row.appendChild(quyCachInput);
       row.appendChild(soLuongInput);
       row.appendChild(ghiChuInput);
@@ -6291,17 +6348,18 @@ const titles = {
     function readBoxRows(){
       if(!boxesListEl) return [];
       return Array.from(boxesListEl.querySelectorAll('.box-row')).map(function(row){
-        const inputs = row.querySelectorAll('input');
-        const sanPham = (inputs[0].value || '').trim();
-        // Hạn dùng luôn tra tươi theo đúng Sản phẩm đang gõ lúc lưu — nguồn
-        // duy nhất là bảng "Hạn sử dụng" ở tab Tồn kho, không còn giữ giá
-        // trị cũ đã lưu trước đây theo ô nhập tay (đã bỏ).
+        const select = row.querySelector('.box-row-sanpham-select');
+        const newInput = row.querySelector('.box-row-sanpham-new');
+        const sanPham = ((select && select.value === NEW_SAN_PHAM_VALUE ? (newInput && newInput.value) : (select && select.value)) || '').trim();
+        // Hạn dùng luôn tra tươi theo đúng Sản phẩm đang chọn lúc lưu —
+        // nguồn duy nhất là bảng "Hạn sử dụng" ở tab Tồn kho, không còn giữ
+        // giá trị cũ đã lưu trước đây theo ô nhập tay (đã bỏ).
         const lookedRate = sharedShelfLifeMap[normalizeSanPham(sanPham)];
         return {
           sanPham: sanPham,
-          quyCach: parseQty(inputs[1].value),
-          soLuongThung: parseQty(inputs[2].value),
-          ghiChu: (inputs[3].value || '').trim(),
+          quyCach: parseQty(row.querySelector('.box-row-quycach').value),
+          soLuongThung: parseQty(row.querySelector('.box-row-soluong').value),
+          ghiChu: (row.querySelector('.box-row-ghichu').value || '').trim(),
           hanSuDungNgay: lookedRate != null ? lookedRate : null
         };
       }).filter(function(r){ return r.quyCach && r.soLuongThung; });
@@ -6932,13 +6990,14 @@ const titles = {
           }, null);
           return { batch: batch, lines: lines, totalExportedQty: totalExportedQty, exportDate: exportDate };
         }).sort(function(a, b){
-          // Xuất trước lên trên, xuất sau xuống dưới theo đúng Ngày xuất
-          // hàng — lô chưa xuất gì (chưa có ngày) không so sánh được nên
-          // luôn xếp xuống cuối, không trộn lẫn với lô đã có ngày thật.
+          // Xuất gần đây nhất lên trên, xuất lâu rồi xuống dưới theo đúng
+          // Ngày xuất hàng — lô chưa xuất gì (chưa có ngày) không so sánh
+          // được nên luôn xếp xuống cuối, không trộn lẫn với lô đã có ngày
+          // thật.
           if(!a.exportDate && !b.exportDate) return a.batch.localeCompare(b.batch, 'vi');
           if(!a.exportDate) return 1;
           if(!b.exportDate) return -1;
-          return a.exportDate < b.exportDate ? -1 : (a.exportDate > b.exportDate ? 1 : a.batch.localeCompare(b.batch, 'vi'));
+          return a.exportDate > b.exportDate ? -1 : (a.exportDate < b.exportDate ? 1 : a.batch.localeCompare(b.batch, 'vi'));
         });
 
         // Chỉ lấy dòng còn tồn thật (remainingTrai > 0) và đã đủ dữ liệu để
@@ -7391,21 +7450,24 @@ const titles = {
       // factory_finished_stock bắt buộc biết Chủng loại (khoá duy nhất
       // batch,chung_loai,quy_cach,san_pham), không được đoán bừa khi 1 lô có
       // nhiều chủng loại. Chỉ chấp nhận khi khớp DUY NHẤT 1 chủng loại.
+      // Trả về cả factory_batch_id của lô đích — cần để tạo dòng Quy cách
+      // mới (nguồn Hàng dạt) hoặc chỉ để xác nhận đã từng đóng gói (nguồn
+      // Tồn dư) trong hàm gọi bên dưới.
       async function resolveTargetChungLoai(targetBatch, normSanPham, quyCach){
         const { data, error } = await sb.from('raw_batches')
-          .select('chung_loai, factory_batches(factory_batch_boxes(san_pham, quy_cach))')
+          .select('chung_loai, factory_batches(id, factory_batch_boxes(san_pham, quy_cach))')
           .eq('batch', targetBatch).is('deleted_at', null);
         if(error) throw error;
-        const matched = new Set();
+        const matched = new Map();
         (data || []).forEach(function(r){
           const fb = getFb(r);
           (fb && fb.factory_batch_boxes || []).forEach(function(box){
             if(normalizeSanPham(box.san_pham) === normSanPham && Number(box.quy_cach) === Number(quyCach)){
-              matched.add(r.chung_loai || '');
+              matched.set(r.chung_loai || '', fb.id);
             }
           });
         });
-        return Array.from(matched);
+        return Array.from(matched.entries()).map(function(entry){ return { chungLoai: entry[0], factoryBatchId: entry[1] }; });
       }
 
       if(culledHistoryTbody){
@@ -7416,10 +7478,17 @@ const titles = {
           let p; try{ p = JSON.parse(tr.dataset.proc || '{}'); } catch(err){ p = {}; }
           if(!p.id) return;
           const willRevertSource = p.source_type === 'ton_du';
-          const willRevertTarget = p.xu_ly_type === 'reassign';
+          // Gán bù từ nguồn "Tồn dư" thì lùi lại bằng cách trừ khỏi "Đã
+          // xuất" của lô đích; từ nguồn "Hàng dạt" thì lùi lại bằng cách
+          // xóa hẳn dòng Quy cách đã tạo trong Sản xuất (target_box_id) —
+          // bản ghi cũ trước khi có cột này (target_box_id null) vẫn lùi
+          // theo kiểu cũ (trừ "Đã xuất") vì đó là cách nó ĐÃ được cộng vào.
+          const willRevertTargetExport = p.xu_ly_type === 'reassign' && (p.source_type === 'ton_du' || !p.target_box_id);
+          const willRevertTargetBox = p.xu_ly_type === 'reassign' && p.source_type === 'dat' && p.target_box_id;
           const warnParts = [];
           if(willRevertSource) warnParts.push('trừ lại ' + fmtBoxQty(p.so_luong_thung) + ' khỏi "Đã xuất" của lô gốc "' + p.source_batch + '"');
-          if(willRevertTarget) warnParts.push('trừ lại ' + fmtBoxQty(p.target_so_luong_thung) + ' khỏi "Đã xuất" của lô "' + p.target_batch + '"');
+          if(willRevertTargetExport) warnParts.push('trừ lại ' + fmtBoxQty(p.target_so_luong_thung) + ' khỏi "Đã xuất" của lô "' + p.target_batch + '"');
+          if(willRevertTargetBox) warnParts.push('xóa lại ' + fmtBoxQty(p.target_so_luong_thung) + ' khỏi "Thùng đóng gói" của lô "' + p.target_batch + '"');
           const label = 'lịch sử xử lý ngày ' + (p.processed_date ? fmtDate(p.processed_date) : '(chưa rõ ngày)') + (warnParts.length ? ' (sẽ ' + warnParts.join(', ') + ')' : '');
           const ok = await confirmDialog('Xóa ' + label + '?');
           if(!ok) return;
@@ -7427,8 +7496,12 @@ const titles = {
             if(willRevertSource){
               await bumpExportedFor(p.source_batch, p.source_chung_loai, p.source_san_pham, p.source_quy_cach, -Number(p.so_luong_thung || 0), null);
             }
-            if(willRevertTarget){
+            if(willRevertTargetExport){
               await bumpExportedFor(p.target_batch, p.target_chung_loai, p.target_san_pham, p.target_quy_cach, -Number(p.target_so_luong_thung || 0), null);
+            }
+            if(willRevertTargetBox){
+              const { error: delBoxErr } = await sb.from('factory_batch_boxes').delete().eq('id', p.target_box_id);
+              if(delBoxErr) throw delBoxErr;
             }
             const { error } = await sb.from('factory_culled_processing').update({ deleted_at: new Date().toISOString() }).eq('id', p.id);
             if(error) throw error;
@@ -7496,18 +7569,36 @@ const titles = {
               if(!confirm('Số trái gán bù (' + fmtQty(qtyTrai) + ') lớn hơn số còn lại chưa xử lý (' + fmtQty(row.remaining) + '). Vẫn lưu?')) return;
             }
 
-            const matchedChungLoai = await resolveTargetChungLoai(targetBatch, normTarget, targetQuyCach);
-            if(matchedChungLoai.length === 0){
+            const matches = await resolveTargetChungLoai(targetBatch, normTarget, targetQuyCach);
+            if(matches.length === 0){
               showErrorToast('Không tìm thấy lô "' + targetBatch + '" nào đã đóng gói đúng Sản phẩm "' + targetSanPham + '" + Quy cách ' + targetQuyCach + ' trái/thùng — kiểm tra lại, hoặc khai báo Quy cách đó ở tab Sản xuất trước.');
               return;
             }
-            if(matchedChungLoai.length > 1){
+            if(matches.length > 1){
               showErrorToast('Lô "' + targetBatch + '" có nhiều Chủng loại cùng đóng Sản phẩm + Quy cách này — chưa xác định được rõ ràng gán vào chủng loại nào.');
               return;
             }
-            const targetChungLoai = matchedChungLoai[0];
+            const targetChungLoai = matches[0].chungLoai;
 
-            await bumpExportedFor(targetBatch, targetChungLoai, normTarget, targetQuyCach, targetThung, dateVal);
+            // Nguồn "Tồn dư" đã đóng gói sẵn — gán bù nghĩa là hàng đó xuất
+            // đi dưới tên lô đích thay vì lô gốc, nên cộng vào "Đã xuất".
+            // Nguồn "Hàng dạt" CHƯA hề đóng gói — gán bù nghĩa là mẻ nguyên
+            // liệu đó vừa được chế biến/đóng gói ra thành thùng cho lô đích,
+            // nên phải cộng vào "Thùng đóng gói" (tạo 1 dòng Quy cách mới
+            // trong Sản xuất), không phải "Đã xuất" (trước đây cộng nhầm
+            // vào đây, làm Tồn kho của lô đích càng âm thêm thay vì đúng ra
+            // phải kéo về gần 0).
+            let targetBoxId = null;
+            if(row.sourceType === 'ton_du'){
+              await bumpExportedFor(targetBatch, targetChungLoai, normTarget, targetQuyCach, targetThung, dateVal);
+            } else {
+              const { data: newBox, error: boxErr } = await sb.from('factory_batch_boxes').insert({
+                factory_batch_id: matches[0].factoryBatchId, quy_cach: targetQuyCach, so_luong_thung: targetThung,
+                san_pham: normTarget, ghi_chu: 'Bù từ xử lý hàng dạt "' + row.batch + '"'
+              }).select('id').single();
+              if(boxErr) throw boxErr;
+              targetBoxId = newBox.id;
+            }
 
             let sourceThung = null;
             if(row.sourceType === 'ton_du'){
@@ -7524,7 +7615,7 @@ const titles = {
               source_quy_cach: row.sourceType === 'ton_du' ? row.quyCach : null,
               xu_ly_type: 'reassign', processed_date: dateVal, qty_trai: qtyTrai, so_luong_thung: sourceThung,
               target_batch: targetBatch, target_chung_loai: targetChungLoai, target_san_pham: normTarget,
-              target_quy_cach: targetQuyCach, target_so_luong_thung: targetThung, note: note
+              target_quy_cach: targetQuyCach, target_so_luong_thung: targetThung, target_box_id: targetBoxId, note: note
             });
             if(logErr) throw logErr;
           }
