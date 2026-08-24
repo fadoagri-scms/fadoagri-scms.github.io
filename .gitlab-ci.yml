@@ -1,0 +1,22 @@
+# Cấu hình cho GitLab Pages — tương đương .github/workflows/deploy.yml
+# đang dùng cho GitHub Pages. Không ảnh hưởng gì tới GitHub (file này GitHub
+# không đọc tới) — chỉ có tác dụng khi push code sang 1 project GitLab thật
+# có bật Pages.
+#
+# GitLab Pages có 2 quy định BẮT BUỘC không đổi được:
+#   1. Job publish trang phải tên đúng là "pages".
+#   2. Thư mục kết quả build phải tên đúng là "public" (build.py xuất ra
+#      "dist" như cũ — bước "cp -r dist public" bên dưới chỉ để đổi tên cho
+#      đúng yêu cầu này, không đổi gì trong build.py).
+pages:
+  image: python:3.12-slim
+  stage: deploy
+  script:
+    - python build.py
+    - rm -rf public
+    - cp -r dist public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
