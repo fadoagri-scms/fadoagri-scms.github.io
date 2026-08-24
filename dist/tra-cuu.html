@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cổng tra cứu — FADO AGRI</title>
+<style>
+  :root{
+    --ink:#1B2733; --ink-soft:#5B6B7D; --ink-mute:#93A3B3;
+    --surface:#FFFFFF; --surface-2:#F4F9FB; --border:#E2EBF1;
+    --forest:#14B3AC; --forest-deep:#0E7C82;
+    --red:#E24C4C; --red-bg:#FBE0E0;
+    --page-bg:#E7EEF0;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;background:var(--page-bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+    min-height:100vh;display:flex;justify-content:center;
+  }
+  .page-wrap{width:100%;max-width:460px;display:flex;flex-direction:column;}
+  @media (min-width:700px){
+    body{padding:40px 20px;}
+    .page-wrap{box-shadow:0 24px 60px -24px rgba(15,40,45,.35);border-radius:22px;overflow:hidden;background:var(--surface);}
+  }
+  .content{background:var(--surface);padding:16px 22px 30px;display:flex;flex-direction:column;gap:22px;min-height:100vh;justify-content:center;}
+  @media (min-width:700px){ .content{min-height:0;padding:36px 30px 34px;} }
+
+  .ph-header{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;}
+  .ph-logo{height:46px;width:auto;object-fit:contain;}
+  .ph-brandline{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--forest-deep);}
+
+  .intro{text-align:center;display:flex;flex-direction:column;gap:6px;}
+  .intro h1{font-size:18px;margin:0;color:var(--ink);}
+  .intro p{margin:0;font-size:12.5px;color:var(--ink-soft);line-height:1.5;}
+
+  form{display:flex;flex-direction:column;gap:12px;}
+  /* font-size 16px trên input — dưới 16px Safari/iOS tự zoom vào ô khi
+     focus, làm lệch layout khó chịu khi thao tác lặp lại nhiều lần (đúng
+     tình huống dùng liên tục ở kho). */
+  #code-input{
+    width:100%;font-size:20px;font-weight:700;letter-spacing:.02em;
+    font-variant-numeric:tabular-nums;text-align:center;
+    padding:16px 14px;border:2px solid var(--border);border-radius:14px;
+    color:var(--ink);background:var(--surface-2);
+    font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
+  }
+  #code-input:focus{outline:none;border-color:var(--forest);background:var(--surface);}
+  #code-input.err{border-color:var(--red);}
+
+  #submit-btn{
+    width:100%;padding:14px;border:none;border-radius:14px;
+    background:var(--forest);color:#fff;font-size:15px;font-weight:700;
+    cursor:pointer;
+  }
+  #submit-btn:active{background:var(--forest-deep);}
+
+  #err-msg{
+    display:none;font-size:12.5px;color:var(--red);background:var(--red-bg);
+    border-radius:10px;padding:10px 12px;text-align:center;
+  }
+  #err-msg.show{display:block;}
+
+  .hint{font-size:11px;color:var(--ink-mute);text-align:center;line-height:1.5;}
+</style>
+</head>
+<body>
+<div class="page-wrap">
+  <div class="content">
+
+    <div class="ph-header">
+      <img class="ph-logo" src="assets/logo-fadoagri-cropped.png" alt="FADO AGRI">
+      <div class="ph-brandline">Cổng tra cứu</div>
+    </div>
+
+    <div class="intro">
+      <h1>Tra cứu nguồn gốc lô hàng</h1>
+      <p>Quét mã vạch trên thùng hàng vào ô bên dưới, hoặc tự nhập dãy số in trên tem.</p>
+    </div>
+
+    <form id="lookup-form">
+      <input type="text" id="code-input" inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Quét hoặc nhập mã số..." autofocus>
+      <div id="err-msg">Mã không hợp lệ — kiểm tra lại dãy số trên tem rồi thử lại.</div>
+      <button type="submit" id="submit-btn">Tra cứu</button>
+    </form>
+
+    <div class="hint">Máy quét mã vạch sẽ tự điền số vào ô trên và tra cứu ngay — không cần bấm gì thêm.</div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  var TRACE_PAGE = 'trace.html';
+  var input = document.getElementById('code-input');
+  var form = document.getElementById('lookup-form');
+  var errMsg = document.getElementById('err-msg');
+
+  input.focus();
+  // Trang này thường để mở SUỐT CA làm việc, quét hết thùng này tới thùng
+  // khác — bấm ra ngoài ô hay cuộn trang lỡ tay mất focus thì máy quét
+  // (gõ hộ, không tự bấm được vào đúng ô) sẽ gõ nhầm ra chỗ khác. Tự lấy
+  // lại focus mỗi khi trang được nhìn thấy lại (đổi tab rồi quay lại,
+  // click ra ngoài) để luôn sẵn sàng nhận lượt quét tiếp theo.
+  document.addEventListener('visibilitychange', function(){
+    if(!document.hidden) input.focus();
+  });
+  input.addEventListener('blur', function(){
+    setTimeout(function(){ input.focus(); }, 50);
+  });
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var code = input.value.trim();
+    if(!code){ return; }
+    errMsg.classList.remove('show');
+    input.classList.remove('err');
+    location.href = TRACE_PAGE + '?t=' + encodeURIComponent(code);
+  });
+})();
+</script>
+</body>
+</html>

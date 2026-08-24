@@ -3229,6 +3229,13 @@ const titles = {
     // hệ thống đã có sẵn (Quy cách đóng thùng khai ở Xưởng Ba Phi, xem
     // getBoxItemsForBatch), tự điền được, staff chỉ cần rà lại trước khi lưu.
     const PUBLIC_TRACE_BASE_URL = 'https://fadoagri-scms.github.io/trace.html';
+    // Cổng tra cứu (tra-cuu.html) — dùng cho khách chỉ có máy quét mã vạch
+    // RỜI (không phải app điện thoại): máy quét rời chỉ "gõ hộ" ký tự vào
+    // ô đang có con trỏ, không tự mở trình duyệt được (giới hạn phần cứng,
+    // không phải do thiếu code) — khách mở cổng này 1 lần, để mở suốt ca,
+    // quét/gõ số vào ô là tự chuyển đúng trang truy xuất. In kèm địa chỉ
+    // này lên tem khi xuất ảnh mã vạch — xem exportTraceBarcodeImage().
+    const PUBLIC_LOOKUP_URL_DISPLAY = 'fadoagri-scms.github.io/tra-cuu.html';
     const traceOverlay = document.getElementById('trace-overlay');
     const traceModalTitle = document.getElementById('trace-modal-title');
     const traceCloseBtn = document.getElementById('btn-close-trace');
@@ -3372,12 +3379,25 @@ const titles = {
       return result;
     }
 
-    // Mã bí mật nằm trong link/QR — LUÔN ngẫu nhiên, không liên quan tên lô,
-    // để không ai dò/đoán ra link được (xem trace_batch_label bên dưới cho
-    // phần "Mã lô" hiển thị công khai — tách riêng, không liên quan mã này).
+    // Mã bí mật nằm trong link/QR/mã vạch — LUÔN ngẫu nhiên, không liên quan
+    // tên lô, để không ai dò/đoán ra link được (xem trace_batch_label bên
+    // dưới cho phần "Mã lô" hiển thị công khai — tách riêng, không liên quan
+    // mã này). Toàn CHỮ SỐ (không còn lẫn chữ a-f như trước) — để mã vạch
+    // quét ra đúng toàn số theo yêu cầu, và khách gõ tay được ở Cổng tra cứu
+    // (tra-cuu.html) khi không có QR để quét. Đánh đổi: 12 chữ số ~ 10^12
+    // khả năng, ít hơn ~3 bậc so với 12 ký tự hex trước đây (~2.8×10^14) —
+    // vẫn đủ khó đoán mò cho mục đích này (không phải dữ liệu tài chính,
+    // staff còn phải tự bật "Đang công khai" cho từng lô).
     function genTraceCode(){
-      if(typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID().replace(/-/g, '').slice(0, 12);
-      return (Date.now().toString(36) + Math.random().toString(36).slice(2)).slice(0, 12);
+      var digits = '';
+      if(typeof crypto !== 'undefined' && crypto.getRandomValues){
+        var arr = new Uint32Array(12);
+        crypto.getRandomValues(arr);
+        for(var i = 0; i < 12; i++) digits += arr[i] % 10;
+      } else {
+        for(var i = 0; i < 12; i++) digits += Math.floor(Math.random() * 10);
+      }
+      return digits;
     }
 
     // Gộp Sản phẩm+Quy cách trên mọi đợt sản xuất của 1 lô lại (1 lô có thể
@@ -3562,14 +3582,16 @@ const titles = {
       } else {
         new QRCode(traceQrBox, { text: url, width: 176, height: 176, correctLevel: QRCode.CorrectLevel.M });
       }
-      // Mã vạch mã hoá NGUYÊN LINK (giống hệt QR) — không chỉ mã ngắn, để
-      // khách chỉ có app quét mã vạch (không phải QR) vẫn tự mở được đúng
-      // trang. Đánh đổi: CODE128 dài ~57 ký tự nên vạch dài hơn hẳn mã ngắn
-      // trước đây — chấp nhận vì khách chỉ quét được mã vạch thì bắt buộc
-      // phải vậy mới dùng được (không có link thì quét ra chỉ là chữ vô
-      // nghĩa, không tự mở trang).
-      // displayValue:false — link vẫn chứa mã bí mật y hệt QR, in chữ ngay
-      // dưới vạch sẽ lộ mã cho bất kỳ ai NHÌN vào tem cũng đọc được.
+      // Mã vạch giờ chỉ mã hoá ĐÚNG DÃY SỐ (không nhúng nguyên link như
+      // trước) — máy quét mã vạch rời chỉ giả lập bàn phím, không tự mở
+      // trình duyệt được dù mã có chứa link hay không (giới hạn phần cứng),
+      // nên nhúng link không còn ý nghĩa. Khách dùng máy quét rời sẽ quét/gõ
+      // dãy số này vào Cổng tra cứu (tra-cuu.html, xem PUBLIC_LOOKUP_URL_DISPLAY)
+      // để ra đúng trang — QR bên trên vẫn nhúng nguyên link như cũ, dành
+      // cho ai dùng app quét bằng điện thoại (tự mở được).
+      // displayValue:true — giờ NÊN in số ngay dưới vạch (khác trước đây cố
+      // tình ẩn vì link chứa mã bí mật) — khách cần đọc được bằng mắt để gõ
+      // tay vào Cổng tra cứu khi máy quét lỗi/không có sẵn.
       // margin:20 — "vùng trắng yên tĩnh" 2 bên mép đủ rộng để đầu đọc
       // nhận ra điểm bắt đầu/kết thúc mã; để quá hẹp (như 4 trước đây) là
       // nguyên nhân phổ biến nhất khiến CODE128 quét không ra.
@@ -3582,10 +3604,9 @@ const titles = {
             // width 2 quét được ở độ phân giải gốc nhưng vạch quá mảnh —
             // test giải mã lại bằng ZXing cho thấy chỉ cần thu nhỏ ảnh PNG
             // xuất ra còn ~80-90% (như khi in tem nhỏ/máy in nhiệt hoặc
-            // camera điện thoại chụp lệch nét) là bắt đầu quét trật, kể cả
-            // với link dài. width 3 chịu được tới ~60% mới trật — chịu đựng
-            // tốt hơn hẳn dù mã đã dài hơn nhiều so với mã ngắn trước đây.
-            JsBarcode(barcodeSvg, url, { format: 'CODE128', width: 3, height: 90, displayValue: false, margin: 20 });
+            // camera điện thoại chụp lệch nét) là bắt đầu quét trật. width 3
+            // chịu được tới ~60% mới trật — chịu đựng tốt hơn hẳn.
+            JsBarcode(barcodeSvg, code, { format: 'CODE128', width: 3, height: 90, displayValue: true, fontSize: 20, margin: 20 });
             // JsBarcode tự gán width/height CỐ ĐỊNH bằng px trên thẻ <svg>
             // (attribute, không phải CSS) — attribute này thắng CSS
             // width:100% trong 1 số trình duyệt, làm ảnh không kéo hết
@@ -4147,13 +4168,23 @@ const titles = {
       const svgUrl = URL.createObjectURL(new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' }));
       const img = new Image();
       img.onload = function(){
+        // Thêm 1 dòng "Tra cứu tại: ..." bên dưới mã vạch khi xuất ảnh — để
+        // in kèm lên tem, khách biết gõ/quét số vào đâu khi dùng máy quét
+        // rời (xem tra-cuu.html). Không vẽ chồng lên chính mã vạch (phá
+        // vùng trắng yên tĩnh cần cho máy quét) — mở thêm khoảng trống
+        // RIÊNG bên dưới rồi mới in chữ vào đó.
+        const extraH = 34;
         const canvas = document.createElement('canvas');
         canvas.width = width;
-        canvas.height = height;
+        canvas.height = height + extraH;
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = '#fff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, width, height);
+        ctx.fillStyle = '#1B2733';
+        ctx.font = '600 17px -apple-system, "Segoe UI", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Tra cứu tại: ' + PUBLIC_LOOKUP_URL_DISPLAY, width / 2, height + extraH / 2 + 6);
         URL.revokeObjectURL(svgUrl);
         downloadDataUrl(canvas.toDataURL('image/png'), 'mavach-' + traceFileSafeBatch() + '.png');
       };

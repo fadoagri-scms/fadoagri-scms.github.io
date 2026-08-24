@@ -77,6 +77,14 @@ def main():
     if os.path.isfile(trace_src):
         shutil.copyfile(trace_src, os.path.join(DIST, "trace.html"))
 
+    # tra-cuu.html là "Cổng tra cứu" — trang công khai riêng (giống
+    # trace.html) để khách dùng máy quét mã vạch rời (không tự mở link
+    # được, chỉ gõ hộ số vào ô đang có con trỏ) gõ/quét mã số rồi tự
+    # chuyển sang đúng trang trace.html.
+    lookup_src = os.path.join(SRC, "tra-cuu.html")
+    if os.path.isfile(lookup_src):
+        shutil.copyfile(lookup_src, os.path.join(DIST, "tra-cuu.html"))
+
     # index.html chuyển hướng — để khi deploy lên hosting (Netlify...),
     # mở đúng link gốc (vd: https://xxx.netlify.app/) là vào thẳng dashboard
     # thay vì phải nhớ thêm tên file chuoi-cung-ung-dashboard.html
