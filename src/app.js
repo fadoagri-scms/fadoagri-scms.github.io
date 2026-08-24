@@ -2638,10 +2638,15 @@ const titles = {
             traceBtn.setAttribute('aria-label', 'Xem hành trình đầy đủ');
             traceBtn.innerHTML = '<i class="ti ti-timeline"></i>';
             actionsTd.appendChild(traceBtn);
-            // Trang truy xuất nguồn gốc công khai chỉ có ý nghĩa khi lô đã
-            // đóng hàng — trước đó chưa đủ dữ liệu (quy cách, kết quả QC
-            // thành phẩm) để hiện cho khách.
-            if(b.orderStatus === 'Đã đóng hàng'){
+            // Hiện nút NGAY KHI CÓ THỂ (đã có nguồn hàng thật — mọi dòng
+            // trong bảng này đều đạt, dòng chưa có nguồn hàng đã bị lọc bỏ
+            // từ trước) — trước đây chặn tới tận "Đã đóng hàng" (hàng đã
+            // lên container) mới cho hiện, quá trễ để kịp in tem dán lên
+            // thùng. Modal vẫn mở bình thường dù chưa có dữ liệu đóng gói —
+            // staff chuẩn bị trước tên sản phẩm/NCC/vùng nguyên liệu, bổ
+            // sung quy cách sau, chỉ bật "Đang công khai" khi thật sự sẵn
+            // sàng — nút hiện sớm không có nghĩa là khách xem được sớm.
+            if(b.hasSourceInfo){
               const publicTraceBtn = document.createElement('button');
               publicTraceBtn.type = 'button';
               publicTraceBtn.className = 'row-edit-btn public-trace-open-btn';
