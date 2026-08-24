@@ -2515,10 +2515,20 @@ const titles = {
   function hashFor(tab, subtab){
     return '#' + tab + (subtab ? '/' + subtab : '');
   }
+  // Mốc lịch sử riêng cho khối "xem tiến độ lô hàng" trong tab Đơn hàng —
+  // không phải subtab thật, chỉ mượn URL #donhang/order/<mã lô> để nút
+  // Back của trình duyệt có 1 mốc để quay về (xem thêm ở parseHash và
+  // popstate bên dưới).
+  function hashForOrder(batchCode){
+    return '#donhang/order/' + encodeURIComponent(batchCode);
+  }
   function parseHash(){
     const raw = (location.hash || '').replace(/^#\/?/, '');
     if(!raw) return null;
     const parts = raw.split('/');
+    if(parts[1] === 'order' && parts[2]){
+      return { tab: parts[0] || null, subtab: null, order: decodeURIComponent(parts[2]) };
+    }
     return { tab: parts[0] || null, subtab: parts[1] || null };
   }
 
@@ -2569,6 +2579,11 @@ const titles = {
   // cụ thể trong tab Truy xuất lô hàng — module đó tự gán hàm thật vào
   // traceModuleOpen sau khi khởi tạo xong (tránh phụ thuộc thứ tự IIFE).
   let traceModuleOpen = null;
+  // Hiện/ẩn khối chi tiết lô hàng thật sự (đổi DOM) — traceModuleOpen ở
+  // dưới lo phần ghi mốc lịch sử, còn popstate (Back/Forward) gọi thẳng 2
+  // hàm này để đồng bộ DOM theo đúng mốc đang đứng, không ghi thêm lịch sử.
+  let orderDetailOpen = null;
+  let orderDetailClose = null;
   function goToBatchTrace(batchCode){
     goTab('donhang');
     if(traceModuleOpen) traceModuleOpen(batchCode);
@@ -2585,6 +2600,15 @@ const titles = {
       const navBtn = document.querySelector('.nav-item[data-tab="' + fromHash.tab + '"]');
       if(navBtn && navBtn.style.display !== 'none'){
         applyView(fromHash.tab, fromHash.subtab, false);
+        if(fromHash.order && orderDetailOpen){
+          orderDetailOpen(fromHash.order);
+          // applyView ở trên tự đồng bộ hash về '#donhang' (không biết gì về
+          // /order/...) — ghi đè lại đúng hash+state có order, không thì mốc
+          // lịch sử này mất dấu "đang xem chi tiết", Forward sau đó sẽ hiện
+          // sai (về danh sách thay vì chi tiết).
+          const orderUrl = hashForOrder(fromHash.order);
+          if(location.hash !== orderUrl) history.replaceState({ tab: fromHash.tab, subtab: null, order: fromHash.order }, '', orderUrl);
+        }
         return;
       }
     }
@@ -2602,6 +2626,15 @@ const titles = {
     const navBtn = document.querySelector('.nav-item[data-tab="' + state.tab + '"]');
     if(!navBtn || navBtn.style.display === 'none') return;
     applyView(state.tab, state.subtab, false);
+    if(state.order && orderDetailOpen){
+      orderDetailOpen(state.order);
+      // Cùng lý do như trong restoreActiveTab: applyView vừa ghi đè hash về
+      // '#donhang', trả lại đúng hash+state có order cho mốc lịch sử này.
+      const orderUrl = hashForOrder(state.order);
+      if(location.hash !== orderUrl) history.replaceState({ tab: state.tab, subtab: null, order: state.order }, '', orderUrl);
+    } else if(orderDetailClose){
+      orderDetailClose();
+    }
   });
 
   document.querySelectorAll('.nav-item').forEach(btn=>{
@@ -11539,10 +11572,28 @@ const titles = {
     const listSection = document.getElementById('order-list-section');
     const detailSection = document.getElementById('order-detail-section');
     const backBtn = document.getElementById('order-detail-back');
+
+    // Chỉ đổi DOM, KHÔNG đụng tới lịch sử — popstate và traceModuleOpen gọi
+    // hàm này để hiện/ẩn khối chi tiết.
+    orderDetailClose = function(){
+      if(detailSection) detailSection.style.display = 'none';
+      if(listSection) listSection.style.display = '';
+    };
+    orderDetailOpen = function(batchCode){
+      if(!batchCode) return;
+      if(listSection) listSection.style.display = 'none';
+      if(detailSection) detailSection.style.display = '';
+      loadBatch(batchCode);
+    };
+
     if(backBtn){
       backBtn.addEventListener('click', function(){
-        if(detailSection) detailSection.style.display = 'none';
-        if(listSection) listSection.style.display = '';
+        // Nút Back trong app và nút Back của trình duyệt phải cho cùng 1 kết
+        // quả — bấm nút này thì lùi lịch sử thay vì tự đổi DOM, để mốc
+        // "đang xem chi tiết" (do traceModuleOpen ghi) bị gỡ đúng cách, và
+        // Back tiếp theo của chuột không nhảy xộc ra ngoài app.
+        if(location.hash.indexOf('/order/') !== -1) history.back();
+        else orderDetailClose();
       });
     }
 
@@ -11550,9 +11601,9 @@ const titles = {
 
     traceModuleOpen = function(batchCode){
       if(!batchCode) return;
-      if(listSection) listSection.style.display = 'none';
-      if(detailSection) detailSection.style.display = '';
-      loadBatch(batchCode);
+      const url = hashForOrder(batchCode);
+      if(location.hash !== url) history.pushState({ tab: 'donhang', subtab: null, order: batchCode }, '', url);
+      orderDetailOpen(batchCode);
     };
   })();
 
