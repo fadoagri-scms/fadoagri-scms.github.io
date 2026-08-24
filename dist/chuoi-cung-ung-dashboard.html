@@ -8349,12 +8349,26 @@ const titles = {
       if(subIdx === 0){
         const inputQty = parseQty(r.soluong);
         const outputQty = fb && fb.finished_qty != null ? Number(fb.finished_qty) : null;
+        const grossCulledQty = computeCulledQty(inputQty, outputQty);
+        // Phần "dạt" đã được Xử lý (bán chợ hoặc gán bù qua lô khác — xem
+        // "Xử lý hàng tồn & rớt" ở tab Tồn kho) không còn là hao hụt THẬT
+        // (đã dùng có ích) — trừ khỏi cả % lẫn số trái hiển thị ở đây, chỉ
+        // giữ nguyên số gốc cho trường hợp lỗi số liệu (âm). Không giấu đi
+        // phần đã xử lý: vẫn ghi rõ qua tooltip + dòng phụ bên dưới.
+        const resolvedQty = resolvedDatByRawId[r.id] || 0;
+        const culledQty = grossCulledQty != null
+          ? (grossCulledQty < 0 ? grossCulledQty : Math.max(0, grossCulledQty - resolvedQty))
+          : null;
+
         const lossTd = document.createElement('td');
         lossTd.rowSpan = deliveryRowspan;
-        if(inputQty && outputQty != null && inputQty > 0){
-          const loss = (1 - outputQty / inputQty) * 100;
+        if(inputQty && culledQty != null && inputQty > 0){
+          const loss = (culledQty / inputQty) * 100;
           lossTd.textContent = loss.toFixed(0) + '%';
           lossTd.className = loss > 15 ? 'warn-text' : 'muted';
+          if(resolvedQty > 0){
+            lossTd.title = 'Hao hụt gốc ' + ((grossCulledQty / inputQty) * 100).toFixed(0) + '% — đã xử lý ' + fmtQty(resolvedQty) + ', hao hụt thật còn lại ' + loss.toFixed(0) + '%.';
+          }
         } else {
           lossTd.textContent = '—';
           lossTd.className = 'muted';
@@ -8363,7 +8377,6 @@ const titles = {
 
         const culledTd = document.createElement('td');
         culledTd.rowSpan = deliveryRowspan;
-        const culledQty = computeCulledQty(inputQty, outputQty);
         if(culledQty == null){
           culledTd.textContent = '—';
           culledTd.className = 'muted';
@@ -8375,14 +8388,20 @@ const titles = {
         } else {
           culledTd.textContent = fmtQty(culledQty);
           culledTd.className = culledQty > 0 ? 'warn-text' : 'muted';
+          if(resolvedQty > 0){
+            const resolvedNote = document.createElement('div');
+            resolvedNote.style.cssText = 'font-size:10.5px;opacity:.75;margin-top:1px;';
+            resolvedNote.textContent = '(đã xử lý ' + fmtQty(resolvedQty) + ')';
+            culledTd.appendChild(resolvedNote);
+          }
         }
         tr.appendChild(culledTd);
 
         // Ghi chú lý do dạt (nhập dừa / gọt / trích cho lô khác...) — cùng
         // cấp với Hao hụt/Trái bị dạt (1 đợt sản xuất), không phải theo
-        // từng dòng Quy cách. Tỷ lệ dạt > 15% (ngưỡng đã dùng cho cột Hao
-        // hụt ở trên) mà chưa ghi gì thì nhắc bằng màu cam, để giám đốc dễ
-        // thấy dòng nào cần hỏi lại thay vì phải tự cộng trừ % từng dòng.
+        // từng dòng Quy cách. Tỷ lệ dạt (đã trừ phần đã xử lý) > 15% mà
+        // chưa ghi gì thì nhắc bằng màu cam, để giám đốc dễ thấy dòng nào
+        // cần hỏi lại thay vì phải tự cộng trừ % từng dòng.
         const ghiChuTd = document.createElement('td');
         ghiChuTd.rowSpan = deliveryRowspan;
         ghiChuTd.style.textAlign = 'left';
@@ -8496,19 +8515,29 @@ const titles = {
 
       // Hao hụt trung bình tính theo TRỌNG SỐ sản lượng (tổng thành phẩm /
       // tổng đầu vào của cả lô) — không lấy trung bình cộng % của từng đợt,
-      // tránh lô nhỏ kéo lệch số liệu như ở ô thống kê đầu trang.
+      // tránh lô nhỏ kéo lệch số liệu như ở ô thống kê đầu trang. Đã trừ
+      // phần "dạt" từng đợt đã Xử lý (bán chợ/gán bù) — không tính chung
+      // với hao hụt thật.
+      const totalResolved = items.reduce(function(sum, r){ return sum + (resolvedDatByRawId[r.id] || 0); }, 0);
+      const grossCulledQty = computeCulledQty(totalInput > 0 ? totalInput : null, totalFinished);
+      const culledQty = grossCulledQty != null
+        ? (grossCulledQty < 0 ? grossCulledQty : Math.max(0, grossCulledQty - totalResolved))
+        : null;
+
       const lossTd = document.createElement('td');
-      if(totalInput > 0 && totalFinished != null){
-        const loss = (1 - totalFinished / totalInput) * 100;
+      if(totalInput > 0 && culledQty != null){
+        const loss = (culledQty / totalInput) * 100;
         lossTd.textContent = loss.toFixed(0) + '%';
         if(loss > 15) lossTd.className = 'warn-text';
+        if(totalResolved > 0){
+          lossTd.title = 'Hao hụt gốc ' + ((grossCulledQty / totalInput) * 100).toFixed(0) + '% — đã xử lý ' + fmtQty(totalResolved) + ', hao hụt thật còn lại ' + loss.toFixed(0) + '%.';
+        }
       } else {
         lossTd.textContent = '—';
       }
       tr.appendChild(lossTd);
 
       const culledTd = document.createElement('td');
-      const culledQty = computeCulledQty(totalInput > 0 ? totalInput : null, totalFinished);
       if(culledQty == null){
         culledTd.textContent = '—';
       } else if(culledQty < 0){
@@ -8518,6 +8547,12 @@ const titles = {
       } else {
         culledTd.textContent = fmtQty(culledQty);
         if(culledQty > 0) culledTd.className = 'warn-text';
+        if(totalResolved > 0){
+          const resolvedNote = document.createElement('div');
+          resolvedNote.style.cssText = 'font-size:10.5px;opacity:.75;margin-top:1px;';
+          resolvedNote.textContent = '(đã xử lý ' + fmtQty(totalResolved) + ')';
+          culledTd.appendChild(resolvedNote);
+        }
       }
       tr.appendChild(culledTd);
 
@@ -8642,13 +8677,23 @@ const titles = {
       });
       if(statLoss){
         if(lossRows.length){
+          // Đã trừ phần "dạt" từng đợt đã Xử lý (bán chợ/gán bù qua lô
+          // khác) — không tính chung với hao hụt thật, như đã làm ở bảng
+          // chi tiết bên dưới.
+          let totalResolvedAll = 0;
           const avgLoss = lossRows.reduce(function(sum, x){
             const input = parseQty(x.r.soluong);
-            return sum + (1 - Number(x.fb.finished_qty) / input) * 100;
+            const grossCulled = input - Number(x.fb.finished_qty);
+            const resolved = resolvedDatByRawId[x.r.id] || 0;
+            totalResolvedAll += resolved;
+            const netCulled = grossCulled < 0 ? grossCulled : Math.max(0, grossCulled - resolved);
+            return sum + (netCulled / input) * 100;
           }, 0) / lossRows.length;
           statLoss.textContent = avgLoss.toFixed(0) + '%';
+          statLoss.title = totalResolvedAll > 0 ? ('Đã trừ ' + fmtQty(totalResolvedAll) + ' dạt đã Xử lý (bán chợ/gán bù) khỏi hao hụt trung bình.') : '';
         } else {
           statLoss.textContent = '—';
+          statLoss.title = '';
         }
       }
 
@@ -8674,9 +8719,17 @@ const titles = {
         // (trước đây làm vậy khiến lô đặt tên theo alphabet đứng trước dù
         // mới hơn). renderFactoryRows gom nhóm theo thứ tự XUẤT HIỆN ĐẦU
         // TIÊN của mỗi lô nên nhóm cũng tự động xếp mới→cũ theo đây.
-        const { data, error } = await q
-          .order('ngay_nhap', { ascending: false });
+        const [{ data, error }, procRes] = await Promise.all([
+          q.order('ngay_nhap', { ascending: false }),
+          sb.from('factory_culled_processing').select('raw_batch_id, qty_trai').eq('source_type', 'dat').is('deleted_at', null)
+        ]);
         if(error) throw error;
+        if(procRes.error) throw procRes.error;
+        resolvedDatByRawId = {};
+        (procRes.data || []).forEach(function(p){
+          if(p.raw_batch_id == null) return;
+          resolvedDatByRawId[p.raw_batch_id] = (resolvedDatByRawId[p.raw_batch_id] || 0) + Number(p.qty_trai || 0);
+        });
         renderFactoryRows(data || []);
         updateFactoryStats(data || []);
         // Gợi ý tên sản phẩm ở ô "Sản phẩm" của từng dòng Quy cách — đây là
@@ -8706,6 +8759,12 @@ const titles = {
     // Danh sách tên Sản phẩm đã từng khai báo — dùng để dựng dropdown chọn
     // ở createBoxRow, cập nhật lại mỗi lần refreshFactoryRows() chạy xong.
     let knownSanPhamNames = [];
+    // Số trái "dạt" của mỗi raw_batch ĐÃ được xử lý (bán chợ hoặc gán bù
+    // qua lô khác — xem "Xử lý hàng tồn & rớt" ở tab Tồn kho), tính theo
+    // raw_batch_id — dùng để trừ khỏi Hao hụt/Trái dạt hiển thị ở đây, vì
+    // phần đã xử lý không còn là hao hụt thật (đã dùng có ích), không nên
+    // tính chung với phần thật sự mất đi.
+    let resolvedDatByRawId = {};
 
     // Sản phẩm giờ khai báo riêng cho TỪNG dòng Quy cách (không còn 1 ô
     // Sản phẩm dùng chung cho cả đợt) — 1 đợt có thể vừa ra sản phẩm chính
@@ -10859,13 +10918,19 @@ const titles = {
         });
         const lossItems = lossInputByMonth.map(function(input, i){
           const hasData = lossHasDataByMonth[i] && input > 0;
-          const pct = hasData ? Math.round((1 - lossOutputByMonth[i] / input) * 100) : 0;
+          // Phần "dạt" của tháng SẢN XUẤT đó đã được Xử lý (bán chợ/gán bù
+          // qua lô khác) không còn là hao hụt thật — cộng vào "thành phẩm
+          // hiệu quả" của đúng tháng sản xuất ra nó, cùng cách đã trừ ở
+          // bảng chi tiết Xưởng Ba Phi (không giấu, vẫn ghi rõ qua tooltip).
+          const resolved = resolvedDatByYearMonth[year + '-' + (i + 1)] || 0;
+          const netOutput = lossOutputByMonth[i] + resolved;
+          const pct = hasData ? Math.round((1 - netOutput / input) * 100) : 0;
           return {
             label: MONTH_NAMES[i],
             value: hasData ? Math.max(pct, 0) : 0,
             color: pct > 15 ? 'var(--red)' : 'var(--amber)',
             muted: monthFilter ? (i + 1 !== monthFilter) : false,
-            tooltip: hasData ? ('Tháng ' + (i + 1) + '/' + year + ': hao hụt ' + pct + '%') : ('Tháng ' + (i + 1) + '/' + year + ': chưa có dữ liệu')
+            tooltip: hasData ? ('Tháng ' + (i + 1) + '/' + year + ': hao hụt ' + pct + '%' + (resolved > 0 ? ' (đã trừ ' + Number(resolved).toLocaleString('vi-VN') + ' trái dạt đã xử lý)' : '')) : ('Tháng ' + (i + 1) + '/' + year + ': chưa có dữ liệu')
           };
         });
         renderBarChart(lossContainer, lossItems, {
@@ -10927,12 +10992,49 @@ const titles = {
       renderCharts();
     }
 
+    // Trái "dạt" đã Xử lý (bán chợ/gán bù qua lô khác — xem "Xử lý hàng
+    // tồn & rớt" ở Xưởng Ba Phi), gộp theo THÁNG SẢN XUẤT ra đợt dạt đó
+    // (không phải tháng bấm Xử lý) — cũng không có sẵn trong
+    // sharedBatchSummaries nên tự tải riêng, giống qcCheckRows ở trên.
+    let resolvedDatByYearMonth = {};
+    async function refreshResolvedDatCache(){
+      if(!lossContainer) { renderCharts(); return; }
+      try{
+        const [rawRes, procRes] = await Promise.all([
+          sb.from('raw_batches').select('id, factory_batches(production_date)').is('deleted_at', null),
+          sb.from('factory_culled_processing').select('raw_batch_id, qty_trai').eq('source_type', 'dat').is('deleted_at', null)
+        ]);
+        if(rawRes.error) throw rawRes.error;
+        if(procRes.error) throw procRes.error;
+        const prodDateByRawId = {};
+        (rawRes.data || []).forEach(function(r){
+          const fb = Array.isArray(r.factory_batches) ? r.factory_batches[0] : r.factory_batches;
+          if(fb && fb.production_date) prodDateByRawId[r.id] = fb.production_date;
+        });
+        const byKey = {};
+        (procRes.data || []).forEach(function(p){
+          const prodDate = p.raw_batch_id != null ? prodDateByRawId[p.raw_batch_id] : null;
+          const parts = prodDate ? periodParts(prodDate) : null;
+          if(!parts) return;
+          const key = parts.year + '-' + parts.month;
+          byKey[key] = (byKey[key] || 0) + Number(p.qty_trai || 0);
+        });
+        resolvedDatByYearMonth = byKey;
+      } catch(err){
+        console.error('Không tải được dữ liệu dạt đã xử lý cho biểu đồ:', err);
+        resolvedDatByYearMonth = {};
+      }
+      renderCharts();
+    }
+
     populateSelectors();
     refreshQcChecksCache();
+    refreshResolvedDatCache();
 
     monthSelect.addEventListener('change', renderCharts);
     yearSelect.addEventListener('change', function(){ renderCharts(); });
     onBatchSummaryChanged(function(){ populateSelectors(); refreshQcChecksCache(); });
+    onFactoryProductionChanged(refreshResolvedDatCache);
   })();
 
   // ---- Quản lý tài khoản (chỉ Admin) ----
