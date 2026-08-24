@@ -2345,31 +2345,49 @@ const titles = {
     function buildLines(b){
       const lines = [];
       if(b.isDua){
-        // Luôn tách theo từng chủng loại dừa đã ghi ở Vùng nguyên liệu — số
-        // dòng phải đúng bằng số sản phẩm thực có trong lô (kể cả khi lô
-        // ghép thêm PO ngành hàng khác), mỗi dòng kiểm/đánh giá QC độc lập.
-        // Chỉ khi CHƯA từng nhập chủng loại (1 mục duy nhất "Chưa phân
-        // loại") mới coi là 1 dòng "Dừa" chung như trước.
         const multi = b.duaVarieties.length > 1;
+        // Gộp các chủng loại nguyên liệu CÙNG ra 1 sản phẩm (đã khai ở Xưởng
+        // Ba Phi) thành 1 dòng duy nhất, cộng dồn số lượng — chủng loại chỉ
+        // là nguyên liệu đầu vào, khách hàng/đơn hàng quan tâm sản phẩm đầu
+        // ra, không cần thấy tách theo từng chủng loại nếu ra cùng 1 sản
+        // phẩm. Chủng loại CHƯA khai sản phẩm (hiện "—") thì giữ riêng từng
+        // dòng theo đúng chủng loại — không tự đoán 2 dòng "—" là cùng 1 sản
+        // phẩm khi Xưởng Ba Phi chưa xác nhận.
+        const groups = [];
+        const groupBySanPham = {};
         b.duaVarieties.forEach(function(v){
-          const named = v.name !== 'Chưa phân loại';
-          // Sản phẩm hiện đúng tên thành phẩm khai báo ở Xưởng sản xuất (VD:
-          // "Dừa xiêm xanh nón lá") nếu đã có, chưa có thì tạm dùng tên
-          // chủng loại như trước. Số lượng thực tế LUÔN theo thùng — lô chỉ
-          // 1 chủng loại lấy tổng đã xuất của cả lô, nhiều chủng loại thì
-          // lấy đúng số đã xuất của riêng chủng loại đó.
+          const sanPham = b.sanPhamByVariety[v.name] || null;
+          let group;
+          if(sanPham && groupBySanPham[sanPham]){
+            group = groupBySanPham[sanPham];
+          } else {
+            group = { sanPham: sanPham, varieties: [], exportedSum: 0, hasExported: false, rawSum: 0, hasRaw: false };
+            groups.push(group);
+            if(sanPham) groupBySanPham[sanPham] = group;
+          }
+          group.varieties.push(v);
+          // Số lượng thực tế LUÔN theo thùng — lô chỉ 1 chủng loại lấy tổng
+          // đã xuất của cả lô, nhiều chủng loại thì lấy đúng số đã xuất của
+          // riêng chủng loại đó.
           const exportedForVariety = multi ? b.exportedByVariety[v.name] : b.exportedQty;
-          // Chưa xuất kho thì vẫn phải thấy được lô này đang có bao nhiêu
-          // hàng — lùi dần về số nhập thô đã cân ở Vùng nguyên liệu, kèm nhãn
-          // nói rõ đang là số nào (trước đây để trống, nhìn như thiếu dữ liệu
-          // dù lô đã có nguyên liệu và đã kiểm QC).
+          if(exportedForVariety != null){
+            group.hasExported = true;
+            group.exportedSum += exportedForVariety;
+          } else if(v.qty){
+            // Chưa xuất kho thì vẫn phải thấy được lô này đang có bao nhiêu
+            // hàng — lùi dần về số nhập thô đã cân ở Vùng nguyên liệu.
+            group.hasRaw = true;
+            group.rawSum += v.qty;
+          }
+        });
+        groups.forEach(function(group){
           let qtyText = '—';
           let qtyNote = null;
-          if(exportedForVariety != null){
-            qtyText = fmtBoxQty(exportedForVariety);
+          if(group.hasExported){
+            qtyText = fmtBoxQty(group.exportedSum);
             qtyNote = 'đã xuất kho';
-          } else if(v.qty){
-            qtyText = fmtQty(v.qty);
+          } else if(group.hasRaw){
+            qtyText = fmtQty(group.rawSum);
             qtyNote = 'nhập thô';
             // Tiến độ thu mua so với dự kiến — chỉ tính khi lô CHỈ 1 chủng
             // loại (dự kiến ghi cho cả lô, không tách theo từng dòng, nên lô
@@ -2378,14 +2396,21 @@ const titles = {
             // nhập thô, so sánh khác đơn vị sẽ ra % vô nghĩa).
             if(!multi){
               const expectedTrai = parseLeadingTraiCount(b.soLuongDuKien);
-              if(expectedTrai) qtyNote = 'nhập thô — ' + Math.round(v.qty / expectedTrai * 100) + '% so với dự kiến';
+              if(expectedTrai) qtyNote = 'nhập thô — ' + Math.round(group.rawSum / expectedTrai * 100) + '% so với dự kiến';
             }
           }
+          // Kiểm QC vẫn ghi theo từng chủng loại (qc_checks.chung_loai) —
+          // dòng gộp nhiều chủng loại thì thao tác "kiểm nhanh" chỉ áp dụng
+          // cho chủng loại ĐẦU TIÊN trong nhóm (trường hợp hiếm, chỉ xảy ra
+          // khi 2+ chủng loại cùng khai chung 1 sản phẩm) — muốn kiểm riêng
+          // từng chủng loại thì vào đúng lô ở Đánh giá chất lượng.
+          const primaryVariety = group.varieties[0];
+          const primaryNamed = primaryVariety.name !== 'Chưa phân loại';
           lines.push({
             ncc: 'Xưởng Ba Phi',
-            category: b.sanPhamByVariety[v.name] || (named ? v.name : 'Dừa'),
+            category: group.sanPham || '—',
             qcCategory: 'Dừa',
-            chungLoai: named ? v.name : null,
+            chungLoai: primaryNamed ? primaryVariety.name : null,
             qty: qtyText,
             qtyNote: qtyNote
           });
