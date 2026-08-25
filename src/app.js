@@ -5883,8 +5883,17 @@ const titles = {
 
         const prodDateTd = document.createElement('td');
         prodDateTd.rowSpan = deliveryRowspan;
-        prodDateTd.className = 'muted';
-        prodDateTd.textContent = fb && fb.production_date ? fmtDate(fb.production_date) : '—';
+        if(fb && fb.production_date){
+          prodDateTd.className = 'muted';
+          prodDateTd.textContent = fmtDate(fb.production_date);
+        } else {
+          // Lô đã nhập nguyên liệu (có mặt ở bảng này) nhưng chưa từng bấm
+          // "Cập nhật sản xuất" — cảnh báo rõ thay vì chỉ hiện "—" lẫn vào
+          // các ô trống khác, để không bị bỏ sót lô đang chờ xử lý.
+          prodDateTd.className = 'warn-text';
+          prodDateTd.textContent = 'Chưa sản xuất';
+          prodDateTd.title = 'Lô đã nhập nguyên liệu nhưng chưa cập nhật thông tin sản xuất.';
+        }
         tr.appendChild(prodDateTd);
 
         const finishedTd = document.createElement('td');
@@ -6125,7 +6134,16 @@ const titles = {
 
       const prodDates = items.map(function(r){ const fb = getFb(r); return fb && fb.production_date; }).filter(Boolean).sort();
       const prodDateTd = document.createElement('td');
-      prodDateTd.textContent = prodDates.length ? (prodDates[0] === prodDates[prodDates.length - 1] ? fmtDate(prodDates[0]) : fmtDate(prodDates[0]) + ' – ' + fmtDate(prodDates[prodDates.length - 1])) : '—';
+      if(prodDates.length){
+        prodDateTd.textContent = prodDates[0] === prodDates[prodDates.length - 1] ? fmtDate(prodDates[0]) : fmtDate(prodDates[0]) + ' – ' + fmtDate(prodDates[prodDates.length - 1]);
+      } else {
+        // Chưa lượt nào trong nhóm này được sản xuất — cảnh báo giống dòng
+        // chi tiết bên dưới, để lô "kẹt" từ lúc nhập nguyên liệu không bị
+        // ẩn đi ngay cả khi đang thu gọn (chưa bấm mở rộng xem chi tiết).
+        prodDateTd.className = 'warn-text';
+        prodDateTd.textContent = 'Chưa sản xuất';
+        prodDateTd.title = 'Cả nhóm lô này đã nhập nguyên liệu nhưng chưa cập nhật thông tin sản xuất.';
+      }
       tr.appendChild(prodDateTd);
 
       let totalFinished = null;
