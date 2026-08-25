@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cổng tra cứu — FADO AGRI</title>
+<title>Lookup Portal — FADO AGRI</title>
 <style>
   :root{
     --ink:#1B2733; --ink-soft:#5B6B7D; --ink-mute:#93A3B3;
@@ -28,11 +28,9 @@
 
   .ph-header{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;}
   .ph-logo{height:46px;width:auto;object-fit:contain;}
-  .ph-brandline{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--forest-deep);}
 
-  .intro{text-align:center;display:flex;flex-direction:column;gap:6px;}
+  .intro{text-align:center;}
   .intro h1{font-size:18px;margin:0;color:var(--ink);}
-  .intro p{margin:0;font-size:12.5px;color:var(--ink-soft);line-height:1.5;}
 
   form{display:flex;flex-direction:column;gap:12px;}
   /* font-size 16px trên input — dưới 16px Safari/iOS tự zoom vào ô khi
@@ -70,21 +68,19 @@
 
     <div class="ph-header">
       <img class="ph-logo" src="assets/logo-fadoagri-cropped.png" alt="FADO AGRI">
-      <div class="ph-brandline">Cổng tra cứu</div>
     </div>
 
     <div class="intro">
-      <h1>Tra cứu nguồn gốc lô hàng</h1>
-      <p>Quét mã vạch trên thùng hàng vào ô bên dưới, hoặc tự nhập dãy số in trên tem.</p>
+      <h1>Batch Traceability Lookup</h1>
     </div>
 
     <form id="lookup-form">
-      <input type="text" id="code-input" inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Quét hoặc nhập mã số..." autofocus>
-      <div id="err-msg">Mã không hợp lệ — kiểm tra lại dãy số trên tem rồi thử lại.</div>
-      <button type="submit" id="submit-btn">Tra cứu</button>
+      <input type="text" id="code-input" inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Scan or enter code..." autofocus>
+      <div id="err-msg">Invalid code — check the number on the label and try again.</div>
+      <button type="submit" id="submit-btn">Look up</button>
     </form>
 
-    <div class="hint">Máy quét mã vạch sẽ tự điền số vào ô trên và tra cứu ngay — không cần bấm gì thêm.</div>
+    <div class="hint">A barcode scanner will fill in the number above and look it up automatically — no need to click anything.</div>
 
   </div>
 </div>
