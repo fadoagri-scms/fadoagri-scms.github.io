@@ -1528,16 +1528,20 @@ const titles = {
     function matchesRawPeriod(d){
       if(!rawYearSelect || !rawYearSelect.value) return true;
       const p = periodParts(d.ngay_nhap);
-      if(!p) return false;
+      // Lô CHƯA CÓ ngày nhập (VD hàng đang trên đường về, chưa rõ ngày chính
+      // xác) — luôn hiện, bất kể đang lọc tháng/năm nào, thay vì ẩn mất khỏi
+      // danh sách mặc định (trước đây phải chủ động gõ tìm đúng tên mới thấy
+      // lại, dễ tưởng nhầm là lưu không thành công).
+      if(!p) return true;
       if(p.year !== Number(rawYearSelect.value)) return false;
       if(rawMonthSelect && rawMonthSelect.value && p.month !== Number(rawMonthSelect.value)) return false;
       return true;
     }
     function applyRawFilters(rows){
-      // Có từ khóa tìm kiếm thì bỏ qua bộ lọc tháng/năm — nếu không, lô nào
-      // thiếu ngày nhập hàng (ngay_nhap null, VD: nhập lô mà bỏ trống ngày)
-      // sẽ vĩnh viễn không khớp bộ lọc kỳ nào cả, ẩn mất khỏi tìm kiếm dù
-      // gõ đúng tên/mã lô.
+      // Có từ khóa tìm kiếm thì bỏ qua bộ lọc tháng/năm luôn — tìm đúng tên/mã
+      // lô thì phải ra kết quả bất kể lô đó thuộc kỳ nào đang chọn. Lô thiếu
+      // ngày nhập hàng (ngay_nhap null) đã tự luôn khớp mọi kỳ ở
+      // matchesRawPeriod() rồi, không cần bỏ qua bộ lọc kỳ vì lý do đó nữa.
       const hasSearch = !!(rawSearchInput && rawSearchInput.value.trim());
       return rows.filter(function(d){ return matchesRawSearch(d) && (hasSearch || matchesRawPeriod(d)); });
     }
