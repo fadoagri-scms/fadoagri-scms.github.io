@@ -2674,6 +2674,16 @@ const titles = {
               publicTraceBtn.innerHTML = '<i class="ti ti-qrcode"></i>';
               actionsTd.appendChild(publicTraceBtn);
             }
+            // Sửa Khách hàng/Sản phẩm/Ngày giao mong muốn — cùng quyền với
+            // nút "Thêm đơn hàng" (chỉ Admin, xem applyRolePermissions).
+            if(currentUser && currentUser.role === 'admin'){
+              const orderEditBtn = document.createElement('button');
+              orderEditBtn.type = 'button';
+              orderEditBtn.className = 'row-edit-btn order-edit-btn';
+              orderEditBtn.setAttribute('aria-label', 'Sửa thông tin đơn hàng');
+              orderEditBtn.innerHTML = '<i class="ti ti-pencil"></i>';
+              actionsTd.appendChild(orderEditBtn);
+            }
             tr.appendChild(actionsTd);
           }
 
@@ -4342,6 +4352,12 @@ const titles = {
         if(tr && tr.dataset.batch) openTraceModal(tr.dataset.batch);
         return;
       }
+      const orderEditBtn = e.target.closest('.order-edit-btn');
+      if(orderEditBtn){
+        const tr = orderEditBtn.closest('tr');
+        if(tr && tr.dataset.batch) openOrderModal(tr.dataset.batch);
+        return;
+      }
       const btn = e.target.closest('.row-edit-btn');
       if(!btn) return;
       const tr = btn.closest('tr');
@@ -4537,6 +4553,10 @@ const titles = {
     const orderCancelBtn = document.getElementById('btn-cancel-add-order');
     const orderForm = document.getElementById('form-add-order');
     const orderSubmitBtn = document.getElementById('btn-submit-add-order');
+    // Gán thật bên trong khối "if(orderOverlay && orderForm)" bên dưới —
+    // khai báo sớm ở đây để summaryTbody (nút Sửa trên từng dòng, đăng ký
+    // listener sớm hơn trong file) gọi được.
+    let openOrderModal = function(){};
 
     // Danh sách "Sản phẩm & số lượng dự kiến" động trong modal — 1 đơn có
     // thể gồm nhiều sản phẩm, mỗi dòng ghi số lượng dự kiến riêng thay vì
@@ -4588,6 +4608,15 @@ const titles = {
     }
     if(ordAddProductBtn) ordAddProductBtn.addEventListener('click', function(){ createOrderProductRow(); });
 
+    // editingOrderBatch = null → modal đang ở chế độ "Thêm đơn hàng" (tên
+    // lô gõ tự do). Khác null → đang sửa đúng lô đó — khóa lại ô "Tên đơn /
+    // lô hàng" vì đây là khóa nối dữ liệu với Vùng nguyên liệu/QC/Logistics,
+    // đổi tên ở đây sẽ làm đơn "tách đôi" khỏi dữ liệu cũ chứ không phải đổi
+    // tên đơn đang có.
+    let editingOrderBatch = null;
+    const orderModalTitle = document.getElementById('add-order-modal-title');
+    const ordBatchInput = document.getElementById('ord-batch');
+
     if(orderOverlay && orderForm){
       const closeOrderModal = function(){
         orderOverlay.classList.remove('active');
@@ -4595,15 +4624,43 @@ const titles = {
         resetOrderProductRows();
         const group = document.getElementById('ord-loai-noi-dia-group');
         if(group) group.style.display = 'none';
+        editingOrderBatch = null;
+        if(ordBatchInput) ordBatchInput.disabled = false;
       };
+
+      openOrderModal = function(batchToEdit){
+        orderForm.reset();
+        resetOrderProductRows();
+        const group = document.getElementById('ord-loai-noi-dia-group');
+        if(group) group.style.display = 'none';
+
+        const b = batchToEdit ? batchSummaries[batchToEdit] : null;
+        editingOrderBatch = b ? batchToEdit : null;
+
+        if(orderModalTitle) orderModalTitle.textContent = editingOrderBatch ? 'Sửa đơn hàng' : 'Thêm đơn hàng';
+        orderSubmitBtn.textContent = editingOrderBatch ? 'Lưu thay đổi' : 'Thêm đơn hàng';
+
+        if(b){
+          if(ordBatchInput){ ordBatchInput.value = b.batch; ordBatchInput.disabled = true; }
+          document.getElementById('ord-khach-hang').value = b.khachHang || '';
+          const hinhThucSelect = document.getElementById('ord-hinh-thuc');
+          hinhThucSelect.value = b.saleType || '';
+          if(group) group.style.display = b.saleType === 'Nội địa' ? '' : 'none';
+          document.getElementById('ord-loai-noi-dia').value = b.domesticType || '';
+          document.getElementById('ord-ngay-giao').value = b.ngayGiaoMongMuon || '';
+          if(b.products && b.products.length){
+            ordProductsListEl.textContent = '';
+            b.products.forEach(function(p){ createOrderProductRow(p.sanPham, p.soLuongDuKien); });
+          }
+        } else if(ordBatchInput){
+          ordBatchInput.disabled = false;
+        }
+
+        orderOverlay.classList.add('active');
+      };
+
       if(orderOpenBtn){
-        orderOpenBtn.addEventListener('click', function(){
-          orderForm.reset();
-          resetOrderProductRows();
-          const group = document.getElementById('ord-loai-noi-dia-group');
-          if(group) group.style.display = 'none';
-          orderOverlay.classList.add('active');
-        });
+        orderOpenBtn.addEventListener('click', function(){ openOrderModal(null); });
       }
       if(orderCloseBtn) orderCloseBtn.addEventListener('click', closeOrderModal);
       if(orderCancelBtn) orderCancelBtn.addEventListener('click', closeOrderModal);

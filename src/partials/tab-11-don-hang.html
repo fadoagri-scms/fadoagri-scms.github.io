@@ -10,7 +10,7 @@
         <button class="btn-secondary" id="btn-export-orders" type="button"><i class="ti ti-file-export"></i>Xuất Excel</button>
         <button class="btn-primary" id="btn-open-add-order" type="button" style="display:none;"><i class="ti ti-plus"></i>Thêm đơn hàng</button>
       </div>
-      <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Toàn bộ đơn hàng — cũ, mới, đang xử lý — gộp từ Nhà cung cấp, Vùng nguyên liệu, Xưởng Ba Phi và Đánh giá chất lượng. Mới nhất hiện trước. Bấm <i class="ti ti-timeline"></i> để xem toàn bộ hành trình, <i class="ti ti-clipboard-check"></i> để nhập/xem kết quả kiểm QC.</div>
+      <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Toàn bộ đơn hàng — cũ, mới, đang xử lý — gộp từ Nhà cung cấp, Vùng nguyên liệu, Xưởng Ba Phi và Đánh giá chất lượng. Mới nhất hiện trước. Bấm <i class="ti ti-timeline"></i> để xem toàn bộ hành trình, <i class="ti ti-clipboard-check"></i> để nhập/xem kết quả kiểm QC, <i class="ti ti-pencil"></i> để sửa khách hàng/sản phẩm/ngày giao mong muốn.</div>
       <div class="card table-scroll">
         <table>
           <thead>
@@ -31,7 +31,7 @@
     <div class="modal-overlay" id="add-order-overlay">
       <div class="modal">
         <div class="modal-header">
-          <div class="modal-title">Thêm đơn hàng</div>
+          <div class="modal-title" id="add-order-modal-title">Thêm đơn hàng</div>
           <button class="modal-close" id="btn-close-add-order" type="button" aria-label="Đóng">&times;</button>
         </div>
         <form id="form-add-order">
