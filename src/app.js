@@ -6023,6 +6023,74 @@ const titles = {
       return tr;
     }
 
+    // Nhận diện 1 dòng Quy cách là "hàng bù" (thùng tạo ra từ "Xử lý hàng
+    // tồn & rớt" gán bù qua lô này — xem resolveTargetChungLoai) qua đúng
+    // tiền tố ghi_chu đã đặt lúc insert, không phải hàng đóng gói thật của
+    // đợt giao đang mượn tạm factory_batch_id để lưu.
+    function isBuBox(box){
+      return !!(box && typeof box.ghi_chu === 'string' && box.ghi_chu.indexOf('Bù từ xử lý hàng dạt') === 0);
+    }
+
+    // Dòng riêng cho "hàng bù" — KHÔNG rowSpan chung với NCC nào, vì dòng
+    // này không thuộc đợt giao hàng thật nào cả (chỉ đang mượn tạm 1
+    // factory_batch_id có sẵn để lưu, do cấu trúc dữ liệu bắt buộc mỗi dòng
+    // Quy cách phải gắn với 1 đợt sản xuất). Tách riêng để không hiểu lầm
+    // là NCC đó giao dư — xem renderFactoryRows().
+    function buildFactoryBuRow(box, collapse, startVisible){
+      const tr = document.createElement('tr');
+      tr.className = 'hoverable factory-bu-row';
+      if(collapse){ tr.classList.add('batch-detail-row'); tr.style.display = startVisible ? '' : 'none'; }
+
+      tr.appendChild(document.createElement('td')); // Lô hàng — luôn rỗng, đã có dòng tổng hợp/dòng đầu tiên hiện tên lô
+
+      const nccTd = document.createElement('td');
+      nccTd.innerHTML = '<span class="bu-tag">↳ Hàng bù</span>';
+      tr.appendChild(nccTd);
+
+      ['—', '—', '—', '—', '—'].forEach(function(){
+        const td = document.createElement('td');
+        td.className = 'muted';
+        td.textContent = '—';
+        tr.appendChild(td);
+      }); // Chủng loại / Số lượng / Ngày nhập / Ngày sản xuất / Thành phẩm — không áp dụng
+
+      const sanPhamTd = document.createElement('td');
+      sanPhamTd.className = 'muted';
+      sanPhamTd.style.textAlign = 'left';
+      sanPhamTd.textContent = box.san_pham || '—';
+      tr.appendChild(sanPhamTd);
+
+      const quyCachTd = document.createElement('td');
+      quyCachTd.className = 'muted';
+      quyCachTd.style.textAlign = 'left';
+      quyCachTd.textContent = box.quy_cach != null ? (box.quy_cach + ' trái/thùng') : '—';
+      tr.appendChild(quyCachTd);
+
+      const soLuongThungTd = document.createElement('td');
+      soLuongThungTd.className = 'muted';
+      soLuongThungTd.style.textAlign = 'left';
+      soLuongThungTd.textContent = fmtBoxQty(box.so_luong_thung);
+      tr.appendChild(soLuongThungTd);
+
+      tr.appendChild(document.createElement('td')); // Hao hụt — không áp dụng
+      tr.appendChild(document.createElement('td')); // Trái bị dạt — không áp dụng
+
+      const ghiChuTd = document.createElement('td');
+      ghiChuTd.className = 'muted';
+      ghiChuTd.style.textAlign = 'left';
+      ghiChuTd.style.maxWidth = '180px';
+      ghiChuTd.textContent = box.ghi_chu;
+      ghiChuTd.title = box.ghi_chu;
+      tr.appendChild(ghiChuTd);
+
+      tr.appendChild(document.createElement('td')); // Bắt đầu — không áp dụng
+      tr.appendChild(document.createElement('td')); // Kết thúc — không áp dụng
+      tr.appendChild(document.createElement('td')); // Tổng số lượng thùng — dòng tổng hợp/dòng đầu tiên đã hiện
+      tr.appendChild(document.createElement('td')); // Thao tác — sửa lại ở "Xử lý hàng tồn & rớt", không sửa ở đây
+
+      return tr;
+    }
+
     function createFactorySummaryRow(items, totalBoxes, rowCount){
       const tr = document.createElement('tr');
       tr.className = 'hoverable batch-summary-row';
@@ -6181,12 +6249,20 @@ const titles = {
         // Mỗi đợt sản xuất tách thành N dòng theo đúng số Quy cách đã khai
         // báo (ít nhất 1 dòng, kể cả khi chưa có Quy cách nào — hiện "—")
         // để dễ kiểm soát từng quy cách riêng biệt thay vì gộp chung 1 ô.
+        // "Hàng bù" (từ Xử lý hàng tồn & rớt, xem isBuBox()) tách riêng khỏi
+        // đây — không rowSpan chung với NCC nào, render thành dòng riêng ở
+        // cuối lô (xem buBoxes bên dưới).
+        const buBoxes = [];
         const itemBoxes = items.map(function(r){
           const fb = getFb(r);
-          const boxes = fb && fb.factory_batch_boxes && fb.factory_batch_boxes.length ? fb.factory_batch_boxes : [null];
-          return boxes;
+          const allBoxes = (fb && fb.factory_batch_boxes) || [];
+          const normalBoxes = [];
+          allBoxes.forEach(function(box){
+            if(isBuBox(box)) buBoxes.push(box); else normalBoxes.push(box);
+          });
+          return normalBoxes.length ? normalBoxes : [null];
         });
-        const rowCount = itemBoxes.reduce(function(sum, boxes){ return sum + boxes.length; }, 0);
+        const rowCount = itemBoxes.reduce(function(sum, boxes){ return sum + boxes.length; }, 0) + buBoxes.length;
 
         // Tổng số lượng thùng = cộng dồn số thùng TỪNG đợt (mỗi đợt có thể
         // khác Quy cách) — đợt nào chưa điền Quy cách thì không tính được,
@@ -6218,6 +6294,13 @@ const titles = {
             const totalCellContent = (!collapse && isVeryFirst) ? fmtBoxQty(totalBoxes) : null;
             factoryTbody.appendChild(buildFactoryRow(r, fb, box, subIdx, deliveryRowspan, batchCellContent, totalCellContent, collapse, isExpanded));
           });
+        });
+        // "Hàng bù" luôn render SAU CÙNG, tách hẳn khỏi mọi đợt giao —
+        // collapse gần như luôn true khi có hàng bù (rowCount đã cộng thêm
+        // buBoxes.length ở trên), nên batchCellContent/totalCellContent
+        // không cần tính riêng (đã hiện ở dòng tổng hợp).
+        buBoxes.forEach(function(box){
+          factoryTbody.appendChild(buildFactoryBuRow(box, collapse, isExpanded));
         });
         } catch(groupErr){
           console.error('Không dựng được lô "' + (items[0] && items[0].batch) + '":', groupErr);
@@ -7291,6 +7374,7 @@ const titles = {
       const cancelCulledBtn = document.getElementById('btn-cancel-add-culled');
       const CULLED_COLS = 7;
       const CULLED_HISTORY_COLS = 7;
+      const CULLED_TYPE_LABELS = { market: 'Bán chợ', reassign: 'Sản xuất qua đơn khác', discard: 'Dạt bỏ' };
 
       if(!culledOverlay || !culledForm || !culledTbody || !sb) return;
 
@@ -7436,7 +7520,7 @@ const titles = {
           tr.appendChild(sourceTd);
 
           const typeTd = document.createElement('td');
-          typeTd.textContent = p.xu_ly_type === 'reassign' ? 'Sản xuất qua đơn khác' : 'Bán chợ';
+          typeTd.textContent = CULLED_TYPE_LABELS[p.xu_ly_type] || p.xu_ly_type;
           tr.appendChild(typeTd);
 
           const dateTd = document.createElement('td');
@@ -7645,7 +7729,12 @@ const titles = {
         culledSubmitBtn.disabled = true;
         culledSubmitBtn.textContent = 'Đang lưu...';
         try{
-          if(type === 'market'){
+          if(type === 'market' || type === 'discard'){
+            // "Dạt bỏ" đi CHUNG luồng với "Bán chợ" — cùng là hàng rời khỏi
+            // "Còn lại chưa xử lý" theo cùng 1 cách, chỉ khác nhãn xu_ly_type
+            // để phân biệt trong Lịch sử xử lý. Chưa tính thêm gì khác (VD giá
+            // trị hao hụt) — theo đúng yêu cầu, để tính sau khi cần.
+            //
             // Nhập theo trái cho cả 2 nguồn — khớp đúng đơn vị của cột "Còn
             // lại" đang hiện. Với 'ton_du', quy đổi ngược ra thùng theo Quy
             // cách của CHÍNH dòng này để cộng vào "Đã xuất" — không chia hết
@@ -7660,7 +7749,7 @@ const titles = {
             if(row.sourceType === 'dat'){
               const { error } = await sb.from('factory_culled_processing').insert({
                 source_type: 'dat', raw_batch_id: row.rawId,
-                xu_ly_type: 'market', processed_date: dateVal, qty_trai: qtyTrai, note: note
+                xu_ly_type: type, processed_date: dateVal, qty_trai: qtyTrai, note: note
               });
               if(error) throw error;
             } else {
@@ -7669,7 +7758,7 @@ const titles = {
               const { error } = await sb.from('factory_culled_processing').insert({
                 source_type: 'ton_du', source_batch: row.batch, source_chung_loai: row.chungLoai,
                 source_san_pham: normalizeSanPham(row.sanPham), source_quy_cach: row.quyCach,
-                xu_ly_type: 'market', processed_date: dateVal, qty_trai: qtyTrai, so_luong_thung: soLuongThung, note: note
+                xu_ly_type: type, processed_date: dateVal, qty_trai: qtyTrai, so_luong_thung: soLuongThung, note: note
               });
               if(error) throw error;
             }
