@@ -6362,21 +6362,28 @@ const titles = {
 
     async function refreshFactoryRows(){
       try{
-        let q = sb.from('raw_batches').select('*, factory_batches(*, factory_batch_boxes(*))').is('deleted_at', null);
-        if(factoryYearSelect && factoryYearSelect.value){
-          const range = periodRange(Number(factoryYearSelect.value), factoryMonthSelect && factoryMonthSelect.value ? Number(factoryMonthSelect.value) : null);
-          q = q.gte('ngay_nhap', range.start).lt('ngay_nhap', range.end);
-        }
-        // Chỉ sắp theo ngày nhập mới→cũ — KHÔNG sort theo tên lô trước nữa
-        // (trước đây làm vậy khiến lô đặt tên theo alphabet đứng trước dù
-        // mới hơn). renderFactoryRows gom nhóm theo thứ tự XUẤT HIỆN ĐẦU
-        // TIÊN của mỗi lô nên nhóm cũng tự động xếp mới→cũ theo đây.
-        const [{ data, error }, procRes] = await Promise.all([
-          q.order('ngay_nhap', { ascending: false }),
+        // KHÔNG lọc theo tháng/năm ngay ở query (.gte/.lt trên ngay_nhap) —
+        // NULL không bao giờ khớp so sánh gte/lt trong SQL, nên đợt nhập nào
+        // thiếu Ngày nhập hàng sẽ bị PostgREST âm thầm loại khỏi kết quả bất
+        // kể chọn kỳ nào, làm "Số lượng"/"Số lượng thùng" ở đây thấp hơn hẳn
+        // Vùng nguyên liệu (đã sửa lỗi này ở đó bằng lọc phía client — xem
+        // matchesRawPeriod) cho cùng 1 lô. Tải hết rồi lọc phía client, luôn
+        // giữ lại đợt thiếu ngày nhập bất kể đang chọn kỳ nào, đồng nhất với
+        // Vùng nguyên liệu.
+        const [{ data: allData, error }, procRes] = await Promise.all([
+          sb.from('raw_batches').select('*, factory_batches(*, factory_batch_boxes(*))').is('deleted_at', null).order('ngay_nhap', { ascending: false }),
           sb.from('factory_culled_processing').select('raw_batch_id, qty_trai').eq('source_type', 'dat').is('deleted_at', null)
         ]);
         if(error) throw error;
         if(procRes.error) throw procRes.error;
+        const data = (allData || []).filter(function(r){
+          if(!factoryYearSelect || !factoryYearSelect.value) return true;
+          const p = periodParts(r.ngay_nhap);
+          if(!p) return true;
+          if(p.year !== Number(factoryYearSelect.value)) return false;
+          if(factoryMonthSelect && factoryMonthSelect.value && p.month !== Number(factoryMonthSelect.value)) return false;
+          return true;
+        });
         resolvedDatByRawId = {};
         (procRes.data || []).forEach(function(p){
           if(p.raw_batch_id == null) return;
