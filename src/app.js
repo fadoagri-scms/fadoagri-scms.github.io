@@ -473,6 +473,21 @@ const titles = {
   function onBatchSummaryChanged(cb){ batchSummaryListeners.push(cb); }
   function notifyBatchSummaryChanged(){ batchSummaryListeners.forEach(function(cb){ cb(); }); }
 
+  // Tổng quan tính ra danh sách "Cần xử lý ngay" (renderAlerts) rồi phát lại
+  // qua đây — chuông thông báo ở topbar + chấm cảnh báo ở sidebar dùng
+  // chung đúng 1 danh sách này, không tự query/đếm lại lần nữa.
+  const alertItemsListeners = [];
+  function onAlertItemsChanged(cb){ alertItemsListeners.push(cb); }
+  function notifyAlertItemsChanged(items){ alertItemsListeners.forEach(function(cb){ cb(items); }); }
+
+  // Dùng chung cho khối "Cần xử lý ngay" ở Tổng quan.
+  function countPendingRawMaterial(){
+    return Object.values(sharedBatchSummaries).filter(function(b){ return b.hasOrderInfo && !b.hasSourceInfo; }).length;
+  }
+  function countPendingProduction(){
+    return Object.values(sharedBatchSummaries).filter(function(b){ return b.isDua && b.hasSourceInfo && !b.hasFactory; }).length;
+  }
+
   // Logistics công bố danh sách lô đã ở trạng thái "Khách đã nhận hàng" kèm
   // ngày nhận — Feedback KH dựa vào đây để chọn lô và tính hạn 3 ngày phải
   // có feedback, thay vì cho nhập tay lô hàng dễ lệch dữ liệu.
@@ -7970,7 +7985,7 @@ const titles = {
     // "Cần xử lý ngay" — gom các cảnh báo đang nằm rải rác ở từng module
     // (Chứng từ/Feedback KH/Đánh giá chất lượng) thành 1 danh sách ưu tiên
     // ngay đầu Tổng quan, bấm vào 1 dòng sẽ nhảy thẳng tới module đó.
-    function renderAlerts(missingDocsCount, docsOverdueCount, overdueFeedbackCount, unresolvedFeedbackOverdueCount, qcPendingCount, staleInventoryCount, pendingOrderCount, upcomingDeliveryCount, upcomingContainerEtaCount){
+    function renderAlerts(missingDocsCount, docsOverdueCount, overdueFeedbackCount, unresolvedFeedbackOverdueCount, qcPendingCount, staleInventoryCount, pendingOrderCount, pendingProductionCount, upcomingDeliveryCount, upcomingContainerEtaCount){
       if(!alertsList) return;
       alertsList.textContent = '';
       const items = [
@@ -7979,11 +7994,14 @@ const titles = {
         { count: docsOverdueCount, icon: 'ti-file-alert', chip: 'nic-red', text: 'lô đã QUÁ HẠN bổ sung chứng từ', sub: 'Chứng từ', tab: 'docs' },
         { count: unresolvedFeedbackOverdueCount, icon: 'ti-message-exclamation', chip: 'nic-red', text: 'khiếu nại khách hàng đã QUÁ HẠN xử lý', sub: 'Feedback KH', tab: 'feedback' },
         { count: pendingOrderCount, icon: 'ti-shopping-cart', chip: 'nic-amber', text: 'đơn đã chốt nhưng chưa có nguyên liệu', sub: 'Đơn hàng', tab: 'donhang' },
+        { count: pendingProductionCount, icon: 'ti-building-factory-2', chip: 'nic-amber', text: 'lô đã có nguyên liệu nhưng chưa cập nhật sản xuất', sub: 'Xưởng Ba Phi', tab: 'factory' },
         { count: missingDocsCount, icon: 'ti-file-text', chip: 'nic-amber', text: 'lô đang thiếu chứng từ trước khi thông quan', sub: 'Chứng từ', tab: 'docs' },
         { count: overdueFeedbackCount, icon: 'ti-message-star', chip: 'nic-amber', text: 'lô đã quá hạn phản hồi khách hàng (quá ' + FEEDBACK_DEADLINE_DAYS + ' ngày)', sub: 'Feedback KH', tab: 'feedback' },
         { count: qcPendingCount, icon: 'ti-clipboard-check', chip: 'nic-blue', text: 'lượt kiểm QC đang chờ xác nhận kết quả', sub: 'Đánh giá chất lượng', tab: 'qc' },
         { count: staleInventoryCount, icon: 'ti-package', chip: 'nic-amber', text: 'lô tồn kho quá ' + INVENTORY_STALE_DAYS + ' ngày chưa xuất hết', sub: 'Xưởng Ba Phi', tab: 'factory' }
       ].filter(function(item){ return item.count > 0; });
+
+      notifyAlertItemsChanged(items);
 
       if(!items.length){
         const div = document.createElement('div');
@@ -8227,8 +8245,12 @@ const titles = {
             const deadline = addDays(b.ngayNhap, INVENTORY_STALE_DAYS);
             return !!deadline && todayStr() > deadline;
           }).length;
-        const pendingOrderCount = Object.values(sharedBatchSummaries)
-          .filter(function(b){ return b.hasOrderInfo && !b.hasSourceInfo; }).length;
+        const pendingOrderCount = countPendingRawMaterial();
+        // Đã có nguyên liệu (Vùng nguyên liệu) nhưng Xưởng Ba Phi chưa bấm
+        // "Cập nhật sản xuất" cho lượt nào — cùng ý nghĩa với badge "Chưa
+        // sản xuất" đang hiện ở bảng Sản xuất, chỉ khác là đếm ở đây để nhắc
+        // ngay từ Tổng quan, không cần mở đúng tab Xưởng Ba Phi mới thấy.
+        const pendingProductionCount = countPendingProduction();
         // "Sắp/đã tới hạn" = còn trong DELIVERY_WARNING_DAYS ngày nữa hoặc đã
         // trễ so với Ngày giao mong muốn — nhưng chỉ tính khi lô CHƯA đóng
         // hàng (order_status khác "Đã đóng hàng"), vì sau mốc đó việc giao
@@ -8249,7 +8271,7 @@ const titles = {
           if(!d.eta || d.stage === 'Khách đã nhận hàng') return false;
           return !!etaWarnBy && d.eta <= etaWarnBy;
         }).length;
-        renderAlerts(missingDocsCount, docsOverdueCount, overdueFeedbackCount, unresolvedFeedbackOverdueCount, qcPendingCount, staleInventoryCount, pendingOrderCount, upcomingDeliveryCount, upcomingContainerEtaCount);
+        renderAlerts(missingDocsCount, docsOverdueCount, overdueFeedbackCount, unresolvedFeedbackOverdueCount, qcPendingCount, staleInventoryCount, pendingOrderCount, pendingProductionCount, upcomingDeliveryCount, upcomingContainerEtaCount);
 
         calShipRows = shipRows;
         calDocRows = docRows;
@@ -9847,6 +9869,73 @@ const titles = {
     document.addEventListener('click', function(e){
       if(!wrap.contains(e.target)) closeResults();
     });
+  })();
+
+  // ---- Chuông thông báo "Cần xử lý ngay" (topbar) ---- Không tự tính/query
+  // gì cả, chỉ nghe lại đúng danh sách Tổng quan đã tính qua
+  // onAlertItemsChanged (xem renderAlerts) — đảm bảo số ở đây luôn khớp
+  // 100% với khối "Cần xử lý ngay".
+  (function(){
+    const bellWrap = document.getElementById('notif-bell-wrap');
+    const bellBtn = document.getElementById('notif-bell-btn');
+    const bellPanel = document.getElementById('notif-bell-panel');
+    const bellCount = document.getElementById('notif-bell-count');
+    const bellList = document.getElementById('notif-bell-list');
+    if(!bellWrap || !bellBtn || !bellPanel || !bellList) return;
+
+    function closePanel(){ bellPanel.classList.remove('open'); }
+    function togglePanel(){ bellPanel.classList.toggle('open'); }
+
+    bellBtn.addEventListener('click', function(e){ e.stopPropagation(); togglePanel(); });
+    document.addEventListener('click', function(e){
+      if(!bellWrap.contains(e.target)) closePanel();
+    });
+
+    function render(items){
+      const total = items.reduce(function(sum, item){ return sum + item.count; }, 0);
+      if(bellCount){
+        if(total > 0){ bellCount.textContent = total > 99 ? '99+' : String(total); bellCount.style.display = ''; }
+        else { bellCount.style.display = 'none'; }
+      }
+      bellList.textContent = '';
+      if(!items.length){
+        const div = document.createElement('div');
+        div.className = 'alert-empty';
+        div.textContent = 'Không có việc gì cần xử lý gấp.';
+        bellList.appendChild(div);
+        return;
+      }
+      items.forEach(function(item){
+        const row = document.createElement('div');
+        row.className = 'alert-row';
+        row.addEventListener('click', function(){ closePanel(); goTab(item.tab); });
+
+        const chip = document.createElement('span');
+        chip.className = 'icon-chip ' + item.chip;
+        const icon = document.createElement('i');
+        icon.className = 'ti ' + item.icon;
+        chip.appendChild(icon);
+
+        const textWrap = document.createElement('div');
+        textWrap.className = 'alert-text';
+        textWrap.textContent = item.count + ' ' + item.text;
+        const sub = document.createElement('div');
+        sub.className = 'alert-sub';
+        sub.textContent = item.sub;
+        textWrap.appendChild(sub);
+
+        const count = document.createElement('div');
+        count.className = 'alert-count';
+        count.textContent = String(item.count);
+
+        row.appendChild(chip);
+        row.appendChild(textWrap);
+        row.appendChild(count);
+        bellList.appendChild(row);
+      });
+    }
+
+    onAlertItemsChanged(render);
   })();
 
   // ---- Thu mua & Bán chợ ----
