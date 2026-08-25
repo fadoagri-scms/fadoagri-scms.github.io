@@ -321,7 +321,8 @@ const titles = {
     'tab-qc': 'danh_gia_chat_luong',
     'tab-logistics': 'logistics',
     'tab-docs': 'chung_tu',
-    'tab-feedback': 'feedback_kh'
+    'tab-feedback': 'feedback_kh',
+    'tab-thumua': 'thu_mua_ban_cho'
   };
   const ALL_MODULE_SECTIONS = Object.keys(SECTION_MODULE_KEY);
 
@@ -4657,11 +4658,12 @@ const titles = {
     const timelineLabel = document.getElementById('logistics-timeline-label');
     const timelineInfo = document.getElementById('logistics-timeline-info');
     const shipmentTbody = document.getElementById('shipment-tbody');
-    const STAGES = ['Kho nội địa', 'Cảng đi', 'Trên biển', 'Cảng đến', 'Giao khách hàng', 'Khách đã nhận hàng'];
+    const STAGES = ['Kho nội địa', 'Cảng đi', 'Trên biển', 'Thông quan', 'Cảng đến', 'Giao khách hàng', 'Khách đã nhận hàng'];
     const STAGE_ICONS = {
       'Kho nội địa': 'ti-building-warehouse',
       'Cảng đi': 'ti-anchor',
       'Trên biển': 'ti-ship',
+      'Thông quan': 'ti-clipboard-check',
       'Cảng đến': 'ti-map-pin',
       'Giao khách hàng': 'ti-truck-delivery',
       'Khách đã nhận hàng': 'ti-circle-check'
@@ -4714,7 +4716,10 @@ const titles = {
     // Cùng 1 danh sách giai đoạn cho mọi lô, không phân biệt Hình thức
     // (Nội địa/Xuất khẩu) nữa — kể cả đơn "Nội địa" cũng có thể cần theo dõi
     // đủ các bước (VD: bán cho broker để họ tự xuất khẩu vẫn qua cảng, biển).
-    const STAGE_OPTIONS = ['Kho nội địa', 'Cảng đi', 'Trên biển', 'Thông quan', 'Cảng đến', 'Giao khách hàng', 'Khách đã nhận hàng'];
+    // Dùng chung với STAGES (timeline "lô nổi bật") — trước đây 2 danh sách
+    // tách riêng và lệch nhau (STAGES thiếu "Thông quan"), khiến timeline vẽ
+    // sai vị trí cho lô đang ở giai đoạn đó.
+    const STAGE_OPTIONS = STAGES;
     function updateStageOptions(preserveValue){
       const select = document.getElementById('ship-stage');
       if(!select) return;
@@ -4776,7 +4781,6 @@ const titles = {
     }
 
     function stageIndex(stage){
-      if(stage === 'Thông quan') return 2;
       const i = STAGES.indexOf(stage);
       return i === -1 ? 0 : i;
     }
@@ -6590,6 +6594,13 @@ const titles = {
     // ngay, không đợi người dùng bấm gì hay tải lại trang (kể cả năm mới nếu
     // đợt nhập đầu tiên của 1 năm chưa từng có trong dropdown).
     onRawBatchesChanged(function(){ loadFactoryYears().then(refreshFactoryRows); });
+    // "Xử lý hàng tồn & rớt" (gán bù hàng dạt qua lô khác) tạo thêm 1 dòng
+    // Quy cách mới trong Sản xuất của lô ĐÍCH (xem targetBoxId trong
+    // factory_culled_processing) nhưng chỉ báo qua notifyFactoryProductionChanged()
+    // — trước đây bảng này chỉ nghe onRawBatchesChanged nên KHÔNG tự cập
+    // nhật, làm "Tổng số lượng thùng" hiện sai (thiếu số vừa gán bù) cho
+    // tới khi tự tải lại trang. Nghe thêm kênh này để luôn đúng ngay.
+    onFactoryProductionChanged(function(){ loadFactoryYears().then(refreshFactoryRows); });
   })();
 
   // ---- Xưởng Ba Phi: Nhân sự ----
@@ -9027,7 +9038,8 @@ const titles = {
       ['danh_gia_chat_luong', 'Đánh giá chất lượng'],
       ['logistics', 'Logistics'],
       ['chung_tu', 'Chứng từ'],
-      ['feedback_kh', 'Feedback KH']
+      ['feedback_kh', 'Feedback KH'],
+      ['thu_mua_ban_cho', 'Thu mua & Bán chợ']
     ];
     const PERMISSION_ROLES = ['san_xuat', 'ncc', 'qc', 'xuat_khau'];
 
@@ -9125,6 +9137,165 @@ const titles = {
 
     showMessage('Đang tải dữ liệu...');
     refreshPermissions();
+  })();
+
+  // ---- Lịch sử hoạt động (audit log, chỉ Admin xem) ----
+  // Đọc bảng public.audit_log — được ghi tự động bởi trigger DB trên các
+  // bảng nghiệp vụ chính (xem supabase/2026-08-25_audit_log.sql). Không có
+  // đường ghi nào từ client, bảng này chỉ đọc.
+  (function(){
+    const tbody = document.getElementById('audit-tbody');
+    const searchInput = document.getElementById('audit-search-input');
+    const moduleSelect = document.getElementById('audit-module-select');
+    const loadMoreBtn = document.getElementById('btn-audit-load-more');
+    if(!tbody || !sb) return;
+
+    const TABLE_LABELS = {
+      raw_batches: 'Vùng nguyên liệu',
+      raw_suppliers: 'Vùng nguyên liệu — đầu mối',
+      suppliers: 'Nhà cung cấp',
+      purchase_orders: 'Nhà cung cấp — PO',
+      factory_batches: 'Xưởng Ba Phi — sản xuất',
+      factory_batch_boxes: 'Xưởng Ba Phi — đóng thùng',
+      factory_finished_stock: 'Xưởng Ba Phi — tồn kho',
+      factory_staff: 'Xưởng Ba Phi — nhân sự',
+      factory_culled_processing: 'Xưởng Ba Phi — hàng dạt/tồn',
+      shelf_life_reference: 'Xưởng Ba Phi — hạn sử dụng',
+      qc_checks: 'Đánh giá chất lượng',
+      shipments: 'Logistics',
+      documents_checklist: 'Chứng từ',
+      feedbacks: 'Feedback KH',
+      batch_info: 'Đơn hàng',
+      batch_info_products: 'Đơn hàng — sản phẩm',
+      batch_trace_products: 'Đơn hàng — mã QR sản phẩm',
+      market_purchases: 'Thu mua & Bán chợ — thu mua',
+      market_processing: 'Thu mua & Bán chợ — sơ chế',
+      market_processing_sources: 'Thu mua & Bán chợ — sơ chế (nguồn)',
+      market_processing_outputs: 'Thu mua & Bán chợ — sơ chế (đầu ra)',
+      market_sales: 'Thu mua & Bán chợ — bán chợ',
+      profiles: 'Quản lý tài khoản',
+      module_permissions: 'Quản lý tài khoản — phân quyền'
+    };
+
+    function describeRow(tableName, data){
+      if(!data) return '—';
+      if(tableName === 'module_permissions') return (data.role || '—') + ' — ' + (data.module_key || '') + ' → ' + (data.access_level || '');
+      if(tableName === 'profiles') return data.email || data.full_name || '—';
+      return data.batch_code || data.batch || data.po_code || data.name || data.full_name ||
+        data.ten_san_pham || data.nguon_mua || data.san_pham || ('#' + (data.id != null ? data.id : '—'));
+    }
+
+    function actionLabel(entry){
+      if(entry.action === 'insert') return 'Thêm';
+      if(entry.action === 'delete') return 'Xóa vĩnh viễn';
+      const oldD = entry.old_data || {};
+      const newD = entry.new_data || {};
+      if('deleted_at' in newD){
+        const wasDeleted = !!oldD.deleted_at, nowDeleted = !!newD.deleted_at;
+        if(!wasDeleted && nowDeleted) return 'Xóa (vào thùng rác)';
+        if(wasDeleted && !nowDeleted) return 'Khôi phục';
+      }
+      return 'Sửa';
+    }
+
+    function fmtDateTime(value){
+      const d = new Date(value);
+      if(isNaN(d.getTime())) return '—';
+      const pad = function(n){ return String(n).padStart(2, '0'); };
+      return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+
+    function showMessage(text, color){
+      tbody.textContent = '';
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 5;
+      td.style.textAlign = 'center';
+      td.style.color = color || 'var(--ink-soft)';
+      td.style.padding = '20px';
+      td.textContent = text;
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    }
+
+    let allRows = [];
+    let pageSize = 100;
+
+    function populateModuleFilter(){
+      const current = moduleSelect.value;
+      const seen = {};
+      allRows.forEach(function(r){ seen[r.table_name] = true; });
+      moduleSelect.textContent = '';
+      const allOpt = document.createElement('option');
+      allOpt.value = '';
+      allOpt.textContent = 'Tất cả khu vực';
+      moduleSelect.appendChild(allOpt);
+      Object.keys(seen).sort().forEach(function(t){
+        const opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = TABLE_LABELS[t] || t;
+        moduleSelect.appendChild(opt);
+      });
+      moduleSelect.value = current || '';
+    }
+
+    function render(){
+      const q = (searchInput.value || '').trim().toLowerCase();
+      const moduleFilter = moduleSelect.value;
+      const filtered = allRows.filter(function(r){
+        if(moduleFilter && r.table_name !== moduleFilter) return false;
+        if(!q) return true;
+        const hay = [r.actor_email, ROLE_LABELS[r.actor_role] || r.actor_role, describeRow(r.table_name, r.new_data || r.old_data), r.batch_code]
+          .join(' ').toLowerCase();
+        return hay.indexOf(q) !== -1;
+      });
+      if(!filtered.length){ showMessage(allRows.length ? 'Không có kết quả khớp.' : 'Chưa có hoạt động nào được ghi nhận.'); return; }
+      tbody.textContent = '';
+      filtered.forEach(function(r){
+        const tr = document.createElement('tr');
+        [
+          fmtDateTime(r.created_at),
+          (r.actor_email || '—') + (r.actor_role ? ' (' + (ROLE_LABELS[r.actor_role] || r.actor_role) + ')' : ''),
+          actionLabel(r),
+          TABLE_LABELS[r.table_name] || r.table_name,
+          describeRow(r.table_name, r.new_data || r.old_data)
+        ].forEach(function(text){
+          const td = document.createElement('td');
+          td.textContent = text;
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function load(){
+      try{
+        const { data, error } = await sb.from('audit_log')
+          .select('created_at,actor_email,actor_role,action,table_name,batch_code,old_data,new_data')
+          .order('created_at', { ascending: false })
+          .range(0, pageSize - 1);
+        if(error) throw error;
+        allRows = data || [];
+        if(loadMoreBtn) loadMoreBtn.style.display = allRows.length >= pageSize ? '' : 'none';
+        populateModuleFilter();
+        render();
+      } catch(err){
+        console.error('Không tải được lịch sử hoạt động:', err);
+        showMessage('Không tải được dữ liệu — kiểm tra kết nối Supabase (đã chạy migration audit_log chưa?).', 'var(--red)');
+      }
+    }
+
+    if(searchInput) searchInput.addEventListener('input', render);
+    if(moduleSelect) moduleSelect.addEventListener('change', render);
+    if(loadMoreBtn){
+      loadMoreBtn.addEventListener('click', function(){
+        pageSize += 100;
+        load();
+      });
+    }
+
+    showMessage('Đang tải dữ liệu...');
+    load();
   })();
 
   // ---- Truy xuất nguồn gốc lô hàng ----

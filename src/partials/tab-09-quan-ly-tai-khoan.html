@@ -49,6 +49,28 @@
       </table>
     </div>
 
+    <div class="section-header-row">
+      <div class="section-label">Lịch sử hoạt động</div>
+      <div class="chart-filter-row">
+        <input type="text" id="audit-search-input" placeholder="Tìm theo người thực hiện hoặc nội dung..." style="font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid var(--border);padding:7px 12px;border-radius:20px;box-shadow:var(--shadow-sm);min-width:220px;">
+        <select id="audit-module-select" aria-label="Lọc theo khu vực"></select>
+      </div>
+    </div>
+    <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Nhật ký thêm/sửa/xóa trên toàn hệ thống — biết ai thao tác, lúc nào. Chỉ Admin xem được.</div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Thời gian</th><th>Người thực hiện</th><th>Hành động</th><th>Khu vực</th><th>Nội dung</th></tr>
+        </thead>
+        <tbody id="audit-tbody">
+          <tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+        </tbody>
+      </table>
+      <div style="text-align:center;padding:12px 0 2px;">
+        <button class="btn-secondary" id="btn-audit-load-more" type="button" style="display:none;">Xem thêm</button>
+      </div>
+    </div>
+
     <div class="modal-overlay" id="add-account-overlay">
       <div class="modal">
         <div class="modal-header">
