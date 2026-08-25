@@ -3242,9 +3242,7 @@ const titles = {
     // RỜI (không phải app điện thoại): máy quét rời chỉ "gõ hộ" ký tự vào
     // ô đang có con trỏ, không tự mở trình duyệt được (giới hạn phần cứng,
     // không phải do thiếu code) — khách mở cổng này 1 lần, để mở suốt ca,
-    // quét/gõ số vào ô là tự chuyển đúng trang truy xuất. In kèm địa chỉ
-    // này lên tem khi xuất ảnh mã vạch — xem exportTraceBarcodeImage().
-    const PUBLIC_LOOKUP_URL_DISPLAY = 'fadoagri-scms.github.io/tra-cuu.html';
+    // quét/gõ số vào ô là tự chuyển đúng trang truy xuất.
     const traceOverlay = document.getElementById('trace-overlay');
     const traceModalTitle = document.getElementById('trace-modal-title');
     const traceCloseBtn = document.getElementById('btn-close-trace');
@@ -3616,9 +3614,9 @@ const titles = {
       // trước) — máy quét mã vạch rời chỉ giả lập bàn phím, không tự mở
       // trình duyệt được dù mã có chứa link hay không (giới hạn phần cứng),
       // nên nhúng link không còn ý nghĩa. Khách dùng máy quét rời sẽ quét/gõ
-      // dãy số này vào Cổng tra cứu (tra-cuu.html, xem PUBLIC_LOOKUP_URL_DISPLAY)
-      // để ra đúng trang — QR bên trên vẫn nhúng nguyên link như cũ, dành
-      // cho ai dùng app quét bằng điện thoại (tự mở được).
+      // dãy số này vào Cổng tra cứu (tra-cuu.html) để ra đúng trang — QR bên
+      // trên vẫn nhúng nguyên link như cũ, dành cho ai dùng app quét bằng
+      // điện thoại (tự mở được).
       // displayValue:true — giờ NÊN in số ngay dưới vạch (khác trước đây cố
       // tình ẩn vì link chứa mã bí mật) — khách cần đọc được bằng mắt để gõ
       // tay vào Cổng tra cứu khi máy quét lỗi/không có sẵn.
@@ -4198,23 +4196,13 @@ const titles = {
       const svgUrl = URL.createObjectURL(new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' }));
       const img = new Image();
       img.onload = function(){
-        // Thêm 1 dòng "Tra cứu tại: ..." bên dưới mã vạch khi xuất ảnh — để
-        // in kèm lên tem, khách biết gõ/quét số vào đâu khi dùng máy quét
-        // rời (xem tra-cuu.html). Không vẽ chồng lên chính mã vạch (phá
-        // vùng trắng yên tĩnh cần cho máy quét) — mở thêm khoảng trống
-        // RIÊNG bên dưới rồi mới in chữ vào đó.
-        const extraH = 34;
         const canvas = document.createElement('canvas');
         canvas.width = width;
-        canvas.height = height + extraH;
+        canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = '#fff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, width, height);
-        ctx.fillStyle = '#1B2733';
-        ctx.font = '600 17px -apple-system, "Segoe UI", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('Tra cứu tại: ' + PUBLIC_LOOKUP_URL_DISPLAY, width / 2, height + extraH / 2 + 6);
         URL.revokeObjectURL(svgUrl);
         downloadDataUrl(canvas.toDataURL('image/png'), 'mavach-' + traceFileSafeBatch() + '.png');
       };
