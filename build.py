@@ -50,6 +50,7 @@ def main():
         "{{TAB_DOCS}}": read(os.path.join(PARTIALS, "tab-07-chung-tu.html")),
         "{{TAB_FEEDBACK}}": read(os.path.join(PARTIALS, "tab-08-feedback-kh.html")),
         "{{TAB_THUMUA}}": read(os.path.join(PARTIALS, "tab-10-thu-mua-ban-cho.html")),
+        "{{TAB_REPORT}}": read(os.path.join(PARTIALS, "tab-12-bao-cao.html")),
         "{{TAB_USERS}}": read(os.path.join(PARTIALS, "tab-09-quan-ly-tai-khoan.html")),
         "{{APP_JS}}": read(os.path.join(SRC, "app.js")),
     }

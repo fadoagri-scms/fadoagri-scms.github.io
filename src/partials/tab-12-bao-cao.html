@@ -1,0 +1,48 @@
+<section class="tab-content" id="tab-baocao">
+    <div class="subtab-bar">
+      <button class="subtab-item active" id="subtab-btn-report-ky" data-subtab="report-ky" type="button">Tổng hợp theo kỳ</button>
+      <button class="subtab-item" id="subtab-btn-report-lo" data-subtab="report-lo" type="button">Hồ sơ theo lô hàng</button>
+    </div>
+
+    <div class="subtab-panel active" id="subtab-report-ky">
+      <div class="muted" style="font-size:11.5px;margin:-4px 0 14px;">Báo cáo tổng hợp toàn chuỗi cung ứng xuất khẩu trong 1 kỳ — sản xuất &amp; hao hụt, kết quả QC, đơn hàng, logistics, feedback khách hàng. Xuất ra file PDF để in hoặc gửi lãnh đạo. Chỉ Admin thấy mục này.</div>
+      <div class="card">
+        <div class="section-label" style="margin-top:0;">Chọn kỳ báo cáo</div>
+        <div class="chart-filter-row" style="flex-wrap:wrap;gap:10px;">
+          <select id="report-period-kind" aria-label="Loại kỳ báo cáo">
+            <option value="month">Theo tháng</option>
+            <option value="quarter">Theo quý</option>
+            <option value="year">Theo năm</option>
+          </select>
+          <select id="report-month" aria-label="Tháng"></select>
+          <select id="report-quarter" aria-label="Quý" style="display:none;">
+            <option value="1">Quý 1 (T1–T3)</option>
+            <option value="2">Quý 2 (T4–T6)</option>
+            <option value="3">Quý 3 (T7–T9)</option>
+            <option value="4">Quý 4 (T10–T12)</option>
+          </select>
+          <select id="report-year" aria-label="Năm"></select>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">
+          <button class="btn-secondary" id="btn-report-ky-preview" type="button"><i class="ti ti-eye"></i>Xem trước</button>
+          <button class="btn-primary" id="btn-report-ky-download" type="button"><i class="ti ti-file-download"></i>Tải PDF</button>
+        </div>
+        <div class="muted" id="report-ky-status" style="font-size:12px;margin-top:12px;"></div>
+      </div>
+    </div>
+
+    <div class="subtab-panel" id="subtab-report-lo">
+      <div class="muted" style="font-size:11.5px;margin:-4px 0 14px;">Hồ sơ đầy đủ 1 lô hàng theo suốt hành trình — nguyên liệu &amp; nhà cung cấp, sản xuất tại xưởng, kiểm tra chất lượng, logistics, chứng từ, phản hồi khách hàng. Mỗi lô 1 file PDF.</div>
+      <div class="card">
+        <div class="section-label" style="margin-top:0;">Chọn lô hàng</div>
+        <div class="chart-filter-row" style="flex-wrap:wrap;gap:10px;">
+          <select id="report-lo-batch" aria-label="Lô hàng" style="min-width:220px;"></select>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">
+          <button class="btn-secondary" id="btn-report-lo-preview" type="button"><i class="ti ti-eye"></i>Xem trước</button>
+          <button class="btn-primary" id="btn-report-lo-download" type="button"><i class="ti ti-file-download"></i>Tải PDF</button>
+        </div>
+        <div class="muted" id="report-lo-status" style="font-size:12px;margin-top:12px;"></div>
+      </div>
+    </div>
+  </section>

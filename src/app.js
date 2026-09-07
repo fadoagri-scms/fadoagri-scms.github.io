@@ -9,6 +9,7 @@ const titles = {
     docs:      ["Chứng từ", "Checklist chứng từ theo từng lô hàng"],
     feedback:  ["Feedback khách hàng", "Ghi nhận và xử lý phản hồi theo lô hàng"],
     thumua:    ["Thu mua & Bán chợ", "Thu mua dừa, sơ chế và bán ra thị trường nội địa — độc lập với chuỗi xuất khẩu"],
+    baocao:    ["Báo cáo", "Xuất báo cáo tổng hợp theo kỳ và hồ sơ theo lô hàng ra PDF"],
     users:     ["Quản lý tài khoản", "Gán vai trò cho tài khoản đăng nhập"]
   };
 
@@ -335,6 +336,7 @@ const titles = {
   const currentUserRole = document.getElementById('current-user-role');
   const logoutBtn = document.getElementById('btn-logout');
   const navItemUsers = document.getElementById('nav-item-users');
+  const navItemBaocao = document.getElementById('nav-item-baocao');
   const btnOpenAddOrder = document.getElementById('btn-open-add-order');
 
   function setAppVisible(visible){
@@ -370,6 +372,8 @@ const titles = {
       if(navBtn) navBtn.style.display = level === 'none' ? 'none' : '';
     });
     if(navItemUsers) navItemUsers.style.display = currentUser.role === 'admin' ? '' : 'none';
+    // Báo cáo tổng hợp: chỉ Admin (đúng phạm vi đã chốt — dữ liệu toàn chuỗi).
+    if(navItemBaocao) navItemBaocao.style.display = currentUser.role === 'admin' ? '' : 'none';
     // Đơn hàng: mọi vai trò XEM được (để chuẩn bị kế hoạch), nhưng chỉ Admin
     // được thêm/sửa — đơn hàng do nội bộ nghe lại từ sale qua điện thoại/
     // Zalo... không phải sale tự vào hệ thống nhập.
@@ -11148,4 +11152,529 @@ const titles = {
     }
 
     refreshAllMarketData();
+  })();
+
+  // ================= Báo cáo (tab "Báo cáo" — chỉ Admin) =================
+  // Xuất PDF (thư viện pdfmake, nạp từ CDN ở shell.html) 2 loại:
+  //   1. Báo cáo tổng hợp theo kỳ (Tháng/Quý/Năm) — toàn chuỗi xuất khẩu.
+  //   2. Hồ sơ 1 lô hàng — trọn hành trình.
+  // Đọc lại dữ liệu trực tiếp từ Supabase lúc bấm nút, dùng periodDate của lô
+  // trong sharedBatchSummaries làm mốc phân kỳ (giống các tab Chứng từ/QC),
+  // KHÔNG đụng logic sẵn có của các module khác.
+  (function(){
+    const kindSelect = document.getElementById('report-period-kind');
+    const monthSelect = document.getElementById('report-month');
+    const quarterSelect = document.getElementById('report-quarter');
+    const yearSelect = document.getElementById('report-year');
+    const kyStatus = document.getElementById('report-ky-status');
+    const btnKyPreview = document.getElementById('btn-report-ky-preview');
+    const btnKyDownload = document.getElementById('btn-report-ky-download');
+    const loBatchSelect = document.getElementById('report-lo-batch');
+    const loStatus = document.getElementById('report-lo-status');
+    const btnLoPreview = document.getElementById('btn-report-lo-preview');
+    const btnLoDownload = document.getElementById('btn-report-lo-download');
+    if(!kindSelect || !loBatchSelect) return;
+
+    const COLOR_DEEP = '#0f3d38';
+    const COLOR_SOFT = '#5c645f';
+    const COLOR_LINE = '#d7d4cc';
+    const COLOR_ACCENT = '#c98a2b';
+    const COLOR_KPI_BG = '#f6f4ee';
+    const BRAND = 'FADO AGRI';
+    const BRAND_SUB = 'Chuỗi cung ứng xuất khẩu';
+    const MONTHS = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+
+    // Logo công ty cho đầu trang PDF — nạp 1 lần từ assets/ rồi cache dạng
+    // data URI (pdfmake chỉ nhận ảnh dạng data URI). Nếu tải lỗi thì bỏ qua,
+    // đầu trang tự lùi về dùng chữ "FADO AGRI".
+    let LOGO_DATA = null;
+    (function loadLogo(){
+      try{
+        fetch('assets/logo-fadoagri-cropped.png')
+          .then(function(r){ return r && r.ok ? r.blob() : null; })
+          .then(function(blob){
+            if(!blob) return;
+            const fr = new FileReader();
+            fr.onload = function(){ LOGO_DATA = fr.result; };
+            fr.readAsDataURL(blob);
+          })
+          .catch(function(){});
+      } catch(e){}
+    })();
+
+    function pad2(n){ return String(n).padStart(2, '0'); }
+    function num(v){
+      if(v == null) return 0;
+      const n = Number(String(v).replace(/[^\d.-]/g, ''));
+      return isNaN(n) ? 0 : n;
+    }
+    function fmtInt(n){ return (n == null || isNaN(n)) ? '—' : Number(n).toLocaleString('vi-VN'); }
+    // raw_batches.raw_batch_id có ràng buộc unique -> PostgREST trả
+    // factory_batches là 1 object (hoặc null), KHÔNG phải mảng; các bảng con
+    // của nó (boxes/waste) thì là mảng. asArr() chuẩn hoá về mảng cho mọi
+    // trường hợp để không vỡ khi lược đồ đổi.
+    function asArr(v){ return Array.isArray(v) ? v : (v == null ? [] : [v]); }
+    function fmtD(s){
+      if(!s) return '—';
+      const p = String(s).slice(0, 10).split('-');
+      return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : String(s);
+    }
+    function okFlag(v){ return v ? 'Đã có' : 'Thiếu'; }
+    function currentUserLabel(){
+      if(!currentUser) return '—';
+      const name = currentUser.full_name || currentUser.email || '—';
+      const role = ROLE_LABELS[currentUser.role] || currentUser.role || '';
+      return role ? (name + ' (' + role + ')') : name;
+    }
+    function fileSafe(s){
+      return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/đ/g, 'd').replace(/Đ/g, 'D').replace(/[^a-zA-Z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '').toLowerCase() || 'bao-cao';
+    }
+
+    // ---- Bộ lọc kỳ ----
+    function summaryYears(){
+      const set = {};
+      Object.values(sharedBatchSummaries).forEach(function(b){
+        if(b.periodDate) set[Number(b.periodDate.slice(0, 4))] = true;
+      });
+      set[new Date().getFullYear()] = true;
+      return Object.keys(set).map(Number).sort(function(a, b){ return b - a; });
+    }
+    function populatePeriodControls(){
+      if(!monthSelect.options.length){
+        MONTHS.forEach(function(name, i){
+          const o = document.createElement('option');
+          o.value = String(i + 1); o.textContent = name;
+          monthSelect.appendChild(o);
+        });
+        monthSelect.value = String(new Date().getMonth() + 1);
+      }
+      const prevYear = yearSelect.value;
+      const years = summaryYears();
+      yearSelect.innerHTML = '';
+      years.forEach(function(y){
+        const o = document.createElement('option');
+        o.value = String(y); o.textContent = 'Năm ' + y;
+        yearSelect.appendChild(o);
+      });
+      yearSelect.value = years.indexOf(Number(prevYear)) !== -1 ? prevYear : String(years[0]);
+    }
+    function syncKindVisibility(){
+      const k = kindSelect.value;
+      monthSelect.style.display = k === 'month' ? '' : 'none';
+      quarterSelect.style.display = k === 'quarter' ? '' : 'none';
+    }
+    kindSelect.addEventListener('change', syncKindVisibility);
+    syncKindVisibility();
+    populatePeriodControls();
+
+    function selectedRange(){
+      const y = Number(yearSelect.value) || new Date().getFullYear();
+      const k = kindSelect.value;
+      if(k === 'month'){
+        const m = Number(monthSelect.value) || 1;
+        return { start: y + '-' + pad2(m) + '-01', end: periodRange(y, m).end, label: MONTHS[m - 1] + '/' + y };
+      }
+      if(k === 'quarter'){
+        const q = Number(quarterSelect.value) || 1;
+        const sm = (q - 1) * 3 + 1;
+        const end = q === 4 ? (y + 1) + '-01-01' : y + '-' + pad2(sm + 3) + '-01';
+        return { start: y + '-' + pad2(sm) + '-01', end: end, label: 'Quý ' + q + '/' + y };
+      }
+      return { start: y + '-01-01', end: (y + 1) + '-01-01', label: 'Năm ' + y };
+    }
+    function batchInRange(batch, range){
+      const b = sharedBatchSummaries[batch];
+      if(!b || !b.periodDate) return false;
+      return b.periodDate >= range.start && b.periodDate < range.end;
+    }
+
+    // ---- Chọn lô cho Hồ sơ theo lô ----
+    function populateBatchSelect(){
+      const prev = loBatchSelect.value;
+      const list = Object.values(sharedBatchSummaries)
+        .filter(function(b){ return b.hasSourceInfo; })
+        .map(function(b){ return b.batch; })
+        .sort(function(a, b){ return a.localeCompare(b, 'vi'); });
+      loBatchSelect.innerHTML = '';
+      if(!list.length){
+        const o = document.createElement('option');
+        o.value = ''; o.textContent = '— Chưa có lô hàng nào —';
+        loBatchSelect.appendChild(o);
+        return;
+      }
+      list.forEach(function(code){
+        const o = document.createElement('option');
+        o.value = code; o.textContent = code;
+        loBatchSelect.appendChild(o);
+      });
+      if(list.indexOf(prev) !== -1) loBatchSelect.value = prev;
+    }
+    populateBatchSelect();
+    onBatchSummaryChanged(function(){ populatePeriodControls(); populateBatchSelect(); });
+
+    // ---- Tải dữ liệu thô (dùng chung cho cả 2 loại báo cáo) ----
+    async function fetchAll(){
+      const [qcRes, shipRes, docRes, fbRes, rawRes, poRes] = await Promise.all([
+        sb.from('qc_checks').select('batch_code,check_type,result,inspector,note,created_at').is('deleted_at', null),
+        sb.from('shipments').select('batch_code,product,stage,location,eta,etd,created_at').is('deleted_at', null),
+        sb.from('documents_checklist').select('batch_code,market,contract_ok,co_ok,quarantine_ok,bill_of_lading_ok,deadline'),
+        sb.from('feedbacks').select('batch_code,market,rating,feedback_text,status,created_at').is('deleted_at', null),
+        sb.from('raw_batches').select('batch,ncc,chung_loai,soluong,ngay_nhap,factory_batches(finished_qty,production_date,san_pham,factory_batch_boxes(quy_cach,so_luong_thung),factory_batch_waste(so_luong))').is('deleted_at', null),
+        sb.from('purchase_orders').select('batch_code,supplier_name,category,quantity,status,created_at').is('deleted_at', null)
+      ]);
+      [qcRes, shipRes, docRes, fbRes, rawRes, poRes].forEach(function(r){ if(r.error) throw r.error; });
+      return {
+        qc: qcRes.data || [], ships: shipRes.data || [], docs: docRes.data || [],
+        fb: fbRes.data || [], raw: rawRes.data || [], po: poRes.data || []
+      };
+    }
+
+    // Gộp raw_batches theo lô -> {nhapTho, thanhPham, datBo, boxes, quyCach[]}
+    function productionByBatch(rawRows){
+      const map = {};
+      rawRows.forEach(function(r){
+        if(!r.batch) return;
+        const g = map[r.batch] || (map[r.batch] = { nhapTho: 0, thanhPham: 0, datBo: 0, boxes: 0, quyCach: {}, ngaySX: null, hasFactory: false });
+        g.nhapTho += num(r.soluong);
+        asArr(r.factory_batches).forEach(function(fb){
+          if(fb.finished_qty != null){ g.thanhPham += num(fb.finished_qty); g.hasFactory = true; }
+          if(fb.production_date && (!g.ngaySX || fb.production_date > g.ngaySX)) g.ngaySX = fb.production_date;
+          asArr(fb.factory_batch_waste).forEach(function(w){ g.datBo += num(w.so_luong); });
+          asArr(fb.factory_batch_boxes).forEach(function(bx){
+            g.boxes += num(bx.so_luong_thung);
+            if(bx.quy_cach) g.quyCach[bx.quy_cach] = true;
+          });
+        });
+      });
+      return map;
+    }
+    function lossPct(nhap, tp){
+      if(!nhap || tp == null) return null;
+      return Math.round((1 - tp / nhap) * 1000) / 10;
+    }
+
+    // ---- pdfmake: helper dựng khối ----
+    function reportHeader(tieuDe, kyText){
+      const brandCol = LOGO_DATA
+        ? { width: 150, stack: [{ image: LOGO_DATA, width: 138 }, { text: BRAND_SUB, style: 'brandSub', margin: [0, 3, 0, 0] }] }
+        : { width: 150, stack: [{ text: BRAND, style: 'brand' }, { text: BRAND_SUB, style: 'brandSub' }] };
+      return {
+        columns: [
+          brandCol,
+          {
+            width: '*',
+            stack: [
+              { text: tieuDe, style: 'docTitle', alignment: 'right' },
+              { text: kyText, style: 'docMeta', alignment: 'right' },
+              { text: 'Ngày xuất: ' + fmtD(todayStr()) + '  ·  Người xuất: ' + currentUserLabel(), style: 'docMeta', alignment: 'right' }
+            ]
+          }
+        ],
+        margin: [0, 0, 0, 6]
+      };
+    }
+    function hr(){
+      return {
+        canvas: [
+          { type: 'rect', x: 0, y: 0, w: 523, h: 3, color: COLOR_DEEP },
+          { type: 'rect', x: 0, y: 3, w: 90, h: 3, color: COLOR_ACCENT }
+        ],
+        margin: [0, 2, 0, 14]
+      };
+    }
+    function sectionTitle(t){
+      return {
+        columns: [
+          { width: 10, canvas: [{ type: 'rect', x: 0, y: 1, w: 4, h: 11, color: COLOR_ACCENT }] },
+          { width: '*', text: t, style: 'section' }
+        ],
+        margin: [0, 14, 0, 6]
+      };
+    }
+    function dataTable(headers, rows, widths){
+      const body = [headers.map(function(h){ return { text: h, style: 'th' }; })];
+      if(!rows.length){
+        body.push([{ text: 'Không có dữ liệu trong kỳ.', colSpan: headers.length, style: 'empty' }]
+          .concat(headers.slice(1).map(function(){ return {}; })));
+      } else {
+        rows.forEach(function(r){
+          body.push(r.map(function(c){ return { text: (c == null || c === '') ? '—' : String(c), style: 'td' }; }));
+        });
+      }
+      return {
+        table: { headerRows: 1, widths: widths, body: body },
+        layout: {
+          hLineWidth: function(i){ return i === 0 || i === 1 ? 0.8 : 0.4; },
+          vLineWidth: function(){ return 0; },
+          hLineColor: function(i){ return i === 1 ? COLOR_DEEP : COLOR_LINE; },
+          paddingTop: function(){ return 4; }, paddingBottom: function(){ return 4; }
+        },
+        margin: [0, 0, 0, 4]
+      };
+    }
+    function infoRows(pairs){
+      return {
+        table: { widths: [140, '*'], body: pairs.map(function(p){ return [{ text: p[0], style: 'label' }, { text: (p[1] == null || p[1] === '') ? '—' : String(p[1]), style: 'value' }]; }) },
+        layout: 'noBorders', margin: [0, 2, 0, 4]
+      };
+    }
+    function kpiGrid(items){
+      const rows = []; let row = [];
+      items.forEach(function(it){
+        row.push({ stack: [{ text: it.value, style: 'kpiVal' }, { text: it.label, style: 'kpiLbl' }], margin: [0, 7, 0, 7] });
+        if(row.length === 3){ rows.push(row); row = []; }
+      });
+      if(row.length){ while(row.length < 3) row.push({}); rows.push(row); }
+      return {
+        table: { widths: ['*', '*', '*'], body: rows },
+        layout: {
+          hLineWidth: function(){ return 2; }, vLineWidth: function(){ return 2; },
+          hLineColor: function(){ return '#ffffff'; }, vLineColor: function(){ return '#ffffff'; },
+          paddingLeft: function(){ return 10; }, paddingRight: function(){ return 10; },
+          fillColor: function(rowIndex, node, colIndex){
+            const cell = node.table.body[rowIndex][colIndex];
+            return (cell && cell.stack) ? COLOR_KPI_BG : null;
+          }
+        },
+        margin: [0, 4, 0, 4]
+      };
+    }
+    const PDF_STYLES = {
+      brand: { fontSize: 15, bold: true, color: COLOR_DEEP },
+      brandSub: { fontSize: 9, color: COLOR_SOFT },
+      docTitle: { fontSize: 13, bold: true, color: COLOR_DEEP },
+      docMeta: { fontSize: 8.5, color: COLOR_SOFT },
+      section: { fontSize: 10.5, bold: true, color: COLOR_DEEP },
+      th: { fontSize: 8.5, bold: true, color: COLOR_DEEP, fillColor: '#f2f0ea' },
+      td: { fontSize: 8.5, color: '#26302e' },
+      empty: { fontSize: 8.5, italics: true, color: COLOR_SOFT },
+      kpiVal: { fontSize: 13, bold: true, color: COLOR_DEEP },
+      kpiLbl: { fontSize: 8, color: COLOR_SOFT },
+      label: { fontSize: 8.5, color: COLOR_SOFT },
+      value: { fontSize: 9.5, color: '#26302e' }
+    };
+    function pdfFooter(currentPage, pageCount){
+      return {
+        columns: [
+          { text: BRAND + ' — Báo cáo nội bộ', style: 'docMeta', margin: [36, 0, 0, 0] },
+          { text: 'Trang ' + currentPage + '/' + pageCount, style: 'docMeta', alignment: 'right', margin: [0, 0, 36, 0] }
+        ],
+        margin: [0, 10, 0, 0]
+      };
+    }
+    function docShell(content){
+      return {
+        pageSize: 'A4', pageMargins: [36, 44, 36, 44], footer: pdfFooter,
+        content: content, styles: PDF_STYLES,
+        defaultStyle: { font: 'Roboto', fontSize: 9, lineHeight: 1.15 }
+      };
+    }
+
+    // ---- Dựng doc: Báo cáo tổng hợp theo kỳ ----
+    function buildSummaryDoc(data, range){
+      const prod = productionByBatch(data.raw);
+      const inPeriod = function(code){ return batchInRange(code, range); };
+
+      const batchList = Object.values(sharedBatchSummaries)
+        .filter(function(b){ return b.hasSourceInfo && inPeriod(b.batch); })
+        .sort(function(a, b){ return a.batch.localeCompare(b.batch, 'vi'); });
+
+      // Đơn hàng
+      const donHangRows = batchList
+        .filter(function(b){ return b.hasOrderInfo || b.khachHang || b.saleType || b.orderStatus; })
+        .map(function(b){ return [b.batch, b.khachHang, b.saleType, b.orderStatus, fmtD(b.ngayGiaoMongMuon)]; });
+
+      // Sản xuất & hao hụt
+      const sxRows = batchList
+        .filter(function(b){ return prod[b.batch]; })
+        .map(function(b){
+          const g = prod[b.batch];
+          const hh = lossPct(g.nhapTho, g.hasFactory ? g.thanhPham : null);
+          return [b.batch, b.category, fmtInt(g.nhapTho || null), g.hasFactory ? fmtInt(g.thanhPham) : '—',
+            g.datBo ? fmtInt(g.datBo) : '—', hh == null ? '—' : (hh + '%')];
+        });
+
+      // QC
+      const qcRows = data.qc.filter(function(q){ return inPeriod(q.batch_code); })
+        .sort(function(a, b){ return a.batch_code.localeCompare(b.batch_code, 'vi') || String(a.created_at).localeCompare(String(b.created_at)); })
+        .map(function(q){ return [q.batch_code, q.check_type, q.result, q.inspector, q.note]; });
+
+      // Logistics
+      const logRows = data.ships.filter(function(s){ return inPeriod(s.batch_code); })
+        .sort(function(a, b){ return a.batch_code.localeCompare(b.batch_code, 'vi'); })
+        .map(function(s){ return [s.batch_code, s.product, s.stage, s.location, fmtD(s.eta)]; });
+
+      // Feedback
+      const fbRows = data.fb.filter(function(f){ return inPeriod(f.batch_code); })
+        .sort(function(a, b){ return a.batch_code.localeCompare(b.batch_code, 'vi'); })
+        .map(function(f){ return [f.batch_code, f.market, f.rating == null ? '—' : (f.rating + '/5'), f.status, f.feedback_text]; });
+
+      // KPI
+      let sumNhap = 0, sumTP = 0, hasTP = false;
+      batchList.forEach(function(b){
+        const g = prod[b.batch];
+        if(!g) return;
+        sumNhap += g.nhapTho;
+        if(g.hasFactory){ sumTP += g.thanhPham; hasTP = true; }
+      });
+      const haoHut = (sumNhap && hasTP) ? (Math.round((1 - sumTP / sumNhap) * 1000) / 10) : null;
+      const qcAll = data.qc.filter(function(q){ return inPeriod(q.batch_code); });
+      const qcDecided = qcAll.filter(function(q){ return q.result && q.result !== 'Chờ xác nhận'; });
+      const qcPassed = qcDecided.filter(function(q){ return q.result === 'Đạt'; });
+      const qcRate = qcDecided.length ? Math.round(qcPassed.length / qcDecided.length * 100) : null;
+      const shipsInP = data.ships.filter(function(s){ return inPeriod(s.batch_code); });
+      const shipDone = shipsInP.filter(function(s){ return s.stage === 'Khách đã nhận hàng'; }).length;
+      const ratings = data.fb.filter(function(f){ return inPeriod(f.batch_code) && f.rating != null; }).map(function(f){ return f.rating; });
+      const avgRating = ratings.length ? (ratings.reduce(function(a, b){ return a + b; }, 0) / ratings.length) : null;
+
+      return docShell([
+        reportHeader('BÁO CÁO TỔNG HỢP CHUỖI CUNG ỨNG', 'Kỳ báo cáo: ' + range.label),
+        hr(),
+        sectionTitle('Chỉ số chính trong kỳ'),
+        kpiGrid([
+          { label: 'Số lô hàng', value: fmtInt(batchList.length) },
+          { label: 'Nhập thô (trái)', value: sumNhap ? fmtInt(sumNhap) : '—' },
+          { label: 'Thành phẩm (trái)', value: hasTP ? fmtInt(sumTP) : '—' },
+          { label: 'Hao hụt trung bình', value: haoHut == null ? '—' : (haoHut + '%') },
+          { label: 'Tỷ lệ đạt QC', value: qcRate == null ? '—' : (qcRate + '%') },
+          { label: 'Container trong kỳ', value: fmtInt(shipsInP.length) + ' (' + shipDone + ' đã giao)' },
+          { label: 'Điểm hài lòng KH', value: avgRating == null ? '—' : (avgRating.toFixed(1) + '/5') }
+        ]),
+        sectionTitle('1. Đơn hàng trong kỳ'),
+        dataTable(['Lô hàng', 'Khách hàng', 'Hình thức', 'Trạng thái', 'Ngày giao mong muốn'], donHangRows, [80, '*', 90, 80, 78]),
+        sectionTitle('2. Sản xuất & hao hụt theo lô'),
+        dataTable(['Lô hàng', 'Ngành hàng', 'Nhập thô', 'Thành phẩm', 'Dạt bỏ', 'Hao hụt %'], sxRows, [90, 90, '*', '*', '*', 46]),
+        sectionTitle('3. Kết quả kiểm tra chất lượng (QC)'),
+        dataTable(['Lô hàng', 'Loại kiểm', 'Kết quả', 'Người kiểm', 'Ghi chú'], qcRows, [90, 60, 80, 60, '*']),
+        sectionTitle('4. Logistics'),
+        dataTable(['Lô hàng', 'Sản phẩm', 'Chặng', 'Vị trí', 'ETA'], logRows, [80, 70, 90, '*', 60]),
+        sectionTitle('5. Phản hồi khách hàng'),
+        dataTable(['Lô hàng', 'Thị trường', 'Điểm', 'Trạng thái', 'Nội dung'], fbRows, [80, 70, 34, 66, '*'])
+      ]);
+    }
+
+    // ---- Dựng doc: Hồ sơ theo lô hàng ----
+    function buildBatchDoc(data, batchCode){
+      const b = sharedBatchSummaries[batchCode] || { batch: batchCode };
+      const rawRows = data.raw.filter(function(r){ return r.batch === batchCode; });
+      const prod = productionByBatch(rawRows)[batchCode];
+
+      const nlRows = rawRows.map(function(r){ return [r.ncc, r.chung_loai, num(r.soluong) ? (fmtInt(num(r.soluong)) + ' trái') : '—', fmtD(r.ngay_nhap)]; });
+
+      const sxRows = [];
+      rawRows.forEach(function(r){
+        asArr(r.factory_batches).forEach(function(fb){
+          const dat = asArr(fb.factory_batch_waste).reduce(function(s, w){ return s + num(w.so_luong); }, 0);
+          const boxes = asArr(fb.factory_batch_boxes).reduce(function(s, x){ return s + num(x.so_luong_thung); }, 0);
+          const qc = Array.from(new Set(asArr(fb.factory_batch_boxes).map(function(x){ return x.quy_cach; }).filter(Boolean)));
+          const hh = lossPct(num(r.soluong), fb.finished_qty == null ? null : num(fb.finished_qty));
+          sxRows.push([
+            fmtD(fb.production_date),
+            fb.finished_qty == null ? '—' : (fmtInt(num(fb.finished_qty)) + ' trái'),
+            dat ? (fmtInt(dat) + ' trái') : '—',
+            hh == null ? '—' : (hh + '%'),
+            boxes ? (fmtInt(boxes) + ' thùng' + (qc.length ? (' (' + qc.join(', ') + ')') : '')) : '—'
+          ]);
+        });
+      });
+
+      const qcRows = data.qc.filter(function(q){ return q.batch_code === batchCode; })
+        .sort(function(a, c){ return String(a.created_at).localeCompare(String(c.created_at)); })
+        .map(function(q){ return [fmtD(q.created_at), q.check_type, q.result, q.inspector, q.note]; });
+
+      const ship = data.ships.filter(function(s){ return s.batch_code === batchCode; })
+        .sort(function(a, c){ return String(c.created_at).localeCompare(String(a.created_at)); })[0];
+      const doc = data.docs.filter(function(d){ return d.batch_code === batchCode; })
+        .sort(function(a, c){ return String(c.created_at || '').localeCompare(String(a.created_at || '')); })[0];
+
+      const fbRows = data.fb.filter(function(f){ return f.batch_code === batchCode; })
+        .sort(function(a, c){ return String(a.created_at).localeCompare(String(c.created_at)); })
+        .map(function(f){ return [fmtD(f.created_at), f.market, f.rating == null ? '—' : (f.rating + '/5'), f.status, f.feedback_text]; });
+
+      const content = [
+        reportHeader('HỒ SƠ LÔ HÀNG', 'Lô: ' + batchCode),
+        hr(),
+        sectionTitle('Thông tin chung'),
+        infoRows([
+          ['Khách hàng', b.khachHang],
+          ['Hình thức', b.saleType],
+          ['Trạng thái đơn', b.orderStatus],
+          ['Ngành hàng', b.category],
+          ['Ngày nhập nguyên liệu', fmtD(b.ngayNhap)],
+          ['Ngày giao mong muốn', fmtD(b.ngayGiaoMongMuon)]
+        ]),
+        sectionTitle('Nguyên liệu & nhà cung cấp'),
+        dataTable(['Nhà cung cấp', 'Chủng loại', 'Số lượng nhập', 'Ngày nhập'], nlRows, ['*', 130, 90, 70]),
+        sectionTitle('Sản xuất tại xưởng'),
+        dataTable(['Ngày SX', 'Thành phẩm', 'Dạt bỏ', 'Hao hụt %', 'Đóng thùng'], sxRows, [70, 90, 80, 56, '*']),
+        sectionTitle('Kiểm tra chất lượng (QC)'),
+        dataTable(['Ngày', 'Loại kiểm', 'Kết quả', 'Người kiểm', 'Ghi chú'], qcRows, [64, 64, 80, 60, '*']),
+        sectionTitle('Logistics'),
+        infoRows([
+          ['Chặng hiện tại', ship && ship.stage],
+          ['Vị trí', ship && ship.location],
+          ['Sản phẩm', ship && ship.product],
+          ['ETD (dự kiến rời cảng)', ship ? fmtD(ship.etd) : '—'],
+          ['ETA (dự kiến cập cảng)', ship ? fmtD(ship.eta) : '—']
+        ]),
+        sectionTitle('Chứng từ'),
+        doc
+          ? dataTable(['Hợp đồng', 'C/O', 'Kiểm dịch TV', 'Vận đơn (B/L)', 'Hạn bổ sung'],
+              [[okFlag(doc.contract_ok), okFlag(doc.co_ok), okFlag(doc.quarantine_ok), okFlag(doc.bill_of_lading_ok), fmtD(doc.deadline)]],
+              ['*', '*', '*', '*', 78])
+          : { text: 'Chưa có checklist chứng từ cho lô này.', style: 'empty', margin: [0, 0, 0, 4] },
+        sectionTitle('Phản hồi khách hàng'),
+        dataTable(['Ngày', 'Thị trường', 'Điểm', 'Trạng thái', 'Nội dung'], fbRows, [64, 70, 34, 66, '*'])
+      ];
+      return docShell(content);
+    }
+
+    // ---- Chạy: build + tải/xem PDF ----
+    function pdfReady(){
+      if(typeof pdfMake === 'undefined' || !pdfMake.createPdf){
+        return false;
+      }
+      return true;
+    }
+    function setBusy(statusEl, btns, busy, msg){
+      btns.forEach(function(b){ if(b) b.disabled = busy; });
+      if(statusEl) statusEl.textContent = msg || '';
+    }
+    async function runReport(kind, mode){
+      const isKy = kind === 'ky';
+      const statusEl = isKy ? kyStatus : loStatus;
+      const btns = isKy ? [btnKyPreview, btnKyDownload] : [btnLoPreview, btnLoDownload];
+      if(!pdfReady()){
+        setBusy(statusEl, btns, false, 'Không tải được thư viện xuất PDF — kiểm tra kết nối mạng rồi thử lại.');
+        return;
+      }
+      let range = null, batchCode = null;
+      if(isKy){
+        range = selectedRange();
+      } else {
+        batchCode = loBatchSelect.value;
+        if(!batchCode){ setBusy(statusEl, btns, false, 'Chưa chọn lô hàng.'); return; }
+      }
+      setBusy(statusEl, btns, true, 'Đang tạo báo cáo…');
+      try{
+        const data = await fetchAll();
+        const dd = isKy ? buildSummaryDoc(data, range) : buildBatchDoc(data, batchCode);
+        const name = isKy
+          ? ('bao-cao-tong-hop_' + fileSafe(range.label) + '_' + todayStr() + '.pdf')
+          : ('ho-so-lo_' + fileSafe(batchCode) + '_' + todayStr() + '.pdf');
+        const pdf = pdfMake.createPdf(dd);
+        if(mode === 'download') pdf.download(name);
+        else pdf.open();
+        setBusy(statusEl, btns, false, mode === 'download' ? ('Đã tạo: ' + name) : 'Đã mở bản xem trước ở tab mới.');
+      } catch(err){
+        console.error('Báo cáo lỗi:', err);
+        setBusy(statusEl, btns, false, 'Lỗi khi tạo báo cáo: ' + (err && (err.message || err)) );
+      }
+    }
+    if(btnKyPreview) btnKyPreview.addEventListener('click', function(){ runReport('ky', 'open'); });
+    if(btnKyDownload) btnKyDownload.addEventListener('click', function(){ runReport('ky', 'download'); });
+    if(btnLoPreview) btnLoPreview.addEventListener('click', function(){ runReport('lo', 'open'); });
+    if(btnLoDownload) btnLoDownload.addEventListener('click', function(){ runReport('lo', 'download'); });
   })();
