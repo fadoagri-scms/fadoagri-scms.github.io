@@ -2037,8 +2037,9 @@ const titles = {
     const infoGrid = document.getElementById('qc-batch-info-grid');
     const historyTbody = document.getElementById('qc-tbody');
     const categorySelect = document.getElementById('qc-category');
-    const chungLoaiGroup = document.getElementById('qc-chungloai-group');
-    const chungLoaiSelect = document.getElementById('qc-chungloai');
+    const sanPhamGroup = document.getElementById('qc-sanpham-group');
+    const sanPhamSelect = document.getElementById('qc-sanpham');
+    const sanPhamLockedNote = document.getElementById('qc-sanpham-locked');
     const submitBtn = document.getElementById('btn-submit-add-qc');
     const poBreakdownSection = document.getElementById('qc-po-breakdown-section');
     const poBreakdownTbody = document.getElementById('qc-po-breakdown-tbody');
@@ -2094,6 +2095,13 @@ const titles = {
     let batchSummaries = {};
     let currentBatch = null;
     let editingQcId = null;
+    // Khi mở khối nhập từ đúng 1 dòng ở bảng tổng hợp (nút "Kiểm chi tiết"),
+    // form tự điền Ngành hàng + Sản phẩm rồi khóa lại (không cho đổi) để
+    // tránh chọn nhầm. presetCategory !== null nghĩa là đang ở chế độ khóa
+    // theo dòng; presetSanPham có thể null (dòng "chưa tách sản phẩm").
+    let presetCategory = null;
+    let presetSanPham = null;
+    let sanPhamLocked = false;
 
     // Gom raw_batches theo lô hàng (1 lô có thể gồm nhiều đợt nhập/nhiều NCC),
     // rồi gộp thêm PO (cho hàng thương mại không qua Xưởng) và qc_checks (chỉ
@@ -2281,40 +2289,48 @@ const titles = {
       return parts.length ? parts.join(' + ') : '—';
     }
 
-    // Mỗi dòng sản phẩm trong bảng tổng hợp (Dừa theo từng chủng loại, hoặc
-    // từng đơn NCC/ngành hàng khác) tra kết quả kiểm RIÊNG theo đúng
-    // category (+ chungLoai nếu là Dừa) của dòng đó — không gộp chung QC của
-    // cả lô nữa, vì mỗi sản phẩm trong lô có thể đạt/không đạt khác nhau.
-    // chungLoai bỏ qua (undefined) với các dòng không phải Dừa (PO khác
-    // ngành hàng không có khái niệm chủng loại).
-    function checksMatch(q, qcCategory, chungLoai){
+    // Danh sách sản phẩm thành phẩm PHÂN BIỆT của 1 lô (khai ở Xưởng Ba Phi,
+    // gom trong b.sanPhamByVariety) — dùng để đổ options "Sản phẩm" trong
+    // form QC và để quyết định có cần bắt chọn sản phẩm hay không.
+    function batchProductList(b){
+      if(!b || !b.sanPhamByVariety) return [];
+      return Array.from(new Set(Object.values(b.sanPhamByVariety).filter(Boolean)));
+    }
+
+    // Mỗi dòng sản phẩm trong bảng tổng hợp (Dừa theo từng sản phẩm thành
+    // phẩm, hoặc từng đơn NCC/ngành hàng khác) tra kết quả kiểm RIÊNG theo
+    // đúng category (+ sanPham nếu là Dừa) của dòng đó — không gộp chung QC
+    // của cả lô, vì mỗi sản phẩm trong lô có thể đạt/không đạt khác nhau.
+    // sanPham bỏ qua (undefined) với các dòng không phải Dừa. Bản ghi cũ
+    // chưa có san_pham (null) khớp với dòng chưa tách sản phẩm (sanPham null).
+    function checksMatch(q, qcCategory, sanPham){
       if((q.category || 'Dừa') !== qcCategory) return false;
-      if(chungLoai !== undefined && (q.chung_loai || null) !== (chungLoai || null)) return false;
+      if(sanPham !== undefined && (q.san_pham || null) !== (sanPham || null)) return false;
       return true;
     }
 
-    // Kết quả kiểm "Thành phẩm" GẦN NHẤT khớp đúng category (+ chungLoai nếu
-    // là Dừa) của 1 dòng trong bảng tổng hợp — dùng để Đánh giá chất lượng
-    // sửa trực tiếp được (select phản ánh đúng bản ghi sẽ bị update).
-    function finishedCheck(batchCode, qcCategory, chungLoai){
+    // Kết quả kiểm "Thành phẩm" GẦN NHẤT khớp đúng category (+ sanPham nếu là
+    // Dừa) của 1 dòng trong bảng tổng hợp — dùng để Đánh giá chất lượng sửa
+    // trực tiếp được (select phản ánh đúng bản ghi sẽ bị update).
+    function finishedCheck(batchCode, qcCategory, sanPham){
       return allQcRows.find(function(q){
         if(q.batch_code !== batchCode || q.check_type !== 'Thành phẩm') return false;
-        return checksMatch(q, qcCategory, chungLoai);
+        return checksMatch(q, qcCategory, sanPham);
       }) || null;
     }
 
     const QUICK_RESULT_OPTIONS = ['Chờ xác nhận', 'Đạt', 'Không đạt 1 phần'];
 
-    async function saveQuickResult(batchCode, qcCategory, chungLoai, value){
+    async function saveQuickResult(batchCode, qcCategory, sanPham, value){
       if(!value) return;
       try{
-        const existing = finishedCheck(batchCode, qcCategory, chungLoai);
+        const existing = finishedCheck(batchCode, qcCategory, sanPham);
         if(existing){
           const { error } = await sb.from('qc_checks').update({ result: value }).eq('id', existing.id);
           if(error) throw error;
         } else {
           const { error } = await sb.from('qc_checks').insert({
-            batch_code: batchCode, category: qcCategory, chung_loai: chungLoai || null,
+            batch_code: batchCode, category: qcCategory, san_pham: sanPham || null,
             check_type: 'Thành phẩm', result: value
           });
           if(error) throw error;
@@ -2325,7 +2341,7 @@ const titles = {
       }
     }
 
-    function buildQuickResultSelect(batchCode, qcCategory, chungLoai){
+    function buildQuickResultSelect(batchCode, qcCategory, sanPham){
       const select = document.createElement('select');
       const blankOpt = document.createElement('option');
       blankOpt.value = '';
@@ -2337,12 +2353,12 @@ const titles = {
         opt.textContent = r;
         select.appendChild(opt);
       });
-      const current = finishedCheck(batchCode, qcCategory, chungLoai);
+      const current = finishedCheck(batchCode, qcCategory, sanPham);
       select.value = current && current.result ? current.result : '';
       applySelectColor(select, resultBadgeClass(select.value));
       select.addEventListener('change', function(){
         applySelectColor(select, resultBadgeClass(select.value));
-        saveQuickResult(batchCode, qcCategory, chungLoai, select.value);
+        saveQuickResult(batchCode, qcCategory, sanPham, select.value);
       });
       return select;
     }
@@ -2420,18 +2436,16 @@ const titles = {
               if(expectedTrai) qtyNote = 'nhập thô — ' + Math.round(group.rawSum / expectedTrai * 100) + '% so với dự kiến';
             }
           }
-          // Kiểm QC vẫn ghi theo từng chủng loại (qc_checks.chung_loai) —
-          // dòng gộp nhiều chủng loại thì thao tác "kiểm nhanh" chỉ áp dụng
-          // cho chủng loại ĐẦU TIÊN trong nhóm (trường hợp hiếm, chỉ xảy ra
-          // khi 2+ chủng loại cùng khai chung 1 sản phẩm) — muốn kiểm riêng
-          // từng chủng loại thì vào đúng lô ở Đánh giá chất lượng.
-          const primaryVariety = group.varieties[0];
-          const primaryNamed = primaryVariety.name !== 'Chưa phân loại';
+          // Kiểm QC ghi theo SẢN PHẨM thành phẩm (qc_checks.san_pham) — mỗi
+          // dòng ở đây đã là 1 sản phẩm phân biệt nên khớp 1-1, không còn
+          // dùng "chủng loại đầu tiên trong nhóm" như trước. Sản phẩm CHƯA
+          // khai ở Xưởng Ba Phi (group.sanPham null) thì gắn kết quả cho
+          // dòng "chưa tách sản phẩm" của lô.
           lines.push({
             ncc: 'Xưởng Ba Phi',
             category: group.sanPham || '—',
             qcCategory: 'Dừa',
-            chungLoai: primaryNamed ? primaryVariety.name : null,
+            sanPham: group.sanPham || null,
             qty: qtyText,
             qtyNote: qtyNote
           });
@@ -2608,18 +2622,32 @@ const titles = {
 
           // Đánh giá chất lượng sửa trực tiếp ngay trong bảng — select phản
           // ánh đúng kết quả kiểm "Thành phẩm" GẦN NHẤT của riêng dòng này
-          // (category + chungLoai), chọn lại là lưu ngay (update nếu đã có
-          // bản ghi khớp, insert mới nếu chưa) (ép text-align:left như qtyTd
-          // để tránh CSS td:last-child bắt nhầm ở dòng nối tiếp).
+          // (category + sanPham), chọn lại là lưu ngay (update nếu đã có bản
+          // ghi khớp, insert mới nếu chưa) (ép text-align:left như qtyTd để
+          // tránh CSS td:last-child bắt nhầm ở dòng nối tiếp).
           // Kết quả kiểm và % đạt luôn thuộc về cùng 1 lần kiểm nên gộp chung
           // 1 cột (% hiện ngay dưới ô chọn) — tách 2 cột chỉ làm bảng rộng
           // thêm mà vẫn phải đọc ghép 2 ô mới đủ nghĩa.
           const statusTd = document.createElement('td');
           statusTd.style.textAlign = 'left';
-          const statusSelect = buildQuickResultSelect(b.batch, line.qcCategory, line.chungLoai);
+          const statusRow = document.createElement('div');
+          statusRow.style.cssText = 'display:flex;align-items:center;gap:4px;';
+          const statusSelect = buildQuickResultSelect(b.batch, line.qcCategory, line.sanPham);
           statusSelect.className = 'table-inline-select';
-          statusTd.appendChild(statusSelect);
-          const matchedCheck = finishedCheck(b.batch, line.qcCategory, line.chungLoai);
+          statusRow.appendChild(statusSelect);
+          // Nút mở khối nhập đầy đủ (số lượng kiểm/đạt, người kiểm, ghi chú)
+          // đã điền + khóa sẵn Ngành hàng / Sản phẩm của đúng dòng này —
+          // không phải tự chọn lại, không lo chọn nhầm.
+          const qcDetailBtn = document.createElement('button');
+          qcDetailBtn.type = 'button';
+          qcDetailBtn.className = 'row-edit-btn qc-detail-btn';
+          qcDetailBtn.setAttribute('aria-label', 'Nhập kết quả kiểm chi tiết cho dòng này');
+          qcDetailBtn.dataset.qccat = line.qcCategory || '';
+          qcDetailBtn.dataset.sanpham = line.sanPham || '';
+          qcDetailBtn.innerHTML = '<i class="ti ti-clipboard-plus"></i>';
+          statusRow.appendChild(qcDetailBtn);
+          statusTd.appendChild(statusRow);
+          const matchedCheck = finishedCheck(b.batch, line.qcCategory, line.sanPham);
           const rate = matchedCheck ? checkPassRate(matchedCheck) : null;
           if(rate){
             const rateLine = document.createElement('div');
@@ -2938,7 +2966,8 @@ const titles = {
         tr.className = 'hoverable';
         tr.dataset.id = d.id;
         tr.dataset.category = d.category || 'Dừa';
-        tr.dataset.chungLoai = d.chung_loai || '';
+        // Bản ghi cũ chưa có san_pham → lùi về chung_loai để vẫn sửa được.
+        tr.dataset.sanPham = d.san_pham || d.chung_loai || '';
         tr.dataset.type = d.check_type || '';
         tr.dataset.result = d.result || '';
         tr.dataset.inspector = d.inspector || '';
@@ -2950,10 +2979,10 @@ const titles = {
         typeTd.textContent = d.check_type || '—';
         tr.appendChild(typeTd);
 
-        const varietyTd = document.createElement('td');
-        varietyTd.className = 'muted';
-        varietyTd.textContent = d.chung_loai || '—';
-        tr.appendChild(varietyTd);
+        const sanPhamTd = document.createElement('td');
+        sanPhamTd.className = 'muted';
+        sanPhamTd.textContent = d.san_pham || d.chung_loai || '—';
+        tr.appendChild(sanPhamTd);
 
         const resultTd = document.createElement('td');
         resultTd.appendChild(badge(d.result || '—', resultBadgeClass(d.result)));
@@ -3055,35 +3084,58 @@ const titles = {
 
     const KNOWN_QC_CATEGORIES = ['Dừa', 'Chanh', 'Thanh long', 'Khác'];
 
-    // Chủng loại chỉ áp dụng cho hàng Dừa — ẩn hẳn field đi khi kiểm hàng
-    // khác (Chanh/Thanh long/Khác) để form không rối.
-    function updateChungLoaiVisibility(){
-      if(chungLoaiGroup) chungLoaiGroup.style.display = categorySelect.value === 'Dừa' ? '' : 'none';
+    const sanPhamHint = document.getElementById('qc-sanpham-hint');
+
+    // "Sản phẩm" chỉ áp dụng cho hàng Dừa và chỉ có nghĩa khi lô làm ra ≥ 2
+    // sản phẩm khác nhau — còn lại ẩn hẳn field cho form gọn (kết quả tự
+    // gắn cho sản phẩm duy nhất, hoặc cho dòng "chưa tách sản phẩm").
+    // Khi mở từ đúng 1 dòng (sanPhamLocked), luôn hiện field nhưng khóa lại:
+    // select disabled, thay phần hướng dẫn bằng dòng "Đang nhập cho: ...".
+    function updateSanPhamVisibility(){
+      if(!sanPhamGroup) return;
+      const b = currentBatch && batchSummaries[currentBatch];
+      const isDua = categorySelect.value === 'Dừa';
+      const multiProduct = batchProductList(b).length > 1;
+      // Khóa theo dòng thì Ngành hàng cũng cố định luôn.
+      if(categorySelect) categorySelect.disabled = sanPhamLocked;
+      if(sanPhamLocked){
+        // Không phải Dừa thì không có khái niệm sản phẩm con — ẩn hẳn field
+        // (Ngành hàng vẫn bị khóa theo dòng, chỉ là không có gì để chọn).
+        sanPhamGroup.style.display = isDua ? '' : 'none';
+        if(sanPhamSelect) sanPhamSelect.disabled = true;
+        if(sanPhamHint) sanPhamHint.style.display = 'none';
+        if(sanPhamLockedNote) sanPhamLockedNote.style.display = isDua ? '' : 'none';
+        return;
+      }
+      if(sanPhamSelect) sanPhamSelect.disabled = false;
+      if(sanPhamHint) sanPhamHint.style.display = '';
+      if(sanPhamLockedNote) sanPhamLockedNote.style.display = 'none';
+      sanPhamGroup.style.display = (isDua && multiProduct) ? '' : 'none';
     }
-    // Options lấy từ đúng các chủng loại thực tế đã nhập ở Vùng nguyên liệu
-    // cho lô này (batchSummaries[...].duaVarieties), không phải danh sách
-    // chung chung — đảm bảo QC chỉ chọn được chủng loại có thật trong lô.
-    function populateChungLoaiOptions(batchCode, selected){
-      if(!chungLoaiSelect) return;
+    // Options = danh sách sản phẩm thành phẩm phân biệt đã khai ở Xưởng Ba
+    // Phi cho đúng lô này — QC chỉ chọn được sản phẩm có thật trong lô.
+    function populateSanPhamOptions(batchCode, selected){
+      if(!sanPhamSelect) return;
       const b = batchCode && batchSummaries[batchCode];
-      const varieties = (b && b.duaVarieties || []).filter(function(v){ return v.name !== 'Chưa phân loại'; });
-      chungLoaiSelect.innerHTML = '';
+      const products = batchProductList(b);
+      sanPhamSelect.innerHTML = '';
       const blankOpt = document.createElement('option');
       blankOpt.value = '';
-      blankOpt.textContent = varieties.length ? '— Chọn chủng loại —' : '— Không tách theo chủng loại —';
-      chungLoaiSelect.appendChild(blankOpt);
-      varieties.forEach(function(v){
+      blankOpt.textContent = products.length ? '— Chọn sản phẩm —' : '— Không tách theo sản phẩm —';
+      sanPhamSelect.appendChild(blankOpt);
+      products.forEach(function(name){
         const opt = document.createElement('option');
-        opt.value = v.name;
-        opt.textContent = v.name;
-        chungLoaiSelect.appendChild(opt);
+        opt.value = name;
+        opt.textContent = name;
+        sanPhamSelect.appendChild(opt);
       });
-      chungLoaiSelect.value = selected && varieties.some(function(v){ return v.name === selected; }) ? selected : '';
+      sanPhamSelect.value = selected && products.indexOf(selected) !== -1 ? selected : '';
     }
     if(categorySelect){
       categorySelect.addEventListener('change', function(){
-        updateChungLoaiVisibility();
-        populateChungLoaiOptions(currentBatch, '');
+        if(sanPhamLocked) return;
+        updateSanPhamVisibility();
+        populateSanPhamOptions(currentBatch, '');
       });
     }
 
@@ -3091,14 +3143,48 @@ const titles = {
       editingQcId = null;
       form.reset();
       const b = currentBatch && batchSummaries[currentBatch];
-      // b.category có thể là chuỗi ghép nhiều ngành hàng (VD: "Dừa + Chanh")
-      // khi lô ghép nhiều loại hàng — chỉ tự chọn sẵn khi khớp đúng 1 lựa chọn
-      // có sẵn trong select, tránh gán giá trị không hợp lệ.
-      if(b && b.category && KNOWN_QC_CATEGORIES.indexOf(b.category) !== -1){
-        categorySelect.value = b.category;
+      const products = batchProductList(b);
+
+      // Ngành hàng: ưu tiên preset (mở từ đúng 1 dòng), rồi tới category của
+      // lô. b.category có thể là chuỗi ghép (VD "Dừa + Chanh") khi lô ghép
+      // nhiều loại hàng — chỉ gán khi khớp đúng 1 lựa chọn có sẵn trong select.
+      let cat = '';
+      if(presetCategory && KNOWN_QC_CATEGORIES.indexOf(presetCategory) !== -1) cat = presetCategory;
+      else if(b && b.category && KNOWN_QC_CATEGORIES.indexOf(b.category) !== -1) cat = b.category;
+      if(cat) categorySelect.value = cat;
+
+      // Khóa Sản phẩm khi: mở từ đúng 1 dòng (presetCategory), HOẶC lô Dừa chỉ
+      // có đúng 1 sản phẩm (không có gì để chọn nhầm).
+      const singleDuaProduct = categorySelect.value === 'Dừa' && products.length === 1;
+      sanPhamLocked = presetCategory !== null || singleDuaProduct;
+      let lockedProduct = null;
+      if(presetCategory !== null) lockedProduct = presetSanPham || null;
+      else if(singleDuaProduct) lockedProduct = products[0];
+
+      populateSanPhamOptions(currentBatch, lockedProduct || '');
+      if(sanPhamLocked && sanPhamSelect){
+        // giữ được cả sản phẩm không còn trong danh sách lô (dữ liệu cũ)
+        if(lockedProduct && !Array.prototype.some.call(sanPhamSelect.options, function(o){ return o.value === lockedProduct; })){
+          const opt = document.createElement('option');
+          opt.value = lockedProduct; opt.textContent = lockedProduct;
+          sanPhamSelect.appendChild(opt);
+        }
+        sanPhamSelect.value = lockedProduct || '';
+        if(sanPhamLockedNote){
+          sanPhamLockedNote.textContent = 'Đang nhập kết quả cho: ' + (categorySelect.value || '—') + ' · ' + (lockedProduct || '(chưa tách sản phẩm)') + '  ';
+          const unlock = document.createElement('a');
+          unlock.href = '#';
+          unlock.textContent = 'Đổi';
+          unlock.addEventListener('click', function(e){
+            e.preventDefault();
+            presetCategory = null; presetSanPham = null; sanPhamLocked = false;
+            populateSanPhamOptions(currentBatch, '');
+            updateSanPhamVisibility();
+          });
+          sanPhamLockedNote.appendChild(unlock);
+        }
       }
-      populateChungLoaiOptions(currentBatch, '');
-      updateChungLoaiVisibility();
+      updateSanPhamVisibility();
       submitBtn.textContent = 'Thêm kết quả';
     }
 
@@ -3229,8 +3315,12 @@ const titles = {
       row.after(expandoTr);
     }
 
-    function openBatchModal(batchCode){
+    // preset (tùy chọn): { category, sanPham } khi mở từ đúng 1 dòng ở bảng
+    // tổng hợp — form sẽ khóa Ngành hàng + Sản phẩm theo dòng đó.
+    function openBatchModal(batchCode, preset){
       currentBatch = batchCode;
+      presetCategory = preset && preset.category ? preset.category : null;
+      presetSanPham = preset && preset.sanPham ? preset.sanPham : null;
       const b = batchSummaries[batchCode] || {
         batch: batchCode, ncc: null, category: 'Dừa', isDua: false,
         totalQty: 0, totalQtyText: null, ngayNhap: null, hasFactory: false, finishedQty: null,
@@ -3254,6 +3344,8 @@ const titles = {
       const oldExpando = pickTbody.querySelector('.qc-detail-row');
       if(oldExpando) oldExpando.remove();
       currentBatch = null;
+      presetCategory = null;
+      presetSanPham = null;
       resetForm();
     }
 
@@ -4359,6 +4451,20 @@ const titles = {
         if(tr && tr.dataset.batch) openOrderModal(tr.dataset.batch);
         return;
       }
+      // Nút "Kiểm chi tiết" trên từng dòng — mở khối nhập với Ngành hàng +
+      // Sản phẩm điền + khóa sẵn theo đúng dòng đó (xử lý TRƯỚC .row-edit-btn
+      // vì nút này cũng mang class đó).
+      const qcDetailBtn = e.target.closest('.qc-detail-btn');
+      if(qcDetailBtn){
+        const tr = qcDetailBtn.closest('tr');
+        if(tr && tr.dataset.batch){
+          openBatchModal(tr.dataset.batch, {
+            category: qcDetailBtn.dataset.qccat || null,
+            sanPham: qcDetailBtn.dataset.sanpham || null
+          });
+        }
+        return;
+      }
       const btn = e.target.closest('.row-edit-btn');
       if(!btn) return;
       const tr = btn.closest('tr');
@@ -4399,9 +4505,22 @@ const titles = {
       if(editBtnEl){
         const tr = editBtnEl.closest('tr');
         editingQcId = tr.dataset.id;
+        // Sửa 1 lượt kiểm đã có: mở khóa, cho chỉnh tự do; nạp đúng sản phẩm
+        // của bản ghi (kể cả sản phẩm cũ không còn trong danh sách lô).
+        presetCategory = null; presetSanPham = null; sanPhamLocked = false;
         categorySelect.value = tr.dataset.category || 'Dừa';
-        populateChungLoaiOptions(currentBatch, tr.dataset.chungLoai || '');
-        updateChungLoaiVisibility();
+        const sp = tr.dataset.sanPham || '';
+        populateSanPhamOptions(currentBatch, sp);
+        if(sp && sanPhamSelect && !Array.prototype.some.call(sanPhamSelect.options, function(o){ return o.value === sp; })){
+          const opt = document.createElement('option');
+          opt.value = sp; opt.textContent = sp;
+          sanPhamSelect.appendChild(opt);
+          sanPhamSelect.value = sp;
+        }
+        updateSanPhamVisibility();
+        // Bản ghi có sản phẩm cụ thể nhưng lô ≤ 1 sản phẩm (field bị ẩn) —
+        // vẫn hiện ra để người sửa thấy đang gắn vào sản phẩm nào.
+        if(sp && sanPhamGroup) sanPhamGroup.style.display = '';
         document.getElementById('qc-result').value = tr.dataset.result || 'Chờ xác nhận';
         document.getElementById('qc-so-luong-kiem').value = tr.dataset.soLuongKiem || '';
         document.getElementById('qc-so-luong-dat').value = tr.dataset.soLuongDat || '';
@@ -4488,22 +4607,22 @@ const titles = {
       e.preventDefault();
       if(!currentBatch) return;
       const category = fieldVal('qc-category') || 'Dừa';
-      const chungLoai = category === 'Dừa' ? (fieldVal('qc-chungloai') || null) : null;
+      const sanPham = category === 'Dừa' ? (fieldVal('qc-sanpham') || null) : null;
 
-      // Lô Dừa nhiều chủng loại mà không chọn chủng loại thì kết quả sẽ
+      // Lô Dừa làm ra nhiều sản phẩm mà không chọn sản phẩm thì kết quả sẽ
       // không gắn được vào dòng nào ở bảng tổng hợp (mỗi dòng lọc theo đúng
-      // chủng loại) — chặn sớm để tránh nhập nhầm rồi không thấy kết quả đâu.
+      // sản phẩm) — chặn sớm để tránh nhập nhầm rồi không thấy kết quả đâu.
       const b = batchSummaries[currentBatch];
-      const needsVariety = category === 'Dừa' && b && b.duaVarieties.length > 1;
-      if(needsVariety && !chungLoai){
-        showErrorToast('Lô này có nhiều chủng loại dừa — vui lòng chọn chủng loại cần ghi kết quả kiểm.');
+      const needsProduct = category === 'Dừa' && batchProductList(b).length > 1;
+      if(needsProduct && !sanPham){
+        showErrorToast('Lô này làm ra nhiều sản phẩm — vui lòng chọn sản phẩm cần ghi kết quả kiểm.');
         return;
       }
 
       const payload = {
         batch_code: currentBatch,
         category: category,
-        chung_loai: chungLoai,
+        san_pham: sanPham,
         // Module này chỉ kiểm thành phẩm trước khi xuất khẩu — kiểm đầu vào
         // (nguyên liệu thô) thuộc phạm vi Vùng nguyên liệu, không ghi ở đây.
         check_type: 'Thành phẩm',
