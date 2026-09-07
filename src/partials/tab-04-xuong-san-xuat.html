@@ -36,7 +36,7 @@
       <div class="card">
         <table>
           <thead>
-            <tr><th>Lô hàng</th><th>NCC</th><th>Chủng loại</th><th>Số lượng</th><th>Ngày nhập</th><th>Ngày sản xuất</th><th>Thành phẩm</th><th>Sản phẩm</th><th>Quy cách</th><th>Số lượng thùng</th><th>Hao hụt</th><th>Trái bị dạt</th><th>Ghi chú</th><th>Bắt đầu</th><th>Kết thúc</th><th>Tổng số lượng thùng</th><th>Thao tác</th></tr>
+            <tr><th>Lô hàng</th><th>NCC</th><th>Chủng loại</th><th>Số lượng</th><th>Ngày nhập</th><th>Ngày sản xuất</th><th>Thành phẩm</th><th>Sản phẩm</th><th>Quy cách</th><th>Số lượng thùng</th><th>Hao hụt</th><th>Rớt/chưa đạt chuẩn</th><th>Ghi chú</th><th>Bắt đầu</th><th>Kết thúc</th><th>Tổng số lượng thùng</th><th>Thao tác</th></tr>
           </thead>
           <tbody id="factory-tbody">
             <tr><td colspan="17" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
@@ -131,7 +131,7 @@
       <div class="section-header-row">
         <div class="section-label">Xử lý hàng tồn & rớt</div>
       </div>
-      <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Gộp chung 2 nguồn cần xử lý: hàng dạt lúc sản xuất (Số lượng nhập − Thành phẩm) và thành phẩm dư chưa xuất hết (cột "Tồn kho (trái)" ở tab Xuất hàng) — xử lý bằng cách bán chợ hoặc gán bù sản lượng xuất cho lô hàng khác.</div>
+      <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Gộp chung 3 nguồn cần xử lý: hàng dạt lúc sản xuất (Số lượng nhập − Thành phẩm), thành phẩm dư chưa xuất hết (cột "Tồn kho (trái)" ở tab Xuất hàng), và thành phẩm chưa đóng thùng đủ (cột "Tổng số lượng thùng" ở tab Sản xuất) — bấm mũi tên xem chi tiết từng lô, "Xử lý" để bán chợ/gán bù/đóng thùng bổ sung.</div>
       <div class="card">
         <table>
           <thead>
@@ -141,6 +141,17 @@
             <tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
           </tbody>
         </table>
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:12px 8px 4px;font-size:12.5px;color:var(--ink-soft);">
+          <span>Mỗi trang:</span>
+          <select id="culled-page-size" style="padding:4px 8px;">
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+          </select>
+          <button class="btn-secondary" id="culled-page-prev" type="button" style="padding:4px 10px;font-size:12.5px;">‹ Trước</button>
+          <span id="culled-page-indicator">Trang 1/1</span>
+          <button class="btn-secondary" id="culled-page-next" type="button" style="padding:4px 10px;font-size:12.5px;">Sau ›</button>
+        </div>
       </div>
 
       <div class="section-header-row">
@@ -192,7 +203,17 @@
           </div>
           <div class="form-group form-group-full">
             <label for="fac-ghichu">Ghi chú</label>
-            <textarea id="fac-ghichu" rows="2" placeholder="Đặc biệt nếu Trái bị dạt cao — ghi rõ do khâu nhập dừa, khâu gọt, hay do trích/sản xuất cho lô khác, để quản lý đánh giá được nguyên nhân."></textarea>
+            <textarea id="fac-ghichu" rows="2" placeholder="Ghi chú thêm cho đợt này (không bắt buộc)."></textarea>
+          </div>
+          <div class="form-group form-group-full">
+            <label>Dạt bỏ (hư hỏng vật lý — không dùng được nữa)</label>
+            <div id="fac-waste-list"></div>
+            <datalist id="dl-waste-reason">
+              <option value="Bể gáo"></option>
+              <option value="Nứt đầu"></option>
+            </datalist>
+            <button type="button" class="btn-secondary" id="btn-add-waste-row" style="margin-top:4px;">+ Thêm lý do</button>
+            <div class="muted" style="font-size:11px;margin-top:4px;">Chỉ tính hàng hỏng hẳn (bể gáo, nứt đầu...) — hàng còn nguyên nhưng rớt size/chưa đạt chuẩn (còn cứu được) KHÔNG tính ở đây, hệ thống tự tính riêng bằng Nhập − Thành phẩm − Dạt bỏ.</div>
           </div>
           <div class="form-group form-group-full">
             <label>Sản phẩm &amp; Quy cách đóng thùng</label>
@@ -315,12 +336,12 @@
     <div class="modal-overlay" id="add-culled-overlay">
       <div class="modal">
         <div class="modal-header">
-          <div class="modal-title">Xử lý hàng dạt</div>
+          <div class="modal-title" id="add-culled-modal-title">Xử lý hàng dạt</div>
           <button class="modal-close" id="btn-close-add-culled" type="button" aria-label="Đóng">&times;</button>
         </div>
         <div class="muted" id="culled-modal-batch-info" style="font-size:12.5px;margin-bottom:14px;"></div>
         <form id="form-add-culled">
-          <div class="form-group">
+          <div class="form-group" id="culled-type-group">
             <label for="culled-type">Loại xử lý</label>
             <select id="culled-type">
               <option value="market">Bán chợ</option>
@@ -337,7 +358,7 @@
             <input type="text" id="culled-qty-trai" placeholder="VD: 200">
           </div>
           <div id="culled-reassign-fields" style="display:none;">
-            <div class="form-group">
+            <div class="form-group" id="culled-target-batch-group">
               <label for="culled-target-batch">Mã lô hàng đích</label>
               <input type="text" id="culled-target-batch" list="dl-batch-names" placeholder="VD: AGO - 01.26">
             </div>
@@ -353,7 +374,7 @@
               <label for="culled-target-thung">Số lượng thùng</label>
               <input type="text" id="culled-target-thung" placeholder="VD: 20">
             </div>
-            <div class="muted" style="font-size:11px;margin:-6px 0 10px;">Phải khớp đúng Lô hàng + Sản phẩm + Quy cách đã có ở tab "Xuất hàng" — hệ thống tự cộng số thùng này vào "Đã xuất" của đúng dòng đó.</div>
+            <div class="muted" style="font-size:11px;margin:-6px 0 10px;" id="culled-reassign-help">Phải khớp đúng Lô hàng + Sản phẩm + Quy cách đã có ở tab "Xuất hàng" — hệ thống tự cộng số thùng này vào "Đã xuất" của đúng dòng đó.</div>
           </div>
           <div class="form-group">
             <label for="culled-note">Ghi chú</label>
