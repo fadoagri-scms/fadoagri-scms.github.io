@@ -302,6 +302,27 @@
   .success{color:var(--green);font-weight:600;}
   .warn-text{color:var(--amber);font-weight:600;}
 
+  /* "Cân đối lô" trong form Cập nhật sản xuất — phép trừ Nhập → Thất thoát hiện
+     realtime khi đang gõ, để người nhập tự soát trước khi Lưu. */
+  .fac-balance{font-size:12.5px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;line-height:1.85;font-variant-numeric:tabular-nums;}
+  .fac-balance .fb-row{display:flex;justify-content:space-between;gap:16px;}
+  .fac-balance .fb-row.fb-sub{color:var(--ink-soft);}
+  .fac-balance .fb-sep{border-top:1px solid var(--border);margin:5px 0;}
+  .fac-balance .fb-row.fb-total{font-weight:700;}
+  .fac-balance .fb-bad{color:var(--red);font-weight:700;}
+  .fac-balance .fb-loss{margin-top:5px;padding-top:5px;border-top:1px dashed var(--border);font-weight:600;}
+  .fac-balance .fb-hint{color:var(--ink-soft);}
+
+  /* Panel chi tiết 1 lô ở bảng "Tiến độ sản xuất theo lô" (accordion) */
+  .fac-detail-lot{padding:9px 2px;border-top:1px solid var(--border);}
+  .fac-detail-lot:first-child{border-top:none;}
+  .fac-detail-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-weight:600;margin-bottom:3px;}
+  .fac-breakdown{display:flex;flex-wrap:wrap;gap:3px 14px;font-size:12px;margin:3px 0 5px;}
+  .fac-mini-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:3px;}
+  .fac-mini-table th,.fac-mini-table td{text-align:left;padding:3px 8px;border-bottom:1px solid var(--border);}
+  .fac-mini-table th{color:var(--ink-soft);font-weight:600;}
+  .fac-mini-table tr:last-child td{border-bottom:none;}
+
   .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
   .three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
   .stat-block{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:20px 22px;}

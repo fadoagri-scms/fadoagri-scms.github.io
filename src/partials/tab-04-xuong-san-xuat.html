@@ -14,14 +14,14 @@
           <div class="muted" style="font-size:12px;">Tại xưởng dừa</div>
         </div>
         <div class="stat-block">
-          <div class="stat-title">Hao hụt gọt vỏ trung bình</div>
+          <div class="stat-title">Hao hụt trung bình</div>
           <div class="stat-value" id="stat-factory-loss">—</div>
-          <div class="muted" style="font-size:12px;">Kg dừa thô → kg thành phẩm</div>
+          <div class="muted" style="font-size:12px;">(Dạt bỏ + Thất thoát) ÷ Số lượng nhập</div>
         </div>
         <div class="stat-block">
           <div class="stat-title">Thời gian xử lý trung bình</div>
           <div class="stat-value" id="stat-factory-duration">—</div>
-          <div class="muted" style="font-size:12px;">Từ nhận thô đến đóng gói</div>
+          <div class="muted" style="font-size:12px;">Từ Bắt đầu đến Kết thúc mỗi đợt</div>
         </div>
       </div>
 
@@ -36,10 +36,10 @@
       <div class="card">
         <table>
           <thead>
-            <tr><th>Lô hàng</th><th>NCC</th><th>Chủng loại</th><th>Số lượng</th><th>Ngày nhập</th><th>Ngày sản xuất</th><th>Thành phẩm</th><th>Sản phẩm</th><th>Quy cách</th><th>Số lượng thùng</th><th>Hao hụt</th><th>Rớt/chưa đạt chuẩn</th><th>Ghi chú</th><th>Bắt đầu</th><th>Kết thúc</th><th>Tổng số lượng thùng</th><th>Thao tác</th></tr>
+            <tr><th>Lô hàng</th><th>NCC</th><th>Nhập</th><th>Thành phẩm</th><th>Đóng thùng</th><th>Hao hụt %</th><th>Cân đối</th><th>Ngày SX</th><th>Thao tác</th></tr>
           </thead>
           <tbody id="factory-tbody">
-            <tr><td colspan="17" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
+            <tr><td colspan="9" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
           </tbody>
         </table>
       </div>
@@ -201,6 +201,14 @@
             <label for="fac-finished-qty">Thành phẩm (trái)</label>
             <input type="text" id="fac-finished-qty" placeholder="VD: 2.000">
           </div>
+          <div class="form-group">
+            <label for="fac-rot-chuan">Rớt / chưa đạt chuẩn (trái)</label>
+            <input type="text" id="fac-rot-chuan" placeholder="VD: 200 — còn xử lý được">
+          </div>
+          <div class="form-group">
+            <label for="fac-ton-nl">Tồn nguyên liệu chưa SX (trái)</label>
+            <input type="text" id="fac-ton-nl" placeholder="VD: 180 — trái còn tốt, để lại đợt sau">
+          </div>
           <div class="form-group form-group-full">
             <label for="fac-ghichu">Ghi chú</label>
             <textarea id="fac-ghichu" rows="2" placeholder="Ghi chú thêm cho đợt này (không bắt buộc)."></textarea>
@@ -213,7 +221,11 @@
               <option value="Nứt đầu"></option>
             </datalist>
             <button type="button" class="btn-secondary" id="btn-add-waste-row" style="margin-top:4px;">+ Thêm lý do</button>
-            <div class="muted" style="font-size:11px;margin-top:4px;">Chỉ tính hàng hỏng hẳn (bể gáo, nứt đầu...) — hàng còn nguyên nhưng rớt size/chưa đạt chuẩn (còn cứu được) KHÔNG tính ở đây, hệ thống tự tính riêng bằng Nhập − Thành phẩm − Dạt bỏ.</div>
+            <div class="muted" style="font-size:11px;margin-top:4px;">Chỉ tính hàng hỏng hẳn (bể gáo, nứt đầu...). Hàng rớt size/chưa đạt chuẩn còn xử lý được thì gõ vào ô "Rớt / chưa đạt chuẩn" phía trên. Phần còn lại không giải thích được (đếm hụt, rơi vãi...) hệ thống tự tính là "Thất thoát".</div>
+          </div>
+          <div class="form-group form-group-full">
+            <label>Cân đối lô</label>
+            <div id="fac-balance-panel" class="fac-balance"></div>
           </div>
           <div class="form-group form-group-full">
             <label>Sản phẩm &amp; Quy cách đóng thùng</label>
