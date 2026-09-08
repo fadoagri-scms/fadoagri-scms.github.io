@@ -427,12 +427,12 @@
 
   // packing_text: mỗi dòng "[<nguyên liệu> → ]<sản phẩm> · <số lượng>" (do
   // app tự sinh từ dữ liệu đóng thùng, xem formatPackingTextFromBoxes trong
-  // app.js) — gộp theo nguyên liệu (nhiều sản phẩm/quy cách có thể cùng 1
-  // nguyên liệu, không lặp lại nhãn nguyên liệu từng dòng). Tên riêng
-  // (nguyên liệu/sản phẩm) tra qua từ điển EN/ngôn ngữ đặc biệt của đúng lô
-  // đó nếu đang xem bản tương ứng, không có bản dịch thì tự dùng lại tiếng
-  // Việt. Đơn vị "thùng/boxes/..." KHÔNG tra từ điển — luôn dùng UNIT_WORDS
-  // cố định vì đây là đơn vị chung, không cần dịch riêng từng lô.
+  // app.js). Trang khách CHỈ hiện tên sản phẩm + số lượng — bỏ phần
+  // "<nguyên liệu> →" (chủng loại thô) vì: (1) đã hiện 1 lần ở "Nguồn gốc",
+  // (2) trước đây gõ tay ô Chủng loại và tự lấy chủng loại ở đây dễ lệch
+  // nhau. Tên sản phẩm tra qua từ điển EN/ngôn ngữ đặc biệt của đúng lô nếu
+  // đang xem bản tương ứng; không có bản dịch thì dùng lại tiếng Việt. Đơn
+  // vị "thùng/boxes/..." KHÔNG tra từ điển — luôn dùng UNIT_WORDS cố định.
   function renderPackingLines(text, containerId, termsEn, termsExtra){
     termsEn = termsEn || {};
     termsExtra = termsExtra || {};
@@ -442,47 +442,33 @@
       return term;
     }
 
-    var groups = [];
-    var groupByName = {};
+    var items = [];
     String(text).split('\n').map(function(l){ return l.trim(); }).filter(Boolean).forEach(function(line){
       var arrowIdx = line.indexOf(' → ');
-      var source = arrowIdx === -1 ? '' : line.slice(0, arrowIdx);
       var rest = arrowIdx === -1 ? line : line.slice(arrowIdx + 3);
       var qtyIdx = rest.lastIndexOf(' · ');
       var name = qtyIdx === -1 ? rest : rest.slice(0, qtyIdx);
       var qty = qtyIdx === -1 ? '' : rest.slice(qtyIdx + 3);
-      var groupKey = source || ' ';
-      if(!groupByName[groupKey]){
-        groupByName[groupKey] = { source: source, items: [] };
-        groups.push(groupByName[groupKey]);
-      }
-      groupByName[groupKey].items.push({ name: name, qty: qty });
+      items.push({ name: name, qty: qty });
     });
 
     var wrap = $(containerId || 'packingLines');
     wrap.textContent = '';
     wrap.hidden = false;
-    groups.forEach(function(g){
-      var groupEl = document.createElement('div');
-      groupEl.className = 'pk-group';
-      if(g.source){
-        var titleEl = document.createElement('div'); titleEl.className = 'pk-group-title';
-        titleEl.textContent = tr(g.source);
-        groupEl.appendChild(titleEl);
+    var groupEl = document.createElement('div');
+    groupEl.className = 'pk-group';
+    items.forEach(function(it){
+      var row = document.createElement('div'); row.className = 'pk-item';
+      var nameEl = document.createElement('span'); nameEl.className = 'pk-name'; nameEl.textContent = tr(it.name);
+      row.appendChild(nameEl);
+      if(it.qty){
+        var qtyEl = document.createElement('span'); qtyEl.className = 'pk-qty';
+        qtyEl.textContent = it.qty + ' ' + tFixed(UNIT_WORDS);
+        row.appendChild(qtyEl);
       }
-      g.items.forEach(function(it){
-        var row = document.createElement('div'); row.className = 'pk-item';
-        var nameEl = document.createElement('span'); nameEl.className = 'pk-name'; nameEl.textContent = tr(it.name);
-        row.appendChild(nameEl);
-        if(it.qty){
-          var qtyEl = document.createElement('span'); qtyEl.className = 'pk-qty';
-          qtyEl.textContent = it.qty + ' ' + tFixed(UNIT_WORDS);
-          row.appendChild(qtyEl);
-        }
-        groupEl.appendChild(row);
-      });
-      wrap.appendChild(groupEl);
+      groupEl.appendChild(row);
     });
+    wrap.appendChild(groupEl);
   }
 
   // Các trường tự nhập (tên sản phẩm/NCC/vùng/quy cách) đổi qua đổi lại theo
@@ -613,21 +599,24 @@
   }
 
   // 4 mốc công khai, ứng với 6 STAGE_ORDER nội bộ (0='Cảng đi' … 5='Khách đã
-  // nhận hàng'): Đóng hàng (trước 0) → Ngày xuất hàng (đúng mốc 0) → Đang
-  // vận chuyển (gộp 3 mốc giữa 1,2,3: Trên biển/Thông quan/Cảng đến, khách
-  // không cần biết chi tiết từng chặng) → Ngày giao hàng (mốc 4,5).
+  // nhận hàng'): Đóng hàng → Ngày xuất hàng (rời kho Xưởng —
+  // factory_finished_stock.export_date; chưa ghi nhận thì suy từ mốc 'Cảng
+  // đi') → Đang vận chuyển (gộp 3 mốc giữa 1,2,3: Trên biển/Thông quan/Cảng
+  // đến) → Ngày giao hàng (mốc 4,5).
   function renderTimeline(d){
     var idx = stageIndex(d.shipping_stage);
+    var hasShipOut = !!d.ship_out_date;
     var el = $('timeline');
     el.textContent = '';
 
-    // Đóng hàng — coi là "done" nếu đã có ngày đóng hàng hoặc lô đã có bất kỳ mốc vận chuyển nào.
-    var packedState = (d.packed_date || idx >= 0) ? 'done' : (idx === -1 && !d.packed_date ? 'current' : '');
+    // Đóng hàng — "done" nếu đã có ngày đóng hàng / đã rời kho / đã có mốc vận chuyển.
+    var packedState = (d.packed_date || hasShipOut || idx >= 0) ? 'done' : 'current';
     el.appendChild(tlStep({ vi:'Đóng hàng', en:'Packed', ja:'梱包完了', ko:'포장 완료', zh:'已装箱' }, d.packed_date ? fmtDate(d.packed_date) : '', packedState));
 
-    // Ngày xuất hàng — mốc 'Cảng đi' (idx 0)
-    var shippedState = idx > 0 ? 'done' : (idx === 0 ? 'current' : '');
-    var shippedDate = d.shipping_etd ? fmtDate(d.shipping_etd) : '';
+    // Ngày xuất hàng — ngày rời kho Xưởng Ba Phi (export_date). Chưa ghi
+    // nhận thì lùi về giai đoạn Logistics: đã tới 'Cảng đi' coi như đã xuất.
+    var shippedState = idx >= 1 ? 'done' : ((idx === 0 || hasShipOut) ? 'current' : '');
+    var shippedDate = d.ship_out_date ? fmtDate(d.ship_out_date) : (idx >= 0 && d.shipping_etd ? fmtDate(d.shipping_etd) : '');
     el.appendChild(tlStep({ vi:'Ngày xuất hàng', en:'Ship-out date', ja:'出荷日', ko:'출고일', zh:'出运日期' }, shippedDate, shippedState));
 
     // Đang vận chuyển — gộp 'Trên biển'/'Thông quan'/'Cảng đến' (idx 1-3)

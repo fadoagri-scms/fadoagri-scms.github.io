@@ -6254,10 +6254,31 @@ const titles = {
       const addresses = Array.from(new Set((suppliers || []).map(function(s){ return s.address; }).filter(Boolean)));
       return addresses.join('; ');
     }
-    // Ngày hệ thống tự tạo dòng vận chuyển đầu tiên cho lô — trùng đúng lúc
-    // Trạng thái đơn hàng chuyển sang "Đã đóng hàng" (xem saveOrderStatus),
-    // dùng làm mốc "ngày đóng hàng" thay vì phải nhập tay lại.
+    // Gợi ý "Ngày đóng hàng": ưu tiên NGÀY SẢN XUẤT gần nhất ở Xưởng Ba Phi
+    // (sát ngày đóng thùng thật). Hàng không qua Xưởng (Chanh/Thanh long/
+    // Chuối... mua qua NCC ngoài) không có mốc này thì lùi về ngày hệ thống
+    // tạo dòng Logistics đầu tiên (≈ lúc chuyển Trạng thái đơn sang "Đã đóng
+    // hàng", xem saveOrderStatus). Admin vẫn sửa tay được sau khi điền.
     async function getTracePackedDateSuggestion(batchCode){
+      const { data: rbRows, error: rbErr } = await sb
+        .from('raw_batches')
+        .select('factory_batches(production_date)')
+        .eq('batch', batchCode)
+        .is('deleted_at', null);
+      if(rbErr) throw rbErr;
+      let latestProd = '';
+      (rbRows || []).forEach(function(r){
+        // raw_batch_id có ràng buộc unique nên factory_batches trả về 1
+        // object (hoặc null), không phải mảng — chuẩn hoá lại cho chắc.
+        const fbs = Array.isArray(r.factory_batches)
+          ? r.factory_batches
+          : (r.factory_batches ? [r.factory_batches] : []);
+        fbs.forEach(function(fb){
+          const pd = fb && fb.production_date ? String(fb.production_date).slice(0, 10) : '';
+          if(pd && pd > latestProd) latestProd = pd;
+        });
+      });
+      if(latestProd) return latestProd;
       const { data, error } = await sb.from('shipments').select('created_at').eq('batch_code', batchCode).is('deleted_at', null).order('created_at', { ascending: true }).limit(1);
       if(error) throw error;
       return data && data.length ? String(data[0].created_at).slice(0, 10) : '';
