@@ -4568,7 +4568,11 @@ const titles = {
         statToday.textContent = String(allQcRows.filter(function(d){ return (d.created_at || '').slice(0, 10) === todayStr; }).length);
       }
       if(statPending){
-        statPending.textContent = String(allQcRows.filter(function(d){ return d.result === 'Chờ xác nhận'; }).length);
+        // Đếm theo LÔ (khớp cảnh báo "lô đang chờ QC xác nhận" ở Tổng quan),
+        // không theo từng lượt kiểm.
+        statPending.textContent = String(new Set(
+          allQcRows.filter(function(d){ return d.result === 'Chờ xác nhận'; }).map(function(d){ return d.batch_code; })
+        ).size);
       }
       if(statPass){
         // Tính theo trọng số số lượng (so_luong_dat / so_luong_kiem) khi đã
@@ -8436,7 +8440,7 @@ const titles = {
         { count: pendingProductionCount, icon: 'ti-building-factory-2', chip: 'nic-amber', text: 'lô đã có nguyên liệu nhưng chưa cập nhật sản xuất', sub: 'Xưởng Ba Phi', tab: 'factory' },
         { count: missingDocsCount, icon: 'ti-file-text', chip: 'nic-amber', text: 'lô đang thiếu chứng từ trước khi thông quan', sub: 'Chứng từ', tab: 'docs' },
         { count: overdueFeedbackCount, icon: 'ti-message-star', chip: 'nic-amber', text: 'lô đã quá hạn phản hồi khách hàng (quá ' + FEEDBACK_DEADLINE_DAYS + ' ngày)', sub: 'Feedback KH', tab: 'feedback' },
-        { count: qcPendingCount, icon: 'ti-clipboard-check', chip: 'nic-blue', text: 'lượt kiểm QC đang chờ xác nhận kết quả', sub: 'Đánh giá chất lượng', tab: 'qc' },
+        { count: qcPendingCount, icon: 'ti-clipboard-check', chip: 'nic-blue', text: 'lô đang chờ QC xác nhận kết quả', sub: 'Đánh giá chất lượng', tab: 'qc' },
         { count: staleInventoryCount, icon: 'ti-package', chip: 'nic-amber', text: 'lô tồn kho quá ' + INVENTORY_STALE_DAYS + ' ngày chưa xuất hết', sub: 'Xưởng Ba Phi', tab: 'factory' }
       ].filter(function(item){ return item.count > 0; });
 
@@ -8664,7 +8668,11 @@ const titles = {
         const unresolvedFeedbackOverdueCount = fbRows.filter(function(d){
           return d.response_deadline && d.status !== 'Đã xử lý' && d.response_deadline < todayStr();
         }).length;
-        const qcPendingCount = qcRows.filter(function(d){ return d.result === 'Chờ xác nhận'; }).length;
+        // Đếm theo LÔ (số lô có ít nhất 1 lượt kiểm "Chờ xác nhận"), không
+        // theo từng lượt kiểm — 1 lô nhiều lượt chờ vẫn chỉ là 1 việc cần QC xử lý.
+        const qcPendingCount = new Set(
+          qcRows.filter(function(d){ return d.result === 'Chờ xác nhận'; }).map(function(d){ return d.batch_code; })
+        ).size;
         const overdueFeedbackCount = shipRows.filter(function(d){
           if(d.stage !== 'Khách đã nhận hàng' || !d.received_date) return false;
           const hasFeedback = fbRows.some(function(f){ return f.batch_code === d.batch_code; });
@@ -10741,7 +10749,8 @@ const titles = {
     function matchesTmSoPeriod(d){
       if(!tmSoYearSelect || !tmSoYearSelect.value) return true;
       const p = periodParts(d.ngay_so_che);
-      if(!p) return false;
+      // Chưa điền ngày sơ chế — luôn hiện, đừng để dòng biến mất sau khi lưu.
+      if(!p) return true;
       if(p.year !== Number(tmSoYearSelect.value)) return false;
       if(tmSoMonthSelect && tmSoMonthSelect.value && p.month !== Number(tmSoMonthSelect.value)) return false;
       return true;
