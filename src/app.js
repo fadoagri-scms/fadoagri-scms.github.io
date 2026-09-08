@@ -8626,6 +8626,29 @@ const titles = {
 
         const qcRows = qcRes.data, shipRows = shipRes.data, docRows = docRes.data, fbRows = fbRes.data, poRows = poRes.data;
 
+        // ---- Kỳ đang chọn ở đầu tab (áp cho 4 thẻ KPI) ----
+        // Chưa có giá trị (lúc mới tải, trước khi populateSelectors chạy) →
+        // không lọc. Lô/lượt không có ngày → KHÔNG tính vào KPI theo kỳ (dữ
+        // liệu chưa đủ để xếp vào tháng/năm nào) — khác các danh sách ở #1
+        // (danh sách vẫn hiện lô chưa có ngày).
+        const _ovYearEl = document.getElementById('chart-year-select');
+        const _ovMonthEl = document.getElementById('chart-month-select');
+        const ovPeriod = (_ovYearEl && _ovYearEl.value)
+          ? { year: Number(_ovYearEl.value), month: (_ovMonthEl && _ovMonthEl.value) ? Number(_ovMonthEl.value) : null }
+          : null;
+        function inOvPeriod(dateStr){
+          if(!ovPeriod) return true;
+          const p = periodParts(dateStr);
+          if(!p) return false;
+          if(p.year !== ovPeriod.year) return false;
+          if(ovPeriod.month && p.month !== ovPeriod.month) return false;
+          return true;
+        }
+        function batchInOvPeriod(batchCode){
+          const b = sharedBatchSummaries[batchCode];
+          return inOvPeriod(b && b.periodDate);
+        }
+
         // "Lô hàng đang xử lý" = tổng số lô (mọi ngành hàng — Dừa/Chanh/Thanh
         // long) lấy từ sharedBatchSummaries (nguồn QC tổng hợp) mà QC chưa
         // "Đạt", dùng đúng cùng tiêu chí overallStatus() mà module Đánh giá
@@ -8639,15 +8662,28 @@ const titles = {
           return 'Đạt';
         }
         const activeBatches = Object.values(sharedBatchSummaries)
-          .filter(function(b){ return b.hasSourceInfo && batchQcStatus(b.batch) !== 'Đạt'; })
+          .filter(function(b){ return b.hasSourceInfo && batchInOvPeriod(b.batch) && batchQcStatus(b.batch) !== 'Đạt'; })
           .length;
-        const activeShipments = shipRows.filter(function(d){ return d.stage !== 'Khách đã nhận hàng'; }).length;
-        const decidedQc = qcRows.filter(function(d){ return d.result && d.result !== 'Chờ xác nhận'; });
-        const passedQc = decidedQc.filter(function(d){ return d.result === 'Đạt'; });
-        const ratings = fbRows.filter(function(d){ return d.rating != null; }).map(function(d){ return d.rating; });
+        const activeShipments = shipRows.filter(function(d){ return d.stage !== 'Khách đã nhận hàng' && batchInOvPeriod(d.batch_code); }).length;
+        const ratings = fbRows.filter(function(d){ return d.rating != null && batchInOvPeriod(d.batch_code); }).map(function(d){ return d.rating; });
         const avgRating = ratings.length ? ratings.reduce(function(a, b){ return a + b; }, 0) / ratings.length : null;
 
-        const qcRatePct = decidedQc.length ? Math.round(passedQc.length / decidedQc.length * 100) : null;
+        // Tỷ lệ đạt QC = Σ số lượng đạt / Σ số lượng kiểm (có trọng số theo
+        // số lượng thực) — giống hệt bảng QC (pickBatchPassRate) và Đánh giá
+        // NCC. Lượt kiểm chưa nhập số lượng thì tạm coi là 1 đơn vị đạt/không
+        // theo Kết quả; lượt "Chờ xác nhận" chưa có số lượng thì bỏ qua.
+        let qcKiem = 0, qcDat = 0;
+        qcRows.forEach(function(d){
+          if(!batchInOvPeriod(d.batch_code)) return;
+          if(d.so_luong_kiem != null && Number(d.so_luong_kiem) > 0){
+            qcKiem += Number(d.so_luong_kiem);
+            qcDat += d.so_luong_dat != null ? Number(d.so_luong_dat) : 0;
+          } else if(d.result && d.result !== 'Chờ xác nhận'){
+            qcKiem += 1;
+            qcDat += (d.result === 'Đạt') ? 1 : 0;
+          }
+        });
+        const qcRatePct = qcKiem ? Math.round(qcDat / qcKiem * 100) : null;
 
         setText(kpiActive, String(activeBatches));
         setText(kpiContainers, String(activeShipments));
@@ -8833,6 +8869,12 @@ const titles = {
     onDocumentsChecklistChanged(loadOverview);
     onFeedbacksChanged(loadOverview);
     onExpiringStockChanged(loadOverview);
+    // Đổi kỳ ở đầu tab → tính lại 4 thẻ KPI (biểu đồ bên dưới có listener
+    // riêng trong IIFE biểu đồ). Cùng lắng 1 element, 2 listener chạy độc lập.
+    ['chart-month-select', 'chart-year-select'].forEach(function(id){
+      const el = document.getElementById(id);
+      if(el) el.addEventListener('change', loadOverview);
+    });
   })();
 
   // ---- Tổng quan: biểu đồ lô hàng theo tháng/năm ----
@@ -9116,23 +9158,33 @@ const titles = {
       // trên số lượt kiểm ĐÃ có kết quả (bỏ "Chờ xác nhận"), giống hệt cách
       // module Đánh giá chất lượng tự tính tỷ lệ đạt tổng.
       if(qcRateContainer){
-        const qcDecidedByMonth = new Array(12).fill(0);
-        const qcPassedByMonth = new Array(12).fill(0);
+        // Trọng số theo SỐ LƯỢNG (Σ đạt / Σ kiểm) — giống KPI Tổng quan,
+        // bảng QC và Đánh giá NCC. Lượt chưa nhập số lượng → tạm 1 đơn vị.
+        const qcKiemByMonth = new Array(12).fill(0);
+        const qcDatByMonth = new Array(12).fill(0);
         qcCheckRows.forEach(function(q){
-          if(!q.result || q.result === 'Chờ xác nhận') return;
           const p = periodParts(q.created_at);
           if(!p || p.year !== year) return;
-          qcDecidedByMonth[p.month - 1] += 1;
-          if(q.result === 'Đạt') qcPassedByMonth[p.month - 1] += 1;
+          let kiem = 0, dat = 0;
+          if(q.so_luong_kiem != null && Number(q.so_luong_kiem) > 0){
+            kiem = Number(q.so_luong_kiem);
+            dat = q.so_luong_dat != null ? Number(q.so_luong_dat) : 0;
+          } else if(q.result && q.result !== 'Chờ xác nhận'){
+            kiem = 1; dat = (q.result === 'Đạt') ? 1 : 0;
+          } else {
+            return;
+          }
+          qcKiemByMonth[p.month - 1] += kiem;
+          qcDatByMonth[p.month - 1] += dat;
         });
-        const qcRateItems = qcDecidedByMonth.map(function(decided, i){
-          const pct = decided > 0 ? Math.round(qcPassedByMonth[i] / decided * 100) : 0;
+        const qcRateItems = qcKiemByMonth.map(function(kiem, i){
+          const pct = kiem > 0 ? Math.round(qcDatByMonth[i] / kiem * 100) : 0;
           return {
             label: MONTH_NAMES[i],
             value: pct,
             color: 'var(--forest)',
             muted: monthFilter ? (i + 1 !== monthFilter) : false,
-            tooltip: decided > 0 ? ('Tháng ' + (i + 1) + '/' + year + ': đạt ' + pct + '% (' + qcPassedByMonth[i] + '/' + decided + ' lượt)') : ('Tháng ' + (i + 1) + '/' + year + ': chưa có lượt kiểm')
+            tooltip: kiem > 0 ? ('Tháng ' + (i + 1) + '/' + year + ': đạt ' + pct + '%') : ('Tháng ' + (i + 1) + '/' + year + ': chưa có lượt kiểm')
           };
         });
         renderBarChart(qcRateContainer, qcRateItems, {

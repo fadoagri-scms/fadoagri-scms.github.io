@@ -1,4 +1,11 @@
 <section class="tab-content active" id="tab-overview">
+    <div class="section-header-row" style="margin-bottom:16px;">
+      <div class="section-label" style="margin:0;">Số liệu theo kỳ</div>
+      <div class="chart-filter-row">
+        <select id="chart-month-select" aria-label="Chọn tháng"></select>
+        <select id="chart-year-select" aria-label="Chọn năm"></select>
+      </div>
+    </div>
     <div class="kpi-grid">
       <div class="kpi-card">
         <div class="kpi-top-row"><div class="label">Lô hàng đang xử lý</div><span class="icon-chip nic-blue"><i class="ti ti-package"></i></span></div>
@@ -65,13 +72,8 @@
       </table>
     </div>
 
-    <div class="section-header-row">
-      <div class="section-label">Thống kê lô hàng theo thời gian</div>
-      <div class="chart-filter-row">
-        <select id="chart-month-select" aria-label="Chọn tháng"></select>
-        <select id="chart-year-select" aria-label="Chọn năm"></select>
-      </div>
-    </div>
+    <div class="section-label">Thống kê lô hàng theo thời gian</div>
+    <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Biểu đồ luôn hiện đủ 12 tháng của năm đang chọn; chọn tháng chỉ để làm nổi bật cột tháng đó.</div>
     <div class="two-col">
       <div class="card chart-card">
         <div class="chart-card-title">Lô hàng theo sản phẩm</div>
