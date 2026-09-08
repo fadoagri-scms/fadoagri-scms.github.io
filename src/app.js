@@ -7059,6 +7059,7 @@ const titles = {
     let editingVariety = null;
     let editingQuyCach = null;
     let editingSanPham = null;
+    let editingProduced = null;   // số thùng ĐÃ đóng gói của dòng đang sửa — để cảnh báo khi nhập "đã xuất" vượt quá
 
     function parseQty(s){
       if(s === undefined || s === null || String(s).trim() === '') return null;
@@ -7521,7 +7522,7 @@ const titles = {
     }
 
     function openModal(){ inventoryOverlay.classList.add('active'); }
-    function closeModal(){ inventoryOverlay.classList.remove('active'); inventoryForm.reset(); editingBatch = null; editingVariety = null; editingQuyCach = null; editingSanPham = null; }
+    function closeModal(){ inventoryOverlay.classList.remove('active'); inventoryForm.reset(); editingBatch = null; editingVariety = null; editingQuyCach = null; editingSanPham = null; editingProduced = null; }
 
     function openEditModal(tr){
       // Dòng "chưa rõ Quy cách" VÀ chưa từng có bản ghi xuất nào thì không
@@ -7537,6 +7538,7 @@ const titles = {
       editingVariety = tr.dataset.variety || UNSPECIFIED_VARIETY;
       editingQuyCach = tr.dataset.quyCach || null;
       editingSanPham = tr.dataset.sanPham || '';
+      editingProduced = tr.dataset.produced ? Number(tr.dataset.produced) : null;
       if(inventoryModalBatchInfo){
         const varietyLabel = editingVariety === UNSPECIFIED_VARIETY ? '' : (' · Chủng loại: ' + editingVariety);
         const sanPhamLabel = editingSanPham ? (' · Sản phẩm: ' + editingSanPham) : '';
@@ -7596,6 +7598,16 @@ const titles = {
         exported_qty: parseQty(fieldVal('inv-exported-qty')),
         deleted_at: null
       };
+
+      // Chặn nhầm: "đã xuất" không thể lớn hơn "đã đóng gói" cho cùng 1 dòng
+      // — nếu vượt (thường do gõ nhầm) thì hỏi lại, không tự chặn cứng.
+      if(payload.exported_qty != null && editingProduced != null && payload.exported_qty > editingProduced){
+        const ok = await confirmDialog(
+          'Số đã xuất (' + fmtBoxQty(payload.exported_qty) + ') lớn hơn số đã đóng gói (' + fmtBoxQty(editingProduced) + ') của dòng này — thường là nhập nhầm, sẽ làm tồn kho âm. Vẫn lưu?',
+          { title: 'Kiểm tra lại số liệu', okLabel: 'Vẫn lưu', danger: false }
+        );
+        if(!ok) return;
+      }
 
       const originalLabel = inventorySubmitBtn.textContent;
       inventorySubmitBtn.disabled = true;
