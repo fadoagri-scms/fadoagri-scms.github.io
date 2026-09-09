@@ -436,20 +436,49 @@
   function renderPackingLines(text, containerId, termsEn, termsExtra){
     termsEn = termsEn || {};
     termsExtra = termsExtra || {};
+
+    // Bản dịch tên sản phẩm ở tiêu đề lô (product_name / _en / _extra) —
+    // dùng làm lớp dự phòng khi từ điển mục "Đóng gói" (termsEn/termsExtra)
+    // thiếu đúng dòng đó: staff hay điền ô "Tên sản phẩm (EN)" ở đầu form
+    // nhưng quên điền lại đúng tên đó trong bảng dịch mục Đóng gói, làm dòng
+    // đóng gói rơi về tiếng Việt dù tiêu đề đã có bản dịch. Lô 1 sản phẩm thì
+    // map thẳng; lô nhiều sản phẩm thì ghép theo thứ tự khi 2 danh sách (VI và
+    // bản dịch, ngăn bằng ", ") cùng số phần tử.
+    function heroNameMap(suffix){
+      var vi = currentRecord && currentRecord.product_name;
+      var tgt = currentRecord && currentRecord['product_name' + suffix];
+      if(!vi || !tgt) return {};
+      var vs = String(vi).split(', ').map(function(s){ return s.trim(); });
+      var ts = String(tgt).split(', ').map(function(s){ return s.trim(); });
+      var m = {};
+      if(vs.length === 1 && vs[0]){ m[vs[0]] = String(tgt).trim(); }
+      else if(vs.length === ts.length){ vs.forEach(function(v, i){ if(v) m[v] = ts[i]; }); }
+      return m;
+    }
+    var heroEnMap = heroNameMap('_en');
+    var heroExtraMap = heroNameMap('_extra');
+
     function tr(term){
-      if(lang !== 'vi' && lang !== 'en') return termsExtra[term] || termsEn[term] || term;
-      if(lang === 'en') return termsEn[term] || term;
+      if(lang !== 'vi' && lang !== 'en') return termsExtra[term] || heroExtraMap[term] || termsEn[term] || heroEnMap[term] || term;
+      if(lang === 'en') return termsEn[term] || heroEnMap[term] || term;
       return term;
     }
 
-    var items = [];
+    // Gom các dòng cùng tên sản phẩm (khoá theo tên gốc tiếng Việt cho ổn
+    // định với mọi ngôn ngữ) và cộng dồn số lượng — trang khách đã bỏ phần
+    // "<nguyên liệu> →" và quy cách (trái/thùng), nên nhiều dòng cùng 1 sản
+    // phẩm chỉ khác 2 thứ đó sẽ trông y hệt nhau, phải gộp thành 1 dòng.
+    var order = [];
+    var byName = {};
     String(text).split('\n').map(function(l){ return l.trim(); }).filter(Boolean).forEach(function(line){
       var arrowIdx = line.indexOf(' → ');
       var rest = arrowIdx === -1 ? line : line.slice(arrowIdx + 3);
       var qtyIdx = rest.lastIndexOf(' · ');
-      var name = qtyIdx === -1 ? rest : rest.slice(0, qtyIdx);
-      var qty = qtyIdx === -1 ? '' : rest.slice(qtyIdx + 3);
-      items.push({ name: name, qty: qty });
+      var name = (qtyIdx === -1 ? rest : rest.slice(0, qtyIdx)).trim();
+      var qtyRaw = qtyIdx === -1 ? '' : rest.slice(qtyIdx + 3);
+      var n = parseInt(String(qtyRaw).replace(/[^\d]/g, ''), 10);
+      if(!byName[name]){ byName[name] = { name: name, qty: 0, hasQty: false }; order.push(name); }
+      if(!isNaN(n)){ byName[name].qty += n; byName[name].hasQty = true; }
     });
 
     var wrap = $(containerId || 'packingLines');
@@ -457,13 +486,14 @@
     wrap.hidden = false;
     var groupEl = document.createElement('div');
     groupEl.className = 'pk-group';
-    items.forEach(function(it){
+    order.forEach(function(key){
+      var it = byName[key];
       var row = document.createElement('div'); row.className = 'pk-item';
       var nameEl = document.createElement('span'); nameEl.className = 'pk-name'; nameEl.textContent = tr(it.name);
       row.appendChild(nameEl);
-      if(it.qty){
+      if(it.hasQty){
         var qtyEl = document.createElement('span'); qtyEl.className = 'pk-qty';
-        qtyEl.textContent = it.qty + ' ' + tFixed(UNIT_WORDS);
+        qtyEl.textContent = it.qty.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US') + ' ' + tFixed(UNIT_WORDS);
         row.appendChild(qtyEl);
       }
       groupEl.appendChild(row);
