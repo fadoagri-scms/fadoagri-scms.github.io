@@ -627,6 +627,17 @@
   .table-inline-select:focus,
   .table-inline-input:focus{outline:none;background-color:var(--surface-2);border-color:var(--forest-deep);}
 
+  /* Ô "Ngày kiểm hàng" + "QC" nhập tay trong bảng "Chọn lô để kiểm" — gọn,
+     không chiếm hết bề ngang cột; hiện như chữ thường, chỉ nổi khung khi rê
+     chuột/đang gõ (dùng chung .table-inline-input). */
+  .qc-assign-date,
+  .qc-assign-qc{max-width:150px;font-size:12.5px;}
+  .qc-assign-date{color:var(--ink-soft);}
+  .qc-assign-date::-webkit-calendar-picker-indicator{opacity:.45;cursor:pointer;}
+  .qc-assign-date:hover::-webkit-calendar-picker-indicator,
+  .qc-assign-date:focus::-webkit-calendar-picker-indicator{opacity:.8;}
+  .qc-assign-qc::placeholder{color:var(--ink-mute);}
+
   /* Tô màu select trực tiếp trong bảng theo giá trị đang chọn (VD: Hình
      thức, Trạng thái đơn hàng, Đánh giá chất lượng ở Đánh giá chất lượng) —
      cùng bảng màu với .badge để dễ nhận biết như trước, dù giờ là ô sửa

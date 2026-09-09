@@ -358,6 +358,7 @@
             <select id="culled-type">
               <option value="market">Bán chợ</option>
               <option value="reassign">Sản xuất qua đơn khác</option>
+              <option value="rework" id="culled-type-rework-opt">Xử lý lại (cho đạt chuẩn)</option>
               <option value="discard">Dạt bỏ</option>
             </select>
           </div>
@@ -366,8 +367,13 @@
             <input type="date" id="culled-date">
           </div>
           <div class="form-group" id="culled-qty-market-group">
-            <label for="culled-qty-trai">Số lượng (trái)</label>
+            <label for="culled-qty-trai" id="culled-qty-trai-label">Số lượng (trái)</label>
             <input type="text" id="culled-qty-trai" placeholder="VD: 200">
+          </div>
+          <div class="form-group" id="culled-rework-fields" style="display:none;">
+            <label for="culled-rework-pass">Số trái ĐẠT sau khi xử lý lại</label>
+            <input type="text" id="culled-rework-pass" placeholder="VD: 400">
+            <div class="muted" style="font-size:11px;margin-top:4px;">Số đạt sẽ cộng vào Thành phẩm của lô. Phần không đạt (đưa vào − đạt) coi như dạt bỏ.</div>
           </div>
           <div id="culled-reassign-fields" style="display:none;">
             <div class="form-group" id="culled-target-batch-group">
