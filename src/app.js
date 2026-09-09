@@ -6125,6 +6125,9 @@ const titles = {
     // Số lượng nhập (trái) của lượt đang mở trong modal — dùng cho khối "Cân
     // đối lô" và để chặn Lưu khi tổng khai vượt số nhập (Thất thoát âm).
     let editingInputQty = null;
+    // Phần "Tồn NL chưa SX" của lượt đang mở đã bị chuyển/bán/dạt đi ở "Xử lý
+    // hàng tồn & rớt" — chặn không cho hạ ô "Tồn NL chưa SX" xuống dưới mức này.
+    let editingMovedTonNl = 0;
     // raw_batches (kèm factory_batches lồng) của lần render gần nhất, tra theo
     // id — nút Sửa ở bảng chỉ mang data-raw-id, lấy dữ liệu điền form từ đây
     // thay vì nhét hết vào dataset của <tr>.
@@ -6206,29 +6209,61 @@ const titles = {
       if(gross == null || gross < 0) return 0;
       return Math.max(0, gross - sumWasteRows(fb));
     }
-    function lotTonNl(fb){
-      return (fb && fb.ton_nl_qty != null) ? Math.max(0, Number(fb.ton_nl_qty)) : 0;
+    // "Tồn NL chưa SX" CÒN LẠI của 1 lượt = số khai tay (factory_batches
+    // .ton_nl_qty) trừ phần đã xử lý ở "Xử lý hàng tồn & rớt" (bán thô / dạt
+    // bỏ / chuyển sang lô khác). Phần chuyển đi đã thành 1 lượt nhập nguyên
+    // liệu ở lô đích nên không được tính lại là Tồn NL ở lô nguồn.
+    function lotTonNl(r, fb){
+      if(!fb || fb.ton_nl_qty == null) return 0;
+      const moved = processedTonNlByRawId[r && r.id] || 0;
+      return Math.max(0, Number(fb.ton_nl_qty) - moved);
+    }
+    // Phần Tồn NL đã xử lý/chuyển đi — nằm TRONG ton_nl_qty đã khai. Tách
+    // riêng để hiện "đã chuyển" mà cân đối lô vẫn khớp (lotTonNl + lotTonNlMoved
+    // luôn = ton_nl_qty), không nhảy thành Thất thoát.
+    function lotTonNlMoved(r, fb){
+      if(!fb || fb.ton_nl_qty == null) return 0;
+      const moved = processedTonNlByRawId[r && r.id] || 0;
+      return Math.min(Math.max(0, moved), Math.max(0, Number(fb.ton_nl_qty)));
+    }
+    // Lượt nguyên liệu do "Đưa sang lô khác sản xuất" tự tạo (nhận biết qua
+    // NCC đặt lúc chuyển). Khi CHƯA khai SX thì chưa nhập vào cân đối lô đích
+    // (không thổi phồng Thất thoát/"Khai vượt") — xem computeLotNumbers.
+    function isInternalTransferRaw(r){
+      return !!(r && typeof r.ncc === 'string' && r.ncc.indexOf('Chuyển nội bộ từ ') === 0);
     }
     // Gộp số liệu cả lô (nhiều lượt nhập). missing/lossPct chỉ có nghĩa khi
     // đã có ít nhất 1 lượt khai Thành phẩm.
     function computeLotNumbers(items){
-      let input = 0, finished = null, waste = 0, rotChuan = 0, tonNl = 0, resolved = 0;
-      let anyProduced = false, allProduced = true;
+      let input = 0, finished = null, waste = 0, rotChuan = 0, tonNl = 0, tonNlMoved = 0, resolved = 0;
+      let anyProduced = false, allProduced = true, pendingTransfer = 0;
       items.forEach(function(r){
         const fb = getFb(r);
+        // Lượt "chuyển nội bộ" chưa khai SX: nguyên liệu vừa chuyển sang, chưa
+        // đưa vào chế biến ở lô này — chưa tính vào cân đối (Nhập/Thất thoát),
+        // vẫn hiện dòng "Chưa SX" riêng ở chi tiết để nhắc khai.
+        if(isInternalTransferRaw(r) && (!fb || fb.finished_qty == null)){
+          pendingTransfer += parseQty(r.soluong) || 0;
+          allProduced = false;   // vẫn còn lượt phải khai SX → lô "Đang SX"
+          return;
+        }
         input += parseQty(r.soluong) || 0;
         waste += sumWasteRows(fb);
         rotChuan += lotRotChuan(r, fb);
-        tonNl += lotTonNl(fb);
+        tonNl += lotTonNl(r, fb);
+        tonNlMoved += lotTonNlMoved(r, fb);
         resolved += resolvedDatByRawId[r.id] || 0;
         if(fb && fb.finished_qty != null){ anyProduced = true; finished = (finished || 0) + Number(fb.finished_qty); }
         else allProduced = false;
       });
-      const missing = finished != null ? (input - finished - waste - rotChuan - tonNl) : null;
+      // tonNl + tonNlMoved luôn = tổng ton_nl_qty đã khai — trừ cả 2 để "phần
+      // đã chuyển đi" không bị tính là Thất thoát ở lô nguồn.
+      const missing = finished != null ? (input - finished - waste - rotChuan - tonNl - tonNlMoved) : null;
       const lossQty = missing != null ? (waste + Math.max(0, missing)) : null;
       const lossPct = (lossQty != null && input > 0) ? (lossQty / input) * 100 : null;
       return {
-        input: input, finished: finished, waste: waste, rotChuan: rotChuan, tonNl: tonNl,
+        input: input, finished: finished, waste: waste, rotChuan: rotChuan,
+        tonNl: tonNl, tonNlMoved: tonNlMoved, pendingTransfer: pendingTransfer,
         resolved: resolved, missing: missing, lossPct: lossPct,
         balanced: missing == null ? null : missing >= 0,
         status: !anyProduced ? 'chua' : (allProduced ? 'xong' : 'dang')
@@ -6266,6 +6301,13 @@ const titles = {
       if(n.input > 0){
         inputTd.textContent = viNum(n.input) + ' trái' + (items.length > 1 ? ' · ' + items.length + ' lượt' : '');
       } else { inputTd.textContent = '—'; inputTd.className = 'muted'; }
+      if(n.pendingTransfer > 0){
+        const s = document.createElement('div');
+        s.className = 'muted';
+        s.style.cssText = 'font-size:10.5px;margin-top:2px;';
+        s.textContent = '+ ' + viNum(n.pendingTransfer) + ' trái chuyển nội bộ, chờ khai SX';
+        inputTd.appendChild(s);
+      }
       tr.appendChild(inputTd);
 
       // 4 · Thành phẩm + %
@@ -6402,14 +6444,17 @@ const titles = {
           const p = document.createElement('div');
           p.className = 'warn-text';
           p.style.fontSize = '12px';
-          p.textContent = 'Chưa cập nhật sản xuất cho lượt này — bấm nút bút chì để nhập.';
+          p.textContent = isInternalTransferRaw(r)
+            ? 'Hàng chuyển nội bộ — chưa khai SX. Chưa tính vào cân đối lô; bấm bút chì để khai Thành phẩm khi đã chế biến.'
+            : 'Chưa cập nhật sản xuất cho lượt này — bấm nút bút chì để nhập.';
           lot.appendChild(p);
         } else {
           const waste = sumWasteRows(fb);
           const rot = lotRotChuan(r, fb);
-          const ton = lotTonNl(fb);
+          const ton = lotTonNl(r, fb);
+          const tonMoved = lotTonNlMoved(r, fb);
           const resolved = resolvedDatByRawId[r.id] || 0;
-          const missing = (inQ || 0) - Number(fb.finished_qty) - waste - rot - ton;
+          const missing = (inQ || 0) - Number(fb.finished_qty) - waste - rot - ton - tonMoved;
           const wasteRows = fb.factory_batch_waste || [];
           const wasteDetail = wasteRows.length
             ? ' (' + wasteRows.map(function(w){ return (w.ly_do || '?') + ' ' + viNum(w.so_luong); }).join(', ') + ')'
@@ -6423,7 +6468,7 @@ const titles = {
           if(wasteDetail) datSpan.appendChild(document.createTextNode(wasteDetail));
           bd.appendChild(datSpan);
           bd.appendChild(labelSpan('Rớt chuẩn <b>' + viNum(rot) + '</b>' + (resolved > 0 ? ' (đã xử lý ' + viNum(resolved) + ')' : '')));
-          bd.appendChild(labelSpan('Tồn NL <b>' + viNum(ton) + '</b>'));
+          bd.appendChild(labelSpan('Tồn NL <b>' + viNum(ton) + '</b>' + (tonMoved > 0 ? ' (đã chuyển/xử lý ' + viNum(tonMoved) + ')' : '')));
           const missSpan = labelSpan('Thất thoát <b>' + viNum(missing) + '</b>');
           if(missing < 0){ missSpan.style.color = 'var(--red)'; missSpan.style.fontWeight = '700'; }
           bd.appendChild(missSpan);
@@ -6552,7 +6597,7 @@ const titles = {
           const avgLoss = lossRows.reduce(function(sum, x){
             const input = parseQty(x.r.soluong);
             const waste = sumWasteRows(x.fb);
-            const missing = input - Number(x.fb.finished_qty) - waste - lotRotChuan(x.r, x.fb) - lotTonNl(x.fb);
+            const missing = input - Number(x.fb.finished_qty) - waste - lotRotChuan(x.r, x.fb) - lotTonNl(x.r, x.fb) - lotTonNlMoved(x.r, x.fb);
             return sum + ((waste + Math.max(0, missing)) / input) * 100;
           }, 0) / lossRows.length;
           statLoss.textContent = avgLoss.toFixed(0) + '%';
@@ -6585,7 +6630,7 @@ const titles = {
         // Vùng nguyên liệu.
         const [{ data: allData, error }, procRes] = await Promise.all([
           sb.from('raw_batches').select('*, factory_batches(*, factory_batch_boxes(*), factory_batch_waste(*))').is('deleted_at', null).order('ngay_nhap', { ascending: false }),
-          sb.from('factory_culled_processing').select('raw_batch_id, qty_trai').eq('source_type', 'dat').is('deleted_at', null)
+          sb.from('factory_culled_processing').select('raw_batch_id, qty_trai, source_type').is('deleted_at', null)
         ]);
         if(error) throw error;
         if(procRes.error) throw procRes.error;
@@ -6598,13 +6643,17 @@ const titles = {
           return true;
         });
         resolvedDatByRawId = {};
-        reworkPassByRawId = {};
+        processedTonNlByRawId = {};
         (procRes.data || []).forEach(function(p){
           if(p.raw_batch_id == null) return;
-          resolvedDatByRawId[p.raw_batch_id] = (resolvedDatByRawId[p.raw_batch_id] || 0) + Number(p.qty_trai || 0);
-          if(p.xu_ly_type === 'rework'){
-            reworkPassByRawId[p.raw_batch_id] = (reworkPassByRawId[p.raw_batch_id] || 0) + Number(p.rework_pass || 0);
+          if(p.source_type === 'ton_nl'){
+            // Tồn NL đã bán thô / dạt bỏ / chuyển sang lô khác → trừ khỏi cột
+            // "Tồn NL" của lô nguồn (xem lotTonNl / lotTonNlMoved).
+            processedTonNlByRawId[p.raw_batch_id] = (processedTonNlByRawId[p.raw_batch_id] || 0) + Number(p.qty_trai || 0);
+            return;
           }
+          if(p.source_type && p.source_type !== 'dat') return;   // 'ton_du' không gắn raw_batch_id
+          resolvedDatByRawId[p.raw_batch_id] = (resolvedDatByRawId[p.raw_batch_id] || 0) + Number(p.qty_trai || 0);
         });
         renderFactoryRows(data || []);
         updateFactoryStats(data || []);
@@ -6642,6 +6691,11 @@ const titles = {
     // tính chung với phần thật sự mất đi.
     let resolvedDatByRawId = {};
     let reworkPassByRawId = {};   // {raw_batch_id: Σ rework_pass} — trừ khỏi Rớt chuẩn trong cân đối lô
+    // {raw_batch_id: Σ qty_trai} phần "Tồn NL chưa SX" đã xử lý ở "Xử lý hàng
+    // tồn & rớt" (bán thô / dạt bỏ / chuyển sang lô khác). Trừ khỏi cột "Tồn
+    // NL" của lô nguồn để không đếm đúp — phần chuyển đi đã thành 1 lượt nhập
+    // nguyên liệu ở lô đích.
+    let processedTonNlByRawId = {};
 
     // Sản phẩm giờ khai báo riêng cho TỪNG dòng Quy cách (không còn 1 ô
     // Sản phẩm dùng chung cho cả đợt) — 1 đợt có thể vừa ra sản phẩm chính
@@ -6890,13 +6944,30 @@ const titles = {
       const waste = readWasteRows().reduce(function(s, w){ return s + (w.soLuong || 0); }, 0);
       const missing = input - finished - waste - rot - ton;
       const fmt = function(v){ return Number(v || 0).toLocaleString('vi-VN'); };
+      // "Tồn NL chưa SX" gõ trong ô là TỔNG đã khai; phần đã chuyển/bán/dạt đi
+      // ở "Xử lý hàng tồn & rớt" nằm trong đó — tách ra để thấy rõ, không trừ
+      // lại vào Thất thoát (đã là 1 lượt nhập ở lô đích).
+      const moved = editingMovedTonNl || 0;
+      const tonRemaining = ton - moved;
       balancePanel.appendChild(balanceLine('Nhập', fmt(input)));
       balancePanel.appendChild(balanceLine('− Thành phẩm', fmt(finished), 'fb-sub'));
       balancePanel.appendChild(balanceLine('− Dạt/bỏ', fmt(waste), 'fb-sub'));
       balancePanel.appendChild(balanceLine('− Rớt/chưa đạt chuẩn', fmt(rot), 'fb-sub'));
-      balancePanel.appendChild(balanceLine('− Tồn NL chưa SX', fmt(ton), 'fb-sub'));
+      if(moved > 0){
+        balancePanel.appendChild(balanceLine('− Tồn NL chưa SX (còn lại)', fmt(tonRemaining), 'fb-sub'));
+        balancePanel.appendChild(balanceLine('− Đã chuyển/xử lý Tồn NL', fmt(moved), 'fb-sub'));
+      } else {
+        balancePanel.appendChild(balanceLine('− Tồn NL chưa SX', fmt(ton), 'fb-sub'));
+      }
       const sep = document.createElement('div'); sep.className = 'fb-sep'; balancePanel.appendChild(sep);
-      if(missing < 0){
+      if(moved > 0 && ton < moved){
+        balancePanel.appendChild(balanceLine('= Tồn NL khai thiếu', fmt(moved - ton) + ' trái', 'fb-total fb-bad'));
+        const w = document.createElement('div');
+        w.className = 'fb-loss fb-bad';
+        w.textContent = 'Đã chuyển/xử lý ' + fmt(moved) + ' trái Tồn NL sang chỗ khác — ô "Tồn nguyên liệu chưa SX" không được nhỏ hơn ' + fmt(moved) + '.';
+        balancePanel.appendChild(w);
+        setSubmitBlocked(true);
+      } else if(missing < 0){
         balancePanel.appendChild(balanceLine('= Khai vượt số nhập', fmt(Math.abs(missing)) + ' trái', 'fb-total fb-bad'));
         const warn = document.createElement('div');
         warn.className = 'fb-loss fb-bad';
@@ -6926,6 +6997,7 @@ const titles = {
       factoryForm.reset();
       resetBoxRows(); resetWasteRows();
       editingRawBatchId = null; editingBatchLabel = ''; editingInputQty = null;
+      editingMovedTonNl = 0;
       if(balancePanel) balancePanel.textContent = '';
       setSubmitBlocked(false);
     }
@@ -6942,6 +7014,9 @@ const titles = {
       editingRawBatchId = r.id;
       editingBatchLabel = r.batch || '';
       editingInputQty = parseQty(r.soluong);
+      // Phần Tồn NL của lượt này đã chuyển/bán/dạt đi ở "Xử lý hàng tồn & rớt"
+      // — không cho hạ ô "Tồn NL chưa SX" xuống dưới mức này (sẽ desync).
+      editingMovedTonNl = processedTonNlByRawId[r.id] || 0;
       if(factoryModalBatchInfo){
         factoryModalBatchInfo.textContent = 'Lô hàng: ' + (r.batch || '—') + ' · NCC: ' + (r.ncc || '—') +
           ' · Số lượng nhập: ' + (editingInputQty != null ? editingInputQty.toLocaleString('vi-VN') + ' trái' : '—');
@@ -6993,6 +7068,15 @@ const titles = {
       const finishedVal = parseQty(fieldVal('fac-finished-qty'));
       const rotVal = parseQty(fieldVal('fac-rot-chuan'));
       const tonVal = parseQty(fieldVal('fac-ton-nl'));
+      // Không cho hạ "Tồn NL chưa SX" xuống dưới phần đã chuyển/bán/dạt đi ở
+      // "Xử lý hàng tồn & rớt" — nếu không, số đã chuyển thành lượt ở lô đích
+      // sẽ mồ côi, cân đối 2 lô lệch nhau.
+      if((editingMovedTonNl || 0) > 0 && (tonVal || 0) < editingMovedTonNl){
+        showErrorToast('Đã chuyển/xử lý ' + editingMovedTonNl.toLocaleString('vi-VN') +
+          ' trái Tồn NL sang chỗ khác. Ô "Tồn nguyên liệu chưa SX" không được nhỏ hơn ' +
+          editingMovedTonNl.toLocaleString('vi-VN') + ' trái. Muốn giảm thì xoá bớt lượt xử lý ở "Xử lý hàng tồn & rớt" trước.');
+        return;
+      }
       // Chặn lưu khi tổng khai vượt Số lượng nhập (Thất thoát âm) — cùng điều
       // kiện khối "Cân đối lô" đang cảnh báo.
       if(editingInputQty != null && editingInputQty > 0){

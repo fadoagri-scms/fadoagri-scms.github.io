@@ -15,6 +15,11 @@ alter table public.factory_culled_processing
 -- Với source_type='ton_nl' + xu_ly_type='reassign': id dòng raw_batches mới
 -- được tạo ở lô đích — xoá lịch sử sẽ xoá lại dòng đó (nếu chưa sản xuất).
 
+-- Cột rework_pass (từ migration 2026-09-09) — thêm lại phòng khi DB chưa có,
+-- vì code Xưởng đọc/ghi cột này (loại xử lý "Xử lý lại cho đạt chuẩn").
+alter table public.factory_culled_processing
+  add column if not exists rework_pass numeric;
+
 -- ============ 2) Dọn trùng + khóa duy nhất factory_finished_stock ============
 -- Dồn "đã xuất" của các dòng trùng (batch, quy_cach, san_pham) vào dòng id nhỏ nhất.
 update public.factory_finished_stock keep
