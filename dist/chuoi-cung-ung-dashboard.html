@@ -10507,12 +10507,19 @@ const titles = {
         const v = culledTypeSelect ? culledTypeSelect.value : 'market';
         const isReassign = v === 'reassign';
         const isRework = v === 'rework';
-        if(culledMarketGroup) culledMarketGroup.style.display = isReassign ? 'none' : '';
+        const isTonNl = !!(editingCulledRow && editingCulledRow.sourceType === 'ton_nl');
+        // Tồn NL luôn cần "Số lượng (trái)"; reassign chỉ thêm "Mã lô hàng đích".
+        if(culledMarketGroup) culledMarketGroup.style.display = (isReassign && !isTonNl) ? 'none' : '';
         if(culledReassignFields) culledReassignFields.style.display = isReassign ? '' : 'none';
         const reworkFields = document.getElementById('culled-rework-fields');
         if(reworkFields) reworkFields.style.display = isRework ? '' : 'none';
         const qtyLabel = document.getElementById('culled-qty-trai-label');
-        if(qtyLabel) qtyLabel.textContent = isRework ? 'Số trái đưa vào xử lý lại' : 'Số lượng (trái)';
+        if(qtyLabel) qtyLabel.textContent = isRework ? 'Số trái đưa vào xử lý lại' : (isTonNl ? 'Số trái nguyên liệu' : 'Số lượng (trái)');
+        // Tồn NL reassign: chỉ chuyển nguyên liệu thô — ẩn Sản phẩm/Quy cách/Số thùng.
+        ['culled-target-sanpham', 'culled-target-quycach', 'culled-target-thung'].forEach(function(id){
+          const grp = (document.getElementById(id) || {}).closest ? document.getElementById(id).closest('.form-group') : null;
+          if(grp) grp.style.display = isTonNl ? 'none' : '';
+        });
       }
       if(culledTypeSelect) culledTypeSelect.addEventListener('change', toggleCulledFields);
 
@@ -10560,17 +10567,22 @@ const titles = {
           if(culledTargetBatchGroup) culledTargetBatchGroup.style.display = 'none';
           if(culledReassignHelp) culledReassignHelp.textContent = 'Thêm 1 dòng Quy cách mới cho đúng lô "' + row.batch + '" — sẽ hiện lại ở tab Sản xuất, tự trừ khỏi "chưa đóng thùng".';
         } else {
-          if(culledModalTitle) culledModalTitle.textContent = row.sourceType === 'ton_du' ? 'Xử lý tồn kho dư' : 'Xử lý hàng dạt';
+          const isTonNl = row.sourceType === 'ton_nl';
+          if(culledModalTitle) culledModalTitle.textContent = isTonNl ? 'Xử lý tồn nguyên liệu' : (row.sourceType === 'ton_du' ? 'Xử lý tồn kho dư' : 'Xử lý hàng dạt');
           if(culledTypeGroup) culledTypeGroup.style.display = '';
           if(culledTargetBatchGroup) culledTargetBatchGroup.style.display = '';
-          if(culledReassignHelp) culledReassignHelp.textContent = 'Phải khớp đúng Lô hàng + Sản phẩm + Quy cách đã có ở tab "Xuất hàng" — hệ thống tự cộng số thùng này vào "Đã xuất" của đúng dòng đó.';
+          if(culledReassignHelp){
+            culledReassignHelp.textContent = isTonNl
+              ? 'Số trái nguyên liệu này sẽ được cộng vào "Số lượng nhập" của lô đích (thêm 1 lượt nhập mới) — lô đích tự chế biến, khai thành phẩm/hao hụt như thường.'
+              : 'Phải khớp đúng Lô hàng + Sản phẩm + Quy cách đã có ở tab "Xuất hàng" — hệ thống tự cộng số thùng này vào "Đã xuất" của đúng dòng đó.';
+          }
           culledTypeSelect.value = 'market';
           toggleCulledFields();
         }
         openModal();
       }
 
-      const SOURCE_TYPE_LABELS = { ton_du: 'Tồn kho dư', dat: 'Hàng dạt', chua_dong_thung: 'Chưa đóng thùng' };
+      const SOURCE_TYPE_LABELS = { ton_du: 'Tồn kho dư', dat: 'Hàng dạt', chua_dong_thung: 'Chưa đóng thùng', ton_nl: 'Tồn NL chưa SX' };
 
       function buildCulledDetailRow(row, collapse, startVisible){
         const tr = document.createElement('tr');
@@ -10762,7 +10774,9 @@ const titles = {
               ' — ' + (p.source_san_pham || '—') + (p.source_quy_cach != null ? ', ' + p.source_quy_cach + ' trái/thùng' : '') + ' [Tồn kho dư]';
           } else {
             const raw = rawById[p.raw_batch_id];
-            sourceTd.textContent = (raw ? (raw.batch + (raw.chung_loai ? ' (' + raw.chung_loai + ')' : '')) : ('Lô #' + p.raw_batch_id)) + ' [Hàng dạt]';
+            const nm = raw ? (raw.batch + (raw.chung_loai ? ' (' + raw.chung_loai + ')' : ''))
+                           : (p.source_batch || ('Lô #' + p.raw_batch_id));
+            sourceTd.textContent = nm + (p.source_type === 'ton_nl' ? ' [Tồn NL]' : ' [Hàng dạt]');
           }
           tr.appendChild(sourceTd);
 
@@ -10781,9 +10795,11 @@ const titles = {
 
           const targetTd = document.createElement('td');
           targetTd.className = 'muted';
-          targetTd.textContent = p.xu_ly_type === 'reassign'
-            ? (p.target_batch + ' — ' + (p.target_san_pham || '—') + ' (' + (p.target_quy_cach != null ? p.target_quy_cach + ' trái/thùng' : '—') + ', ' + fmtBoxQty(p.target_so_luong_thung) + ')')
-            : (p.xu_ly_type === 'rework' ? ('Đạt ' + fmtQty(p.rework_pass) + ' → Thành phẩm') : '—');
+          targetTd.textContent = (p.xu_ly_type === 'reassign' && p.source_type === 'ton_nl')
+            ? (p.target_batch + ' (nguyên liệu → SX)')
+            : (p.xu_ly_type === 'reassign'
+              ? (p.target_batch + ' — ' + (p.target_san_pham || '—') + ' (' + (p.target_quy_cach != null ? p.target_quy_cach + ' trái/thùng' : '—') + ', ' + fmtBoxQty(p.target_so_luong_thung) + ')')
+              : (p.xu_ly_type === 'rework' ? ('Đạt ' + fmtQty(p.rework_pass) + ' → Thành phẩm') : '—'));
           tr.appendChild(targetTd);
 
           const noteTd = document.createElement('td');
@@ -10838,7 +10854,12 @@ const titles = {
 
           const processedDatByRaw = {};
           const reworkPassByRaw = {};
+          const processedTonNlByRaw = {};
           (procRes.data || []).forEach(function(p){
+            if(p.source_type === 'ton_nl'){
+              processedTonNlByRaw[p.raw_batch_id] = (processedTonNlByRaw[p.raw_batch_id] || 0) + Number(p.qty_trai || 0);
+              return;
+            }
             if(p.source_type !== 'dat') return;
             processedDatByRaw[p.raw_batch_id] = (processedDatByRaw[p.raw_batch_id] || 0) + Number(p.qty_trai || 0);
             if(p.xu_ly_type === 'rework') reworkPassByRaw[p.raw_batch_id] = (reworkPassByRaw[p.raw_batch_id] || 0) + Number(p.rework_pass || 0);
@@ -10904,6 +10925,16 @@ const titles = {
               const unpacked = Number(fb.finished_qty) - packedTrai;
               if(unpacked > 0){
                 rows.push({ sourceType: 'chua_dong_thung', rawId: r.id, factoryBatchId: fb.id, batch: r.batch, chungLoai: r.chung_loai || '', sanPham: null, quyCach: null, remaining: unpacked });
+              }
+            }
+
+            // Nguồn 4: Tồn NL chưa SX — dừa thô khai ở "Cập nhật sản xuất"
+            // (fb.ton_nl_qty) chưa đưa vào chế biến. Xử lý: bán thô / dạt bỏ /
+            // đưa sang lô khác sản xuất.
+            if(fb.ton_nl_qty != null && Number(fb.ton_nl_qty) > 0){
+              const remaining = Number(fb.ton_nl_qty) - (processedTonNlByRaw[r.id] || 0);
+              if(remaining > 0){
+                rows.push({ sourceType: 'ton_nl', rawId: r.id, factoryBatchId: fb.id, batch: r.batch, chungLoai: r.chung_loai || '', sanPham: null, quyCach: null, remaining: remaining });
               }
             }
 
@@ -10979,7 +11010,9 @@ const titles = {
           const willRevertTargetExport = p.xu_ly_type === 'reassign' && (p.source_type === 'ton_du' || !p.target_box_id);
           const willRevertTargetBox = p.xu_ly_type === 'reassign' && p.source_type === 'dat' && p.target_box_id;
           const willRevertRework = p.xu_ly_type === 'rework' && Number(p.rework_pass || 0) > 0;
+          const willRevertTonNlRaw = p.source_type === 'ton_nl' && p.xu_ly_type === 'reassign' && p.target_raw_batch_id;
           const warnParts = [];
+          if(willRevertTonNlRaw) warnParts.push('xoá lượt nhập nguyên liệu đã tạo ở lô "' + p.target_batch + '"');
           if(willRevertSource) warnParts.push('trừ lại ' + fmtBoxQty(p.so_luong_thung) + ' khỏi "Đã xuất" của lô gốc "' + p.source_batch + '"');
           if(willRevertTargetExport) warnParts.push('trừ lại ' + fmtBoxQty(p.target_so_luong_thung) + ' khỏi "Đã xuất" của lô "' + p.target_batch + '"');
           if(willRevertTargetBox) warnParts.push('xóa lại ' + fmtBoxQty(p.target_so_luong_thung) + ' khỏi "Thùng đóng gói" của lô "' + p.target_batch + '"');
@@ -11005,6 +11038,17 @@ const titles = {
                   finished_qty: Math.max(0, Number(fbRow.finished_qty || 0) - Number(p.rework_pass || 0))
                 }).eq('id', fbRow.id);
               }
+            }
+            if(willRevertTonNlRaw){
+              // Chỉ xoá được lượt nhập ở lô đích khi nó CHƯA sản xuất (chưa có factory_batches).
+              const { data: fbT } = await sb.from('factory_batches').select('id').eq('raw_batch_id', p.target_raw_batch_id).maybeSingle();
+              if(fbT){
+                showErrorToast('Lượt nhập ở lô "' + p.target_batch + '" đã bắt đầu sản xuất — xoá thủ công ở tab Vùng nguyên liệu trước.');
+                return;
+              }
+              const { error: delRbErr } = await sb.from('raw_batches').update({ deleted_at: new Date().toISOString() }).eq('id', p.target_raw_batch_id);
+              if(delRbErr) throw delRbErr;
+              notifyRawBatchesChanged();
             }
             const { error } = await sb.from('factory_culled_processing').update({ deleted_at: new Date().toISOString() }).eq('id', p.id);
             if(error) throw error;
@@ -11056,7 +11100,40 @@ const titles = {
             notifyFactoryProductionChanged();
             return;
           }
-          if(type === 'rework'){
+          if(row.sourceType === 'ton_nl'){
+            // Tồn nguyên liệu chưa SX — bán thô / dạt bỏ / đưa sang lô khác SX.
+            const qty = parseQty(fieldVal('culled-qty-trai'));
+            if(!qty || qty <= 0){ showErrorToast('Nhập số trái nguyên liệu.'); return; }
+            if(qty > row.remaining + 0.001){
+              if(!confirm('Số nhập (' + fmtQty(qty) + ') lớn hơn Tồn NL còn lại (' + fmtQty(row.remaining) + '). Vẫn lưu?')) return;
+            }
+            let targetBatch = null, targetRawId = null;
+            if(type === 'reassign'){
+              targetBatch = fieldVal('culled-target-batch');
+              if(!targetBatch){ showErrorToast('Nhập Mã lô hàng đích.'); return; }
+              const { data: newRb, error: rbErr } = await sb.from('raw_batches').insert({
+                batch: targetBatch,
+                ncc: 'Chuyển nội bộ từ ' + row.batch,
+                loai: 'Vườn',
+                chung_loai: row.chungLoai || null,
+                soluong: String(qty),
+                ngay_nhap: dateVal,
+                trang_thai: 'Đạt chuẩn'
+              }).select('id').single();
+              if(rbErr) throw rbErr;
+              targetRawId = newRb.id;
+            } else if(type === 'rework'){
+              showErrorToast('Tồn nguyên liệu không có "Xử lý lại".'); return;
+            }
+            const { error } = await sb.from('factory_culled_processing').insert({
+              source_type: 'ton_nl', raw_batch_id: row.rawId,
+              source_batch: row.batch, source_chung_loai: row.chungLoai,
+              xu_ly_type: type, processed_date: dateVal, qty_trai: qty,
+              target_batch: targetBatch, target_raw_batch_id: targetRawId, note: note
+            });
+            if(error) throw error;
+            if(targetRawId) notifyRawBatchesChanged();
+          } else if(type === 'rework'){
             // Xử lý lại hàng dạt cho đạt chuẩn — chỉ nguồn 'dat' (chưa đóng gói).
             // qty_trai = số đưa vào; rework_pass = số đạt (cộng vào Thành phẩm
             // của đúng đợt sản xuất). Phần (đưa vào − đạt) coi như dạt bỏ.
