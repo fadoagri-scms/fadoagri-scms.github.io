@@ -8861,7 +8861,20 @@ const titles = {
     // (factory_batches.rot_chuan_qty). Lô cũ chưa mở lại form để tách (null)
     // → rơi về công thức cũ Nhập − Thành phẩm − Dạt bỏ, số liệu y như trước.
     function lotRotChuan(r, fb){
-      if(fb && fb.rot_chuan_qty != null) return Math.max(0, Number(fb.rot_chuan_qty));
+      if(fb && fb.rot_chuan_qty != null){
+        // "Xử lý lại" đã chuyển phần ĐẠT sang Thành phẩm (finished_qty) nhưng
+        // rot_chuan_qty là số khai tay cố định — trừ phần đã rework để cân
+        // đối lô không báo "Khai vượt" (đếm đúp phần đạt ở cả 2 nhóm).
+        const reworked = reworkPassByRawId[r && r.id] || 0;
+        return Math.max(0, Number(fb.rot_chuan_qty) - reworked);
+      }
+      // Lô đã dùng form "Cập nhật sản xuất" bản mới (có khai "Tồn NL chưa SX")
+      // mà để TRỐNG ô "Rớt / chưa đạt chuẩn" = thật sự 0 — không suy ra từ
+      // (Nhập − Thành phẩm) nữa, vì phần chênh đó là Tồn NL + Thất thoát, tính
+      // gộp vào Rớt chuẩn sẽ làm cân đối "Khai vượt".
+      if(fb && fb.ton_nl_qty != null) return 0;
+      // Lô cũ (chưa bao giờ mở form mới — cả rot_chuan_qty lẫn ton_nl_qty đều
+      // null): giữ công thức cũ để số liệu y như trước.
       if(!fb || fb.finished_qty == null) return 0;
       const gross = computeCulledQty(parseQty(r.soluong), Number(fb.finished_qty));
       if(gross == null || gross < 0) return 0;
@@ -9259,9 +9272,13 @@ const titles = {
           return true;
         });
         resolvedDatByRawId = {};
+        reworkPassByRawId = {};
         (procRes.data || []).forEach(function(p){
           if(p.raw_batch_id == null) return;
           resolvedDatByRawId[p.raw_batch_id] = (resolvedDatByRawId[p.raw_batch_id] || 0) + Number(p.qty_trai || 0);
+          if(p.xu_ly_type === 'rework'){
+            reworkPassByRawId[p.raw_batch_id] = (reworkPassByRawId[p.raw_batch_id] || 0) + Number(p.rework_pass || 0);
+          }
         });
         renderFactoryRows(data || []);
         updateFactoryStats(data || []);
@@ -9298,6 +9315,7 @@ const titles = {
     // phần đã xử lý không còn là hao hụt thật (đã dùng có ích), không nên
     // tính chung với phần thật sự mất đi.
     let resolvedDatByRawId = {};
+    let reworkPassByRawId = {};   // {raw_batch_id: Σ rework_pass} — trừ khỏi Rớt chuẩn trong cân đối lô
 
     // Sản phẩm giờ khai báo riêng cho TỪNG dòng Quy cách (không còn 1 ô
     // Sản phẩm dùng chung cho cả đợt) — 1 đợt có thể vừa ra sản phẩm chính
@@ -10850,11 +10868,16 @@ const titles = {
               if(fb.rot_chuan_qty != null){
                 total = Math.max(0, Number(fb.rot_chuan_qty));
                 processed = processedDatByRaw[r.id] || 0;
+              } else if(fb.ton_nl_qty != null){
+                // Lô đã dùng form mới mà để trống "Rớt / chưa đạt chuẩn" = 0
+                // (khớp lotRotChuan) — phần chênh là Tồn NL + Thất thoát, không
+                // phải "hàng dạt cần xử lý".
+                total = 0;
+                processed = 0;
               } else {
-                // Công thức cũ: total = (Nhập − Thành phẩm) − Dạt bỏ. "Xử lý
-                // lại" đã cộng phần ĐẠT vào Thành phẩm nên total tự giảm rồi
-                // — chỉ trừ thêm phần KHÔNG đạt của rework (qty_trai − pass),
-                // tránh trừ đúp phần đạt.
+                // Lô cũ: công thức cũ total = (Nhập − Thành phẩm) − Dạt bỏ.
+                // "Xử lý lại" đã cộng phần ĐẠT vào Thành phẩm nên total tự
+                // giảm — chỉ trừ thêm phần KHÔNG đạt của rework (qty_trai − pass).
                 const grossTotal = computeCulledQty(parseQty(r.soluong), Number(fb.finished_qty));
                 total = grossTotal == null ? null : grossTotal - sumWasteRows(fb);
                 processed = (processedDatByRaw[r.id] || 0) - (reworkPassByRaw[r.id] || 0);
