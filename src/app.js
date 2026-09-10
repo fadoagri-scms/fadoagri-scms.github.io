@@ -5279,7 +5279,7 @@ const titles = {
       editTitle: 'Chỉnh sửa lô vận chuyển',
       addLabel: 'Thêm lô hàng',
       editLabel: 'Lưu thay đổi',
-      orderBy: [{ column: 'eta', ascending: true }],
+      orderBy: [{ column: 'created_at', ascending: false }],
       emptyMessage: 'Chưa có lô vận chuyển nào.',
       emptyFilteredMessage: 'Không có lô vận chuyển nào trong kỳ đã chọn.',
       filterForDisplay: function(rows){ return rows.filter(shipmentInSelectedPeriod); },
