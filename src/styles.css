@@ -613,6 +613,18 @@
     padding:7px 12px;border-radius:20px;cursor:pointer;box-shadow:var(--shadow-sm);
   }
   .chart-filter-row select:focus{outline:2px solid var(--sage);outline-offset:-1px;}
+  /* Ô ngày trong hàng lọc — khung + nhãn khớp với các select bên cạnh. */
+  .audit-date-field{
+    display:inline-flex;align-items:center;gap:6px;
+    font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.02em;
+    background:var(--surface);border:1px solid var(--border);border-radius:20px;
+    padding:3px 6px 3px 12px;box-shadow:var(--shadow-sm);
+  }
+  .audit-date-field input[type="date"]{
+    font-family:inherit;font-size:12.5px;font-weight:600;color:var(--ink);
+    background:transparent;border:none;padding:4px 4px;border-radius:16px;cursor:pointer;
+  }
+  .audit-date-field input[type="date"]:focus{outline:2px solid var(--sage);outline-offset:0;}
   .chart-card{padding:18px 20px 12px;}
   .chart-card-title{font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:8px;}
   .chart-container{position:relative;width:100%;}
@@ -634,6 +646,11 @@
   }
   .row-edit-btn:hover{background:var(--green-bg);color:var(--forest-deep);}
   .row-delete-btn:hover{background:var(--red-bg);color:var(--red);}
+  /* Nút khóa/mở khóa sổ — tô khác để không lẫn với dãy icon xám cùng dòng. */
+  .lock-toggle-btn{color:var(--amber,#b9791f);}
+  .lock-toggle-btn.is-locked{background:rgba(200,40,40,.12);color:var(--red,#c82828);}
+  .lock-toggle-btn:hover{background:rgba(201,138,43,.18);color:var(--amber,#b9791f);}
+  .lock-toggle-btn.is-locked:hover{background:rgba(200,40,40,.2);color:var(--red,#c82828);}
 
   /* Select/input sửa trực tiếp ngay trong ô bảng (VD: Trạng thái đơn hàng,
      Ghi chú ở Đánh giá chất lượng) — gọn hơn input/select trong form-group. */

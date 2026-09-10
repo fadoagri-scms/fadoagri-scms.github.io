@@ -408,6 +408,7 @@ const titles = {
     await applyRolePermissions();
     setAppVisible(true);
     restoreActiveTab();
+    notifyAuthReady();
   }
 
   if(sb){
@@ -484,6 +485,13 @@ const titles = {
     const b = sharedBatchSummaries[batchCode];
     return !!(b && b.lockState === 'locked');
   }
+  // currentUser được gán BẤT ĐỒNG BỘ sau khi getSession() xong — có thể trễ
+  // hơn lần render đầu của một số module. Module nào có nút phụ thuộc vai trò
+  // (VD nút Sửa/Khóa chỉ Admin) thì đăng ký onAuthReady để vẽ lại khi đã biết
+  // vai trò, tránh "đăng nhập admin nhưng không thấy nút".
+  const authReadyListeners = [];
+  function onAuthReady(cb){ authReadyListeners.push(cb); }
+  function notifyAuthReady(){ authReadyListeners.forEach(function(cb){ try{ cb(); }catch(e){ console.error(e); } }); }
   function lockHidesActionsFor(batchCode){
     return batchIsLocked(batchCode) && !(currentUser && currentUser.role === 'admin');
   }
@@ -2741,12 +2749,8 @@ const titles = {
             const actionsTd = document.createElement('td');
             actionsTd.rowSpan = rowspan;
             actionsTd.className = 'row-actions';
-            const viewBtn = document.createElement('button');
-            viewBtn.type = 'button';
-            viewBtn.className = 'row-edit-btn';
-            viewBtn.setAttribute('aria-label', 'Nhập/xem kết quả kiểm QC');
-            viewBtn.innerHTML = '<i class="ti ti-clipboard-check"></i>';
-            actionsTd.appendChild(viewBtn);
+            // (Bỏ nút 📋 mở QC mức cả lô ở đây — đã có nút "Kiểm chi tiết" theo
+            //  từng sản phẩm ở cột Chất lượng, chính xác hơn, khỏi 2 icon giống nhau.)
             const traceBtn = document.createElement('button');
             traceBtn.type = 'button';
             traceBtn.className = 'row-edit-btn trace-btn';
@@ -2782,7 +2786,7 @@ const titles = {
               const locked = b.lockState === 'locked';
               const lockBtn = document.createElement('button');
               lockBtn.type = 'button';
-              lockBtn.className = 'row-edit-btn';
+              lockBtn.className = 'row-edit-btn lock-toggle-btn' + (locked ? ' is-locked' : '');
               lockBtn.setAttribute('aria-label', locked ? 'Mở khóa sổ lô này' : 'Khóa sổ lô này');
               lockBtn.title = locked ? 'Mở khóa sổ' : 'Khóa sổ';
               lockBtn.innerHTML = '<i class="ti ' + (locked ? 'ti-lock-open' : 'ti-lock') + '"></i>';
@@ -4662,6 +4666,9 @@ const titles = {
         if(tr && tr.dataset.batch) openOrderModal(tr.dataset.batch);
         return;
       }
+      // Nút khóa/mở khóa sổ có listener riêng (mang cả class row-edit-btn) —
+      // chặn ở đây để không mở kèm modal QC.
+      if(e.target.closest('.lock-toggle-btn')) return;
       // Nút "Kiểm chi tiết" trên từng dòng — mở khối nhập với Ngành hàng +
       // Sản phẩm điền + khóa sẵn theo đúng dòng đó (xử lý TRƯỚC .row-edit-btn
       // vì nút này cũng mang class đó).
@@ -4841,6 +4848,9 @@ const titles = {
     onRawBatchesChanged(loadAll);
     onFactoryProductionChanged(loadAll);
     onPurchaseOrdersChanged(loadAll);
+    // Biết vai trò muộn hơn lần render đầu → vẽ lại bảng để nút Sửa/Khóa
+    // (chỉ Admin) hiện đúng.
+    onAuthReady(function(){ if(Object.keys(batchSummaries).length) renderSummary(); });
 
     form.addEventListener('submit', async function(e){
       e.preventDefault();
@@ -7322,6 +7332,9 @@ const titles = {
     // nhật, làm "Tổng số lượng thùng" hiện sai (thiếu số vừa gán bù) cho
     // tới khi tự tải lại trang. Nghe thêm kênh này để luôn đúng ngay.
     onFactoryProductionChanged(function(){ loadFactoryYears().then(refreshFactoryRows); });
+    // Biết vai trò muộn → vẽ lại để ẩn/hiện nút Sửa theo trạng thái khóa sổ.
+    // (saveLockState đã gọi notifyRawBatchesChanged nên đổi khóa cũng tự vẽ lại.)
+    onAuthReady(refreshFactoryRows);
   })();
 
   // ---- Xưởng Ba Phi: Nhân sự ----
@@ -10397,7 +10410,15 @@ const titles = {
     const tbody = document.getElementById('audit-tbody');
     const searchInput = document.getElementById('audit-search-input');
     const moduleSelect = document.getElementById('audit-module-select');
-    const loadMoreBtn = document.getElementById('btn-audit-load-more');
+    const actionSelect = document.getElementById('audit-action-select');
+    const fromInput = document.getElementById('audit-from');
+    const toInput = document.getElementById('audit-to');
+    const clearBtn = document.getElementById('audit-clear');
+    const pageSizeSelect = document.getElementById('audit-page-size');
+    const prevBtn = document.getElementById('audit-page-prev');
+    const nextBtn = document.getElementById('audit-page-next');
+    const pageIndicator = document.getElementById('audit-page-indicator');
+    const countEl = document.getElementById('audit-count');
     if(!tbody || !sb) return;
 
     const TABLE_LABELS = {
@@ -10468,40 +10489,50 @@ const titles = {
       tbody.appendChild(tr);
     }
 
-    let allRows = [];
-    let pageSize = 100;
+    // Phân trang + lọc ở PHÍA MÁY CHỦ — audit_log lớn rất nhanh (1 lần đổi
+    // tên lô ghi ~13 dòng), không tải hết về client được.
+    let page = 1;
+    let pageSize = Number(pageSizeSelect && pageSizeSelect.value) || 50;
+    let total = 0;
+    let moduleOptionsLoaded = false;
+    let searchTimer = null;
+    let reqSeq = 0;   // chống race: chỉ nhận kết quả của lần load mới nhất
 
-    function populateModuleFilter(){
-      const current = moduleSelect.value;
-      const seen = {};
-      allRows.forEach(function(r){ seen[r.table_name] = true; });
-      moduleSelect.textContent = '';
-      const allOpt = document.createElement('option');
-      allOpt.value = '';
-      allOpt.textContent = 'Tất cả khu vực';
-      moduleSelect.appendChild(allOpt);
-      Object.keys(seen).sort().forEach(function(t){
-        const opt = document.createElement('option');
-        opt.value = t;
-        opt.textContent = TABLE_LABELS[t] || t;
-        moduleSelect.appendChild(opt);
-      });
-      moduleSelect.value = current || '';
+    function applyFilters(q){
+      const mod = moduleSelect.value;
+      if(mod) q = q.eq('table_name', mod);
+      const act = actionSelect.value;
+      if(act) q = q.eq('action', act);
+      if(fromInput.value) q = q.gte('created_at', fromInput.value + 'T00:00:00');
+      if(toInput.value)   q = q.lte('created_at', toInput.value + 'T23:59:59');
+      const term = (searchInput.value || '').trim().replace(/[,()%*]/g, ' ').trim();
+      if(term) q = q.or('actor_email.ilike.%' + term + '%,batch_code.ilike.%' + term + '%');
+      return q;
     }
 
-    function render(){
-      const q = (searchInput.value || '').trim().toLowerCase();
-      const moduleFilter = moduleSelect.value;
-      const filtered = allRows.filter(function(r){
-        if(moduleFilter && r.table_name !== moduleFilter) return false;
-        if(!q) return true;
-        const hay = [r.actor_email, ROLE_LABELS[r.actor_role] || r.actor_role, describeRow(r.table_name, r.new_data || r.old_data), r.batch_code]
-          .join(' ').toLowerCase();
-        return hay.indexOf(q) !== -1;
-      });
-      if(!filtered.length){ showMessage(allRows.length ? 'Không có kết quả khớp.' : 'Chưa có hoạt động nào được ghi nhận.'); return; }
+    async function loadModuleOptions(){
+      if(moduleOptionsLoaded) return;
+      try{
+        const { data } = await sb.from('audit_log').select('table_name').limit(3000);
+        const seen = {};
+        (data || []).forEach(function(r){ if(r.table_name) seen[r.table_name] = true; });
+        const cur = moduleSelect.value;
+        moduleSelect.innerHTML = '<option value="">Tất cả khu vực</option>';
+        Object.keys(seen).sort(function(a, b){
+          return (TABLE_LABELS[a] || a).localeCompare(TABLE_LABELS[b] || b, 'vi');
+        }).forEach(function(t){
+          const o = document.createElement('option');
+          o.value = t; o.textContent = TABLE_LABELS[t] || t;
+          moduleSelect.appendChild(o);
+        });
+        moduleSelect.value = cur || '';
+        moduleOptionsLoaded = true;
+      } catch(e){ /* danh sách khu vực trống thì vẫn lọc được bằng các bộ lọc khác */ }
+    }
+
+    function renderRows(rows){
       tbody.textContent = '';
-      filtered.forEach(function(r){
+      rows.forEach(function(r){
         const tr = document.createElement('tr');
         [
           fmtDateTime(r.created_at),
@@ -10519,32 +10550,53 @@ const titles = {
     }
 
     async function load(){
+      const seq = ++reqSeq;
+      showMessage('Đang tải dữ liệu...');
       try{
-        const { data, error } = await sb.from('audit_log')
-          .select('created_at,actor_email,actor_role,action,table_name,batch_code,old_data,new_data')
-          .order('created_at', { ascending: false })
-          .range(0, pageSize - 1);
+        const fromIdx = (page - 1) * pageSize;
+        const { data, error, count } = await applyFilters(
+          sb.from('audit_log').select('created_at,actor_email,actor_role,action,table_name,batch_code,old_data,new_data', { count: 'exact' })
+        ).order('created_at', { ascending: false }).range(fromIdx, fromIdx + pageSize - 1);
+        if(seq !== reqSeq) return;   // đã có lần load mới hơn
         if(error) throw error;
-        allRows = data || [];
-        if(loadMoreBtn) loadMoreBtn.style.display = allRows.length >= pageSize ? '' : 'none';
-        populateModuleFilter();
-        render();
+        total = count || 0;
+        const pages = Math.max(1, Math.ceil(total / pageSize));
+        if(page > pages){ page = pages; return load(); }
+        if(!data || !data.length){
+          showMessage(total ? 'Trang này không có dữ liệu.' : 'Không có hoạt động nào khớp bộ lọc.');
+        } else {
+          renderRows(data);
+        }
+        pageIndicator.textContent = 'Trang ' + page + '/' + pages;
+        countEl.textContent = total
+          ? (total.toLocaleString('vi-VN') + ' mục · đang xem ' + (fromIdx + 1) + '–' + Math.min(fromIdx + pageSize, total))
+          : '0 mục';
+        prevBtn.disabled = page <= 1;
+        nextBtn.disabled = page >= pages;
       } catch(err){
+        if(seq !== reqSeq) return;
         console.error('Không tải được lịch sử hoạt động:', err);
         showMessage('Không tải được dữ liệu — kiểm tra kết nối Supabase (đã chạy migration audit_log chưa?).', 'var(--red)');
       }
     }
 
-    if(searchInput) searchInput.addEventListener('input', render);
-    if(moduleSelect) moduleSelect.addEventListener('change', render);
-    if(loadMoreBtn){
-      loadMoreBtn.addEventListener('click', function(){
-        pageSize += 100;
-        load();
-      });
-    }
+    function reload(){ page = 1; load(); }
 
-    showMessage('Đang tải dữ liệu...');
+    moduleSelect.addEventListener('change', reload);
+    actionSelect.addEventListener('change', reload);
+    fromInput.addEventListener('change', reload);
+    toInput.addEventListener('change', reload);
+    searchInput.addEventListener('input', function(){ clearTimeout(searchTimer); searchTimer = setTimeout(reload, 350); });
+    pageSizeSelect.addEventListener('change', function(){ pageSize = Number(pageSizeSelect.value) || 50; reload(); });
+    prevBtn.addEventListener('click', function(){ if(page > 1){ page -= 1; load(); } });
+    nextBtn.addEventListener('click', function(){ page += 1; load(); });
+    clearBtn.addEventListener('click', function(){
+      searchInput.value = ''; moduleSelect.value = ''; actionSelect.value = '';
+      fromInput.value = ''; toInput.value = '';
+      reload();
+    });
+
+    loadModuleOptions();
     load();
   })();
 

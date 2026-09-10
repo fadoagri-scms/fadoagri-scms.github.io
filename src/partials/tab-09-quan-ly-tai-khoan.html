@@ -63,15 +63,22 @@
       </table>
     </div>
 
-    <div class="section-header-row">
-      <div class="section-label">Lịch sử hoạt động</div>
-      <div class="chart-filter-row">
-        <input type="text" id="audit-search-input" placeholder="Tìm theo người thực hiện hoặc nội dung..." style="font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid var(--border);padding:7px 12px;border-radius:20px;box-shadow:var(--shadow-sm);min-width:220px;">
-        <select id="audit-module-select" aria-label="Lọc theo khu vực"></select>
-      </div>
-    </div>
+    <div class="section-label">Lịch sử hoạt động</div>
     <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Nhật ký thêm/sửa/xóa trên toàn hệ thống — biết ai thao tác, lúc nào. Chỉ Admin xem được.</div>
     <div class="card">
+      <div class="chart-filter-row" style="flex-wrap:wrap;gap:8px 10px;padding:14px 8px 6px;">
+        <input type="text" id="audit-search-input" placeholder="Tìm theo người / mã lô..." style="font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid var(--border);padding:7px 12px;border-radius:20px;box-shadow:var(--shadow-sm);min-width:190px;">
+        <select id="audit-module-select" aria-label="Khu vực"><option value="">Tất cả khu vực</option></select>
+        <select id="audit-action-select" aria-label="Hành động">
+          <option value="">Mọi hành động</option>
+          <option value="insert">Thêm</option>
+          <option value="update">Sửa / xóa tạm / khôi phục</option>
+          <option value="delete">Xóa vĩnh viễn</option>
+        </select>
+        <label class="audit-date-field">Từ ngày<input type="date" id="audit-from" aria-label="Từ ngày"></label>
+        <label class="audit-date-field">Đến ngày<input type="date" id="audit-to" aria-label="Đến ngày"></label>
+        <button class="btn-secondary" id="audit-clear" type="button" style="padding:5px 12px;font-size:12px;">Xóa lọc</button>
+      </div>
       <table>
         <thead>
           <tr><th>Thời gian</th><th>Người thực hiện</th><th>Hành động</th><th>Khu vực</th><th>Nội dung</th></tr>
@@ -80,8 +87,19 @@
           <tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:20px;">Đang tải dữ liệu...</td></tr>
         </tbody>
       </table>
-      <div style="text-align:center;padding:12px 0 2px;">
-        <button class="btn-secondary" id="btn-audit-load-more" type="button" style="display:none;">Xem thêm</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px 16px;padding:12px 8px 6px;font-size:12.5px;color:var(--ink-soft);flex-wrap:wrap;">
+        <span id="audit-count">—</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span>Mỗi trang:</span>
+          <select id="audit-page-size" style="padding:4px 8px;">
+            <option value="25">25</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+          </select>
+          <button class="btn-secondary" id="audit-page-prev" type="button" style="padding:4px 10px;font-size:12.5px;">‹ Trước</button>
+          <span id="audit-page-indicator">Trang 1/1</span>
+          <button class="btn-secondary" id="audit-page-next" type="button" style="padding:4px 10px;font-size:12.5px;">Sau ›</button>
+        </div>
       </div>
     </div>
 
