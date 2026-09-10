@@ -2559,6 +2559,19 @@
       </table>
     </div>
 
+    <div class="section-label">Đổi tên mã lô</div>
+    <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Đổi mã 1 lô ở <b>tất cả bảng cùng lúc</b> (Vùng nguyên liệu, PO, Sản xuất, QC, Logistics, Chứng từ, Feedback, Tồn kho, Truy xuất…). Chạy nguyên khối — lỗi giữa chừng thì hủy hết. Chỉ Admin. Bấm "Xem trước" trước khi đổi.</div>
+    <div class="card" style="padding:18px 22px;">
+      <div class="chart-filter-row" style="flex-wrap:wrap;gap:10px;align-items:center;">
+        <select id="rename-batch-old" aria-label="Lô cần đổi tên" style="min-width:220px;"></select>
+        <span style="font-weight:700;color:var(--ink-soft);">→</span>
+        <input type="text" id="rename-batch-new" placeholder="Mã lô mới" style="font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid var(--border);padding:7px 12px;border-radius:20px;box-shadow:var(--shadow-sm);min-width:200px;">
+        <button class="btn-secondary" id="btn-rename-batch-preview" type="button"><i class="ti ti-eye"></i>Xem trước</button>
+        <button class="btn-primary" id="btn-rename-batch-go" type="button" disabled><i class="ti ti-transform"></i>Đổi tên</button>
+      </div>
+      <div id="rename-batch-result" style="margin-top:12px;"></div>
+    </div>
+
     <div class="section-label">Ma trận phân quyền</div>
     <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Bấm vào ô để đổi quyền theo vòng ✓ → Xem → — → ✓. Quyền thêm/sửa/xóa (✓) áp dụng thật ở Supabase RLS; trạng thái "—" chỉ ẩn tab khỏi sidebar, không khoá dữ liệu ở tầng server.</div>
     <div class="card">
@@ -3202,6 +3215,16 @@ const titles = {
   const batchSummaryListeners = [];
   function onBatchSummaryChanged(cb){ batchSummaryListeners.push(cb); }
   function notifyBatchSummaryChanged(){ batchSummaryListeners.forEach(function(cb){ cb(); }); }
+  // Lô "đã khóa sổ" — admin đặt batch_info.lock_state='locked' để chốt số
+  // liệu lô đã hoàn tất. Các module ẩn nút Sửa/Xóa của lô này với người
+  // KHÔNG phải admin (khóa ở mức giao diện — xem supabase/2026-09-10_batch_lock.sql).
+  function batchIsLocked(batchCode){
+    const b = sharedBatchSummaries[batchCode];
+    return !!(b && b.lockState === 'locked');
+  }
+  function lockHidesActionsFor(batchCode){
+    return batchIsLocked(batchCode) && !(currentUser && currentUser.role === 'admin');
+  }
 
   // Tổng quan tính ra danh sách "Cần xử lý ngay" (renderAlerts) rồi phát lại
   // qua đây — chuông thông báo ở topbar + chấm cảnh báo ở sidebar dùng
@@ -3554,19 +3577,29 @@ const titles = {
       for(let i = 0; i < opts.cellCount; i++) tr.appendChild(document.createElement('td'));
       const actionsTd = document.createElement('td');
       actionsTd.className = 'row-actions';
-      const editBtn = document.createElement('button');
-      editBtn.type = 'button';
-      editBtn.className = 'row-edit-btn';
-      editBtn.setAttribute('aria-label', 'Chỉnh sửa');
-      editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
-      actionsTd.appendChild(editBtn);
-      if(opts.deletable !== false){
-        const deleteBtn = document.createElement('button');
-        deleteBtn.type = 'button';
-        deleteBtn.className = 'row-delete-btn';
-        deleteBtn.setAttribute('aria-label', 'Xóa');
-        deleteBtn.innerHTML = '<i class="ti ti-trash"></i>';
-        actionsTd.appendChild(deleteBtn);
+      // rowLocked(d) = true → lô đã khóa sổ với người này: bỏ nút Sửa/Xóa,
+      // chỉ hiện biểu tượng khóa (xem batchIsLocked / 2026-09-10_batch_lock.sql).
+      if(opts.rowLocked && opts.rowLocked(d)){
+        const lk = document.createElement('span');
+        lk.className = 'muted';
+        lk.title = 'Lô đã khóa sổ — liên hệ Admin để sửa';
+        lk.innerHTML = '<i class="ti ti-lock"></i>';
+        actionsTd.appendChild(lk);
+      } else {
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'row-edit-btn';
+        editBtn.setAttribute('aria-label', 'Chỉnh sửa');
+        editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
+        actionsTd.appendChild(editBtn);
+        if(opts.deletable !== false){
+          const deleteBtn = document.createElement('button');
+          deleteBtn.type = 'button';
+          deleteBtn.className = 'row-delete-btn';
+          deleteBtn.setAttribute('aria-label', 'Xóa');
+          deleteBtn.innerHTML = '<i class="ti ti-trash"></i>';
+          actionsTd.appendChild(deleteBtn);
+        }
       }
       tr.appendChild(actionsTd);
       opts.renderRow(tr, d);
@@ -3646,8 +3679,12 @@ const titles = {
     form.addEventListener('submit', async function(e){
       e.preventDefault();
       const payload = opts.readForm(form);
-      if(opts.validate && !opts.validate(payload)){
-        showErrorToast(opts.validateMessage || 'Thiếu thông tin bắt buộc — vui lòng kiểm tra lại các trường bắt buộc trong form.');
+      // validate() trả: true = ok · false = thiếu trường bắt buộc (dùng
+      // validateMessage) · chuỗi = lỗi cụ thể (VD kiểm tra chéo ngày/số lượng).
+      const vres = opts.validate ? opts.validate(payload) : true;
+      if(vres !== true){
+        showErrorToast(typeof vres === 'string' ? vres
+          : (opts.validateMessage || 'Thiếu thông tin bắt buộc — vui lòng kiểm tra lại các trường bắt buộc trong form.'));
         return;
       }
 
@@ -4947,6 +4984,7 @@ const titles = {
         b.saleType = bi.sale_type || null;
         b.domesticType = bi.domestic_type || null;
         b.orderStatus = bi.order_status || null;
+        b.lockState = bi.lock_state || null;   // 'locked' = admin khóa sổ lô này
         b.note = bi.note || '';
         b.khachHang = bi.khach_hang || null;
         b.sanPhamDuKien = bi.san_pham || null;
@@ -5287,6 +5325,12 @@ const titles = {
             const batchName = document.createElement('div');
             batchName.textContent = b.batch;
             batchTd.appendChild(batchName);
+            if(b.lockState === 'locked'){
+              const lockBadge = document.createElement('div');
+              lockBadge.style.cssText = 'font-size:10.5px;font-weight:700;color:var(--ink-soft);margin-top:2px;';
+              lockBadge.innerHTML = '<i class="ti ti-lock"></i> Đã khóa sổ';
+              batchTd.appendChild(lockBadge);
+            }
             if(b.khachHang){
               const khLine = document.createElement('div');
               khLine.className = 'muted';
@@ -5472,6 +5516,25 @@ const titles = {
               orderEditBtn.setAttribute('aria-label', 'Sửa thông tin đơn hàng');
               orderEditBtn.innerHTML = '<i class="ti ti-pencil"></i>';
               actionsTd.appendChild(orderEditBtn);
+
+              const locked = b.lockState === 'locked';
+              const lockBtn = document.createElement('button');
+              lockBtn.type = 'button';
+              lockBtn.className = 'row-edit-btn';
+              lockBtn.setAttribute('aria-label', locked ? 'Mở khóa sổ lô này' : 'Khóa sổ lô này');
+              lockBtn.title = locked ? 'Mở khóa sổ' : 'Khóa sổ';
+              lockBtn.innerHTML = '<i class="ti ' + (locked ? 'ti-lock-open' : 'ti-lock') + '"></i>';
+              lockBtn.addEventListener('click', async function(){
+                const ok = await confirmDialog(
+                  locked
+                    ? 'Mở khóa sổ lô "' + b.batch + '"? Mọi người sẽ sửa/xóa được dữ liệu của lô này trở lại.'
+                    : 'Khóa sổ lô "' + b.batch + '"? Người không phải admin sẽ không sửa/xóa được dữ liệu của lô này ở Xưởng / QC / Logistics.',
+                  { title: locked ? 'Mở khóa sổ' : 'Khóa sổ', okLabel: locked ? 'Mở khóa' : 'Khóa', danger: false }
+                );
+                if(!ok) return;
+                saveLockState(b.batch, locked ? null : 'locked');
+              });
+              actionsTd.appendChild(lockBtn);
             }
             tr.appendChild(actionsTd);
           }
@@ -5619,6 +5682,24 @@ const titles = {
         await loadAll();
       } catch(err){
         showErrorToast('Không thể lưu Ghi chú: ' + err.message);
+      }
+    }
+
+    async function saveLockState(batchCode, value){
+      try{
+        const { error } = await sb.from('batch_info').upsert({
+          batch: batchCode, lock_state: value || null,
+          lock_changed_at: new Date().toISOString(),
+          lock_changed_by: (currentUser && (currentUser.full_name || currentUser.email)) || null
+        }, { onConflict: 'batch' });
+        if(error) throw error;
+        await loadAll();
+        // Xưởng / Logistics đọc trạng thái khóa qua sharedBatchSummaries — ép
+        // chúng vẽ lại ngay để nút Sửa/Xóa ẩn/hiện đúng.
+        notifyBatchSummaryChanged();
+        notifyRawBatchesChanged();
+      } catch(err){
+        showErrorToast('Không thể đổi trạng thái khóa sổ: ' + err.message);
       }
     }
 
@@ -7502,6 +7583,10 @@ const titles = {
     form.addEventListener('submit', async function(e){
       e.preventDefault();
       if(!currentBatch) return;
+      if(lockHidesActionsFor(currentBatch)){
+        showErrorToast('Lô "' + currentBatch + '" đã khóa sổ — liên hệ Admin để mở khóa trước khi sửa kết quả QC.');
+        return;
+      }
       const category = fieldVal('qc-category') || 'Dừa';
       const sanPham = category === 'Dừa' ? (fieldVal('qc-sanpham') || null) : null;
 
@@ -7515,6 +7600,14 @@ const titles = {
         return;
       }
 
+      const soKiem = parseQty(fieldVal('qc-so-luong-kiem'));
+      const soDat = parseQty(fieldVal('qc-so-luong-dat'));
+      // Kiểm tra chéo: số đạt không thể lớn hơn số đưa vào kiểm.
+      if(soKiem != null && soDat != null && soDat > soKiem){
+        showErrorToast('Số lượng đạt (' + soDat.toLocaleString('vi-VN') + ') không được lớn hơn số lượng kiểm (' + soKiem.toLocaleString('vi-VN') + ').');
+        return;
+      }
+
       const payload = {
         batch_code: currentBatch,
         category: category,
@@ -7523,8 +7616,8 @@ const titles = {
         // (nguyên liệu thô) thuộc phạm vi Vùng nguyên liệu, không ghi ở đây.
         check_type: 'Thành phẩm',
         result: fieldVal('qc-result'),
-        so_luong_kiem: parseQty(fieldVal('qc-so-luong-kiem')),
-        so_luong_dat: parseQty(fieldVal('qc-so-luong-dat')),
+        so_luong_kiem: soKiem,
+        so_luong_dat: soDat,
         inspector: fieldVal('qc-inspector') || null,
         note: fieldVal('qc-note') || null
       };
@@ -8035,6 +8128,7 @@ const titles = {
       emptyMessage: 'Chưa có lô vận chuyển nào.',
       emptyFilteredMessage: 'Không có lô vận chuyển nào trong kỳ đã chọn.',
       filterForDisplay: function(rows){ return rows.filter(shipmentInSelectedPeriod); },
+      rowLocked: function(d){ return lockHidesActionsFor(d.batch_code); },
       deleteLabel: function(tr){ return 'lô vận chuyển "' + (tr.dataset.batch || '') + '"'; },
       renderRow: function(tr, d){
         const productDisplay = productForBatch(d.batch_code) || d.product || '';
@@ -8126,7 +8220,17 @@ const titles = {
           ghi_chu: fieldVal('ship-ghichu') || null
         };
       },
-      validate: function(payload){ return !!payload.batch_code; },
+      validate: function(payload){
+        if(!payload.batch_code) return 'Vui lòng chọn Lô hàng.';
+        // Kiểm tra chéo ngày: ETD ≤ ETA ≤ ngày khách nhận.
+        if(payload.etd && payload.eta && payload.etd > payload.eta)
+          return 'ETA (' + fmtDate(payload.eta) + ') không được sớm hơn ETD (' + fmtDate(payload.etd) + ').';
+        if(payload.received_date && payload.eta && payload.received_date < payload.eta)
+          return 'Ngày khách nhận (' + fmtDate(payload.received_date) + ') không được sớm hơn ETA (' + fmtDate(payload.eta) + ').';
+        if(payload.received_date && payload.etd && payload.received_date < payload.etd)
+          return 'Ngày khách nhận (' + fmtDate(payload.received_date) + ') không được sớm hơn ETD (' + fmtDate(payload.etd) + ').';
+        return true;
+      },
       validateMessage: 'Vui lòng chọn Lô hàng.',
       afterRender: function(rows){
         allShipments = rows;
@@ -8881,6 +8985,7 @@ const titles = {
     // hàng tồn & rớt" — chặn không cho hạ ô "Tồn NL chưa SX" xuống dưới mức này.
     let editingMovedTonNl = 0;
     let editingTonNlStored = null;   // ton_nl_qty đang lưu của lượt đang mở
+    let editingRawNgayNhap = null;   // ngay_nhap của lượt đang mở — chặn Ngày SX sớm hơn
     // raw_batches (kèm factory_batches lồng) của lần render gần nhất, tra theo
     // id — nút Sửa ở bảng chỉ mang data-raw-id, lấy dữ liệu điền form từ đây
     // thay vì nhét hết vào dataset của <tr>.
@@ -9148,7 +9253,11 @@ const titles = {
 
       // 9 · Thao tác — 1 lượt: nút Sửa thẳng; nhiều lượt: bung panel sửa từng lượt
       const actTd = document.createElement('td');
-      if(items.length === 1){
+      if(lockHidesActionsFor(items[0].batch)){
+        actTd.className = 'row-actions muted';
+        actTd.title = 'Lô đã khóa sổ — liên hệ Admin để sửa';
+        actTd.innerHTML = '<i class="ti ti-lock"></i>';
+      } else if(items.length === 1){
         actTd.className = 'row-actions';
         const editBtn = document.createElement('button');
         editBtn.type = 'button';
@@ -9188,13 +9297,22 @@ const titles = {
           (r.ngay_nhap ? ' · ngày nhập ' + fmtDate(r.ngay_nhap) : '') +
           (r.chung_loai ? ' · ' + r.chung_loai : '')
         ));
-        const editBtn = document.createElement('button');
-        editBtn.type = 'button';
-        editBtn.className = 'row-edit-btn';
-        editBtn.dataset.rawId = r.id;
-        editBtn.setAttribute('aria-label', 'Chỉnh sửa lượt này');
-        editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
-        head.appendChild(editBtn);
+        if(lockHidesActionsFor(r.batch)){
+          const lk = document.createElement('span');
+          lk.className = 'muted';
+          lk.style.marginLeft = '6px';
+          lk.title = 'Lô đã khóa sổ — liên hệ Admin để sửa';
+          lk.innerHTML = '<i class="ti ti-lock"></i>';
+          head.appendChild(lk);
+        } else {
+          const editBtn = document.createElement('button');
+          editBtn.type = 'button';
+          editBtn.className = 'row-edit-btn';
+          editBtn.dataset.rawId = r.id;
+          editBtn.setAttribute('aria-label', 'Chỉnh sửa lượt này');
+          editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
+          head.appendChild(editBtn);
+        }
         lot.appendChild(head);
 
         if(!fb || fb.finished_qty == null){
@@ -9775,6 +9893,7 @@ const titles = {
       // — không cho HẠ ô "Tồn NL chưa SX" xuống dưới mức này (sẽ desync).
       editingMovedTonNl = processedTonNlByRawId[r.id] || 0;
       editingTonNlStored = (fb && fb.ton_nl_qty != null) ? Number(fb.ton_nl_qty) : null;
+      editingRawNgayNhap = r.ngay_nhap || null;
       if(factoryModalBatchInfo){
         factoryModalBatchInfo.textContent = 'Lô hàng: ' + (r.batch || '—') + ' · NCC: ' + (r.ncc || '—') +
           ' · Số lượng nhập: ' + (editingInputQty != null ? editingInputQty.toLocaleString('vi-VN') + ' trái' : '—');
@@ -9850,6 +9969,12 @@ const titles = {
             ' trái) đang vượt Số lượng nhập (' + editingInputQty.toLocaleString('vi-VN') + ' trái). Sửa lại rồi Lưu.');
           return;
         }
+      }
+      // Kiểm tra chéo: Ngày sản xuất không được sớm hơn ngày nhập nguyên liệu.
+      const prodDate = fieldVal('fac-production-date') || null;
+      if(prodDate && editingRawNgayNhap && prodDate < editingRawNgayNhap){
+        showErrorToast('Ngày sản xuất (' + fmtDate(prodDate) + ') không được sớm hơn ngày nhập nguyên liệu (' + fmtDate(editingRawNgayNhap) + ').');
+        return;
       }
       // factory_batches.san_pham không còn ô nhập riêng — vẫn giữ lại 1 giá
       // trị đại diện cho cả đợt (dòng Quy cách đầu tiên) để QC và các chỗ
@@ -15274,6 +15399,115 @@ const titles = {
       });
       tbl.appendChild(tb);
       exportTableToExcel(tbl, 'doi-soat-du-lieu_' + todayStr() + '.xlsx', 'Đối soát');
+    });
+  })();
+
+  // ============= Đổi tên mã lô (tab Quản lý tài khoản — chỉ Admin) =============
+  // Mã lô là TEXT ở 13 bảng, không có cascade rename. 2 hàm Postgres
+  // rename_batch_preview() / rename_batch() (supabase/2026-09-10_rename_batch.sql)
+  // lo phần đổi nguyên khối; UI ở đây chỉ chọn lô + xem trước + xác nhận.
+  (function(){
+    const oldSel = document.getElementById('rename-batch-old');
+    const newInp = document.getElementById('rename-batch-new');
+    const btnPrev = document.getElementById('btn-rename-batch-preview');
+    const btnGo = document.getElementById('btn-rename-batch-go');
+    const resultEl = document.getElementById('rename-batch-result');
+    if(!oldSel || !btnPrev || !sb) return;
+
+    let previewedFor = null;   // { oldCode, newCode } đã xem trước — chặn đổi khi chưa xem đúng cặp này
+
+    function populate(){
+      const cur = oldSel.value;
+      const names = Object.keys(sharedBatchSummaries || {}).sort(function(a, b){ return a.localeCompare(b, 'vi'); });
+      oldSel.innerHTML = '<option value="">— Chọn lô —</option>';
+      names.forEach(function(nm){
+        const o = document.createElement('option'); o.value = nm; o.textContent = nm; oldSel.appendChild(o);
+      });
+      if(cur && names.indexOf(cur) !== -1) oldSel.value = cur;
+    }
+    populate();
+    onBatchSummaryChanged(populate);
+
+    function resetGo(){ btnGo.disabled = true; previewedFor = null; }
+    oldSel.addEventListener('change', function(){ resultEl.textContent = ''; resetGo(); });
+    newInp.addEventListener('input', function(){ resultEl.textContent = ''; resetGo(); });
+
+    btnPrev.addEventListener('click', async function(){
+      const oldCode = oldSel.value.trim();
+      const newCode = newInp.value.trim();
+      resultEl.textContent = ''; resetGo();
+      if(!oldCode){ showErrorToast('Chọn lô cần đổi tên.'); return; }
+      if(!newCode){ showErrorToast('Nhập mã lô mới.'); return; }
+      if(newCode === oldCode){ showErrorToast('Mã mới trùng mã cũ.'); return; }
+      btnPrev.disabled = true;
+      try{
+        const { data, error } = await sb.rpc('rename_batch_preview', { old_code: oldCode });
+        if(error) throw error;
+        const rows = (data || []).filter(function(r){ return Number(r.n) > 0; });
+        const total = (data || []).reduce(function(s, r){ return s + Number(r.n || 0); }, 0);
+        const box = document.createElement('div');
+        if(!total){
+          box.className = 'muted';
+          box.textContent = 'Không tìm thấy dòng nào mang mã "' + oldCode + '".';
+        } else {
+          const tbl = document.createElement('table');
+          tbl.style.width = '100%'; tbl.style.fontSize = '12.5px';
+          tbl.innerHTML = '<thead><tr><th style="text-align:left;padding:5px 8px;">Bảng</th><th style="text-align:right;padding:5px 8px;">Số dòng sẽ đổi</th></tr></thead>';
+          const tb = document.createElement('tbody');
+          rows.forEach(function(r){
+            const tr = document.createElement('tr');
+            const c1 = document.createElement('td'); c1.textContent = r.tbl;
+            c1.style.cssText = 'padding:5px 8px;border-bottom:1px solid var(--border);';
+            const c2 = document.createElement('td'); c2.textContent = Number(r.n).toLocaleString('vi-VN');
+            c2.style.cssText = 'padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;';
+            tr.appendChild(c1); tr.appendChild(c2); tb.appendChild(tr);
+          });
+          tbl.appendChild(tb);
+          box.appendChild(tbl);
+          const note = document.createElement('div');
+          note.className = 'muted'; note.style.cssText = 'margin-top:8px;font-size:12px;';
+          note.textContent = 'Tổng ' + total.toLocaleString('vi-VN') + ' dòng sẽ đổi "' + oldCode + '" → "' + newCode + '". Bấm "Đổi tên" để thực hiện.';
+          box.appendChild(note);
+          btnGo.disabled = false;
+          previewedFor = { oldCode: oldCode, newCode: newCode };
+        }
+        resultEl.appendChild(box);
+      } catch(err){
+        showErrorToast('Không xem trước được: ' + (err && (err.message || err)));
+      } finally {
+        btnPrev.disabled = false;
+      }
+    });
+
+    btnGo.addEventListener('click', async function(){
+      const oldCode = oldSel.value.trim();
+      const newCode = newInp.value.trim();
+      if(!previewedFor || previewedFor.oldCode !== oldCode || previewedFor.newCode !== newCode){
+        showErrorToast('Bấm "Xem trước" lại trước khi đổi.'); resetGo(); return;
+      }
+      if(!confirm('Đổi tên lô "' + oldCode + '" → "' + newCode + '" ở tất cả bảng?\nKhông có nút hoàn tác — muốn quay lại thì đổi tên ngược.')) return;
+      btnGo.disabled = true; btnPrev.disabled = true;
+      const oldLabel = btnGo.innerHTML;
+      btnGo.innerHTML = '<i class="ti ti-loader-2"></i>Đang đổi…';
+      try{
+        const { data, error } = await sb.rpc('rename_batch', { old_code: oldCode, new_code: newCode });
+        if(error) throw error;
+        resultEl.textContent = '';
+        const ok = document.createElement('div');
+        ok.className = 'doisoat-pill sev-ok';
+        ok.innerHTML = '<i class="ti ti-circle-check"></i> Đã đổi ' + Number(data || 0).toLocaleString('vi-VN') + ' dòng: "' + oldCode + '" → "' + newCode + '"';
+        resultEl.appendChild(ok);
+        newInp.value = '';
+        previewedFor = null;
+        notifyRawBatchesChanged();
+        notifyFactoryProductionChanged();
+        notifyPurchaseOrdersChanged();
+      } catch(err){
+        showErrorToast('Không đổi được: ' + (err && (err.message || err)));
+        btnPrev.disabled = false;
+      } finally {
+        btnGo.innerHTML = oldLabel;
+      }
     });
   })();
 </script>

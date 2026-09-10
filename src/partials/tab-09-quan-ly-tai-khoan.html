@@ -15,6 +15,19 @@
       </table>
     </div>
 
+    <div class="section-label">Đổi tên mã lô</div>
+    <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Đổi mã 1 lô ở <b>tất cả bảng cùng lúc</b> (Vùng nguyên liệu, PO, Sản xuất, QC, Logistics, Chứng từ, Feedback, Tồn kho, Truy xuất…). Chạy nguyên khối — lỗi giữa chừng thì hủy hết. Chỉ Admin. Bấm "Xem trước" trước khi đổi.</div>
+    <div class="card" style="padding:18px 22px;">
+      <div class="chart-filter-row" style="flex-wrap:wrap;gap:10px;align-items:center;">
+        <select id="rename-batch-old" aria-label="Lô cần đổi tên" style="min-width:220px;"></select>
+        <span style="font-weight:700;color:var(--ink-soft);">→</span>
+        <input type="text" id="rename-batch-new" placeholder="Mã lô mới" style="font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid var(--border);padding:7px 12px;border-radius:20px;box-shadow:var(--shadow-sm);min-width:200px;">
+        <button class="btn-secondary" id="btn-rename-batch-preview" type="button"><i class="ti ti-eye"></i>Xem trước</button>
+        <button class="btn-primary" id="btn-rename-batch-go" type="button" disabled><i class="ti ti-transform"></i>Đổi tên</button>
+      </div>
+      <div id="rename-batch-result" style="margin-top:12px;"></div>
+    </div>
+
     <div class="section-label">Ma trận phân quyền</div>
     <div class="muted" style="font-size:11.5px;margin:-6px 0 10px;">Bấm vào ô để đổi quyền theo vòng ✓ → Xem → — → ✓. Quyền thêm/sửa/xóa (✓) áp dụng thật ở Supabase RLS; trạng thái "—" chỉ ẩn tab khỏi sidebar, không khoá dữ liệu ở tầng server.</div>
     <div class="card">
