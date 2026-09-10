@@ -9,7 +9,7 @@ const titles = {
     docs:      ["Chứng từ", "Checklist chứng từ theo từng lô hàng"],
     feedback:  ["Feedback khách hàng", "Ghi nhận và xử lý phản hồi theo lô hàng"],
     thumua:    ["Thu mua & Bán chợ", "Thu mua dừa, sơ chế và bán ra thị trường nội địa — độc lập với chuỗi xuất khẩu"],
-    baocao:    ["Báo cáo", "Xuất báo cáo tổng hợp theo kỳ và hồ sơ theo lô hàng ra PDF"],
+    baocao:    ["Báo cáo & Đối soát dữ liệu", "Xuất báo cáo PDF theo kỳ / theo lô, và rà soát sai lệch dữ liệu toàn hệ thống"],
     users:     ["Quản lý tài khoản", "Gán vai trò cho tài khoản đăng nhập"]
   };
 
@@ -594,6 +594,24 @@ const titles = {
     if(s === undefined || s === null || String(s).trim() === '') return null;
     const n = Number(String(s).trim());
     return isNaN(n) ? null : n;
+  }
+
+  // Hao hụt chuẩn của 1 lô / 1 nhóm lượt — DÙNG CHUNG cho Xưởng Ba Phi,
+  // Tổng quan và Báo cáo để 3 nơi ra CÙNG một con số (trước đây mỗi nơi tự
+  // tính khác nhau). Định nghĩa (chốt 2026-09-08):
+  //   Thất thoát = Nhập − Thành phẩm − Dạt bỏ − Rớt chuẩn − Tồn NL
+  //                (− phần Tồn NL đã chuyển sang lô khác, nếu truyền vào)
+  //   Hao hụt %  = (Dạt bỏ + max(0, Thất thoát)) ÷ Nhập
+  // Rớt chuẩn và Tồn NL KHÔNG tính là hao hụt. Lô cũ chưa tách nhóm
+  // (rotChuan/tonNl = 0) tự về đúng công thức cũ (Nhập − TP) ÷ Nhập.
+  function haoHut(input, finished, waste, rotChuan, tonNl, tonNlMoved){
+    if(finished == null) return { missing: null, lossQty: null, lossPct: null };
+    input = Number(input) || 0;
+    waste = Number(waste) || 0;
+    const missing = input - Number(finished) - waste
+      - (Number(rotChuan) || 0) - (Number(tonNl) || 0) - (Number(tonNlMoved) || 0);
+    const lossQty = waste + Math.max(0, missing);
+    return { missing: missing, lossQty: lossQty, lossPct: input > 0 ? (lossQty / input) * 100 : null };
   }
 
   // ---- Gợi ý sẵn (datalist) cho các ô hay bị gõ lại tay ----
@@ -2133,6 +2151,7 @@ const titles = {
             ngayNhap: null, hasFactory: false, finishedQty: null, exportedQty: null,
             hasSourceInfo: false, poEntries: [], saleType: null, orderStatus: null, note: '', periodDate: null,
             varietyMap: {}, duaVarieties: [], duaBoxes: 0, sanPhamByVariety: {}, exportedByVariety: {},
+            wasteQty: 0, rotChuanQty: 0, tonNlQty: 0,
             khachHang: null, sanPhamDuKien: null, soLuongDuKien: null, products: [], ngayGiaoMongMuon: null, hasOrderInfo: false, batchInfoCreatedAt: null
           };
         }
@@ -2152,6 +2171,14 @@ const titles = {
         if(r.ngay_nhap && (!b.ngayNhap || r.ngay_nhap > b.ngayNhap)) b.ngayNhap = r.ngay_nhap;
         updatePeriod(b, r.ngay_nhap);
         const fb = getFb(r);
+        if(fb){
+          // Gom 3 nhóm phụ để Tổng quan/Báo cáo tính hao hụt CÙNG công thức
+          // với Xưởng Ba Phi (xem haoHut()). Dạt bỏ từ bảng con; Rớt chuẩn &
+          // Tồn NL là ô nhập tay ở "Cập nhật sản xuất" (null nếu lô cũ chưa tách).
+          b.wasteQty += (fb.factory_batch_waste || []).reduce(function(s, w){ return s + (Number(w.so_luong) || 0); }, 0);
+          if(fb.rot_chuan_qty != null) b.rotChuanQty += Number(fb.rot_chuan_qty);
+          if(fb.ton_nl_qty != null) b.tonNlQty += Number(fb.ton_nl_qty);
+        }
         if(fb && fb.finished_qty != null){
           b.hasFactory = true;
           b.finishedQty = (b.finishedQty || 0) + Number(fb.finished_qty);
@@ -6262,9 +6289,10 @@ const titles = {
       // phần = ton_nl_qty; nếu chuyển đi nhiều hơn mức khai thì phần dôi làm
       // missing âm → lô báo "Khai vượt" (đúng, vì Thành phẩm + đã chuyển đang
       // lớn hơn Số lượng nhập).
-      const missing = finished != null ? (input - finished - waste - rotChuan - tonNl - tonNlMoved) : null;
-      const lossQty = missing != null ? (waste + Math.max(0, missing)) : null;
-      const lossPct = (lossQty != null && input > 0) ? (lossQty / input) * 100 : null;
+      const _hh = haoHut(input, finished, waste, rotChuan, tonNl, tonNlMoved);
+      const missing = _hh.missing;
+      const lossQty = _hh.lossQty;
+      const lossPct = _hh.lossPct;
       return {
         input: input, finished: finished, waste: waste, rotChuan: rotChuan,
         tonNl: tonNl, tonNlMoved: tonNlMoved, pendingTransfer: pendingTransfer,
@@ -9601,32 +9629,37 @@ const titles = {
       // "Hao hụt trung bình" ở bảng gộp theo lô (Xưởng Ba Phi), không lấy
       // trung bình cộng % từng lô để tránh lô nhỏ kéo lệch số liệu.
       if(lossContainer){
-        const lossInputByMonth = new Array(12).fill(0);
-        const lossOutputByMonth = new Array(12).fill(0);
-        const lossHasDataByMonth = new Array(12).fill(false);
+        const lossInput = new Array(12).fill(0);
+        const lossFinished = new Array(12).fill(0);
+        const lossWaste = new Array(12).fill(0);
+        const lossRot = new Array(12).fill(0);
+        const lossTon = new Array(12).fill(0);
+        const lossHasData = new Array(12).fill(false);
         batches.forEach(function(b){
           if(!b.isDua || !b.totalQty || b.finishedQty == null) return;
           const p = periodParts(b.periodDate);
           if(!p || p.year !== year) return;
-          lossInputByMonth[p.month - 1] += b.totalQty;
-          lossOutputByMonth[p.month - 1] += b.finishedQty;
-          lossHasDataByMonth[p.month - 1] = true;
+          const m = p.month - 1;
+          lossInput[m] += b.totalQty;
+          lossFinished[m] += b.finishedQty;
+          lossWaste[m] += b.wasteQty || 0;
+          lossRot[m] += b.rotChuanQty || 0;
+          lossTon[m] += b.tonNlQty || 0;
+          lossHasData[m] = true;
         });
-        const lossItems = lossInputByMonth.map(function(input, i){
-          const hasData = lossHasDataByMonth[i] && input > 0;
-          // Phần "dạt" của tháng SẢN XUẤT đó đã được Xử lý (bán chợ/gán bù
-          // qua lô khác) không còn là hao hụt thật — cộng vào "thành phẩm
-          // hiệu quả" của đúng tháng sản xuất ra nó, cùng cách đã trừ ở
-          // bảng chi tiết Xưởng Ba Phi (không giấu, vẫn ghi rõ qua tooltip).
-          const resolved = resolvedDatByYearMonth[year + '-' + (i + 1)] || 0;
-          const netOutput = lossOutputByMonth[i] + resolved;
-          const pct = hasData ? Math.round((1 - netOutput / input) * 100) : 0;
+        const lossItems = lossInput.map(function(input, i){
+          const hasData = lossHasData[i] && input > 0;
+          // CÙNG công thức với Xưởng Ba Phi (haoHut): Rớt chuẩn + Tồn NL
+          // KHÔNG tính là hao hụt; chỉ Dạt bỏ + Thất thoát mới tính. Lô cũ
+          // chưa tách nhóm (rot/ton = 0) tự về đúng (Nhập − TP) ÷ Nhập.
+          const raw = hasData ? haoHut(input, lossFinished[i], lossWaste[i], lossRot[i], lossTon[i]).lossPct : null;
+          const pct = raw == null ? 0 : Math.round(raw);
           return {
             label: MONTH_NAMES[i],
             value: hasData ? Math.max(pct, 0) : 0,
             color: pct > 15 ? 'var(--red)' : 'var(--amber)',
             muted: monthFilter ? (i + 1 !== monthFilter) : false,
-            tooltip: hasData ? ('Tháng ' + (i + 1) + '/' + year + ': hao hụt ' + pct + '%' + (resolved > 0 ? ' (đã trừ ' + Number(resolved).toLocaleString('vi-VN') + ' trái dạt đã xử lý)' : '')) : ('Tháng ' + (i + 1) + '/' + year + ': chưa có dữ liệu')
+            tooltip: hasData ? ('Tháng ' + (i + 1) + '/' + year + ': hao hụt ' + pct + '%') : ('Tháng ' + (i + 1) + '/' + year + ': chưa có dữ liệu')
           };
         });
         renderBarChart(lossContainer, lossItems, {
@@ -9702,36 +9735,10 @@ const titles = {
     // tồn & rớt" ở Xưởng Ba Phi), gộp theo THÁNG SẢN XUẤT ra đợt dạt đó
     // (không phải tháng bấm Xử lý) — cũng không có sẵn trong
     // sharedBatchSummaries nên tự tải riêng, giống qcCheckRows ở trên.
-    let resolvedDatByYearMonth = {};
-    async function refreshResolvedDatCache(){
-      if(!lossContainer) { renderCharts(); return; }
-      try{
-        const [rawRes, procRes] = await Promise.all([
-          sb.from('raw_batches').select('id, factory_batches(production_date)').is('deleted_at', null),
-          sb.from('factory_culled_processing').select('raw_batch_id, qty_trai').eq('source_type', 'dat').is('deleted_at', null)
-        ]);
-        if(rawRes.error) throw rawRes.error;
-        if(procRes.error) throw procRes.error;
-        const prodDateByRawId = {};
-        (rawRes.data || []).forEach(function(r){
-          const fb = Array.isArray(r.factory_batches) ? r.factory_batches[0] : r.factory_batches;
-          if(fb && fb.production_date) prodDateByRawId[r.id] = fb.production_date;
-        });
-        const byKey = {};
-        (procRes.data || []).forEach(function(p){
-          const prodDate = p.raw_batch_id != null ? prodDateByRawId[p.raw_batch_id] : null;
-          const parts = prodDate ? periodParts(prodDate) : null;
-          if(!parts) return;
-          const key = parts.year + '-' + parts.month;
-          byKey[key] = (byKey[key] || 0) + Number(p.qty_trai || 0);
-        });
-        resolvedDatByYearMonth = byKey;
-      } catch(err){
-        console.error('Không tải được dữ liệu dạt đã xử lý cho biểu đồ:', err);
-        resolvedDatByYearMonth = {};
-      }
-      renderCharts();
-    }
+    // Biểu đồ hao hụt giờ dùng chung công thức haoHut() (Rớt chuẩn + Tồn NL
+    // đã tách khỏi hao hụt ngay trong sharedBatchSummaries) nên không còn phải
+    // tự tải "dạt đã xử lý theo tháng" để bù trừ như trước — chỉ cần vẽ lại.
+    function refreshResolvedDatCache(){ renderCharts(); }
 
     populateSelectors();
     refreshQcChecksCache();
@@ -11816,7 +11823,7 @@ const titles = {
         sb.from('shipments').select('batch_code,product,stage,location,eta,etd,created_at').is('deleted_at', null),
         sb.from('documents_checklist').select('batch_code,market,contract_ok,co_ok,quarantine_ok,bill_of_lading_ok,deadline'),
         sb.from('feedbacks').select('batch_code,market,rating,feedback_text,status,created_at').is('deleted_at', null),
-        sb.from('raw_batches').select('batch,ncc,chung_loai,soluong,ngay_nhap,factory_batches(finished_qty,production_date,san_pham,factory_batch_boxes(quy_cach,so_luong_thung),factory_batch_waste(so_luong))').is('deleted_at', null),
+        sb.from('raw_batches').select('batch,ncc,chung_loai,soluong,ngay_nhap,factory_batches(finished_qty,rot_chuan_qty,ton_nl_qty,production_date,san_pham,factory_batch_boxes(quy_cach,so_luong_thung),factory_batch_waste(so_luong))').is('deleted_at', null),
         sb.from('purchase_orders').select('batch_code,supplier_name,category,quantity,status,created_at').is('deleted_at', null)
       ]);
       [qcRes, shipRes, docRes, fbRes, rawRes, poRes].forEach(function(r){ if(r.error) throw r.error; });
@@ -11826,15 +11833,17 @@ const titles = {
       };
     }
 
-    // Gộp raw_batches theo lô -> {nhapTho, thanhPham, datBo, boxes, quyCach[]}
+    // Gộp raw_batches theo lô -> {nhapTho, thanhPham, datBo, rotChuan, tonNl, boxes, quyCach[]}
     function productionByBatch(rawRows){
       const map = {};
       rawRows.forEach(function(r){
         if(!r.batch) return;
-        const g = map[r.batch] || (map[r.batch] = { nhapTho: 0, thanhPham: 0, datBo: 0, boxes: 0, quyCach: {}, ngaySX: null, hasFactory: false });
+        const g = map[r.batch] || (map[r.batch] = { nhapTho: 0, thanhPham: 0, datBo: 0, rotChuan: 0, tonNl: 0, boxes: 0, quyCach: {}, ngaySX: null, hasFactory: false });
         g.nhapTho += num(r.soluong);
         asArr(r.factory_batches).forEach(function(fb){
           if(fb.finished_qty != null){ g.thanhPham += num(fb.finished_qty); g.hasFactory = true; }
+          if(fb.rot_chuan_qty != null) g.rotChuan += num(fb.rot_chuan_qty);
+          if(fb.ton_nl_qty != null) g.tonNl += num(fb.ton_nl_qty);
           if(fb.production_date && (!g.ngaySX || fb.production_date > g.ngaySX)) g.ngaySX = fb.production_date;
           asArr(fb.factory_batch_waste).forEach(function(w){ g.datBo += num(w.so_luong); });
           asArr(fb.factory_batch_boxes).forEach(function(bx){
@@ -11845,9 +11854,11 @@ const titles = {
       });
       return map;
     }
-    function lossPct(nhap, tp){
-      if(!nhap || tp == null) return null;
-      return Math.round((1 - tp / nhap) * 1000) / 10;
+    // Hao hụt % — dùng chung 1 công thức với Xưởng Ba Phi & Tổng quan (haoHut()
+    // ở ngoài): (Dạt bỏ + Thất thoát) ÷ Nhập; Rớt chuẩn + Tồn NL không tính.
+    function lossPct(nhap, tp, datBo, rotChuan, tonNl){
+      const p = haoHut(nhap, tp == null ? null : tp, datBo || 0, rotChuan || 0, tonNl || 0).lossPct;
+      return p == null ? null : Math.round(p * 10) / 10;
     }
 
     // ---- pdfmake: helper dựng khối ----
@@ -11986,7 +11997,7 @@ const titles = {
         .filter(function(b){ return prod[b.batch]; })
         .map(function(b){
           const g = prod[b.batch];
-          const hh = lossPct(g.nhapTho, g.hasFactory ? g.thanhPham : null);
+          const hh = lossPct(g.nhapTho, g.hasFactory ? g.thanhPham : null, g.datBo, g.rotChuan, g.tonNl);
           return [b.batch, b.category, fmtInt(g.nhapTho || null), g.hasFactory ? fmtInt(g.thanhPham) : '—',
             g.datBo ? fmtInt(g.datBo) : '—', hh == null ? '—' : (hh + '%')];
         });
@@ -12064,7 +12075,7 @@ const titles = {
           const dat = asArr(fb.factory_batch_waste).reduce(function(s, w){ return s + num(w.so_luong); }, 0);
           const boxes = asArr(fb.factory_batch_boxes).reduce(function(s, x){ return s + num(x.so_luong_thung); }, 0);
           const qc = Array.from(new Set(asArr(fb.factory_batch_boxes).map(function(x){ return x.quy_cach; }).filter(Boolean)));
-          const hh = lossPct(num(r.soluong), fb.finished_qty == null ? null : num(fb.finished_qty));
+          const hh = lossPct(num(r.soluong), fb.finished_qty == null ? null : num(fb.finished_qty), dat, fb.rot_chuan_qty, fb.ton_nl_qty);
           sxRows.push([
             fmtD(fb.production_date),
             fb.finished_qty == null ? '—' : (fmtInt(num(fb.finished_qty)) + ' trái'),
@@ -12172,4 +12183,371 @@ const titles = {
     if(btnKyDownload) btnKyDownload.addEventListener('click', function(){ runReport('ky', 'download'); });
     if(btnLoPreview) btnLoPreview.addEventListener('click', function(){ runReport('lo', 'open'); });
     if(btnLoDownload) btnLoDownload.addEventListener('click', function(){ runReport('lo', 'download'); });
+  })();
+
+  // ============= Đối soát dữ liệu (subtab "Đối soát dữ liệu" của tab Báo cáo) =============
+  // Rà soát toàn hệ thống, KHÔNG sửa gì — chỉ đọc và đối chiếu các bảng để
+  // liệt kê ra: (A) số liệu lệch nhau giữa 2 nơi cùng ghi 1 dữ liệu, (B) lô
+  // bị kẹt / bỏ bước trong quy trình. Bổ trợ cho ô "Cần xử lý ngay" ở Tổng
+  // quan (ô đó chỉ cho số đếm — ở đây liệt kê rõ từng lô + chi tiết).
+  (function(){
+    const bodyEl = document.getElementById('doisoat-body');
+    const summaryEl = document.getElementById('doisoat-summary');
+    const updatedEl = document.getElementById('doisoat-updated');
+    const btnRefresh = document.getElementById('btn-doisoat-refresh');
+    const btnExport = document.getElementById('btn-doisoat-export');
+    const subtabBtn = document.getElementById('subtab-btn-doisoat');
+    if(!bodyEl || !btnRefresh || !sb) return;
+
+    const TAB_LABELS = { factory: 'Xưởng', qc: 'QC', docs: 'Chứng từ', logistics: 'Logistics', ncc: 'Nhà cung cấp', donhang: 'Đơn hàng' };
+    const LATE_STAGES = ['Trên biển', 'Thông quan', 'Cảng đến', 'Giao khách hàng', 'Khách đã nhận hàng'];
+
+    let running = false, loadedOnce = false, lastFindings = [];
+
+    function n(v){ if(v == null) return 0; const x = Number(String(v).replace(/[^\d.-]/g, '')); return isNaN(x) ? 0 : x; }
+    function arr(v){ return Array.isArray(v) ? v : (v == null ? [] : [v]); }
+    function d2(s){ if(!s) return '—'; const p = String(s).slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : String(s); }
+    function fmtT(x){ return (x == null || isNaN(x)) ? '—' : Number(x).toLocaleString('vi-VN'); }
+
+    async function fetchAll(){
+      const [rawR, stockR, procR, qcR, shipR, docR, poR, biR] = await Promise.all([
+        sb.from('raw_batches').select('id,batch,ncc,soluong,ngay_nhap,factory_batches(finished_qty,rot_chuan_qty,ton_nl_qty,factory_batch_boxes(quy_cach,so_luong_thung),factory_batch_waste(so_luong))').is('deleted_at', null),
+        sb.from('factory_finished_stock').select('batch,san_pham,quy_cach,exported_qty').is('deleted_at', null),
+        sb.from('factory_culled_processing').select('source_batch,raw_batch_id,xu_ly_type,source_type,qty_trai,target_batch,target_raw_batch_id').is('deleted_at', null),
+        sb.from('qc_checks').select('batch_code,result,so_luong_kiem,so_luong_dat').is('deleted_at', null),
+        sb.from('shipments').select('batch_code,stage,etd,eta').is('deleted_at', null),
+        sb.from('documents_checklist').select('batch_code,contract_ok,co_ok,quarantine_ok,bill_of_lading_ok'),
+        sb.from('purchase_orders').select('batch_code,supplier_name,ngay_hen_giao,ngay_giao_thuc_te').is('deleted_at', null),
+        sb.from('batch_info').select('batch,sale_type')
+      ]);
+      [rawR, stockR, procR, qcR, shipR, docR, poR].forEach(function(r){ if(r.error) throw r.error; });
+      return {
+        raw: rawR.data || [], stock: stockR.data || [], proc: procR.data || [],
+        qc: qcR.data || [], ship: shipR.data || [], docs: docR.data || [],
+        po: poR.data || [], bi: biR.error ? [] : (biR.data || [])
+      };
+    }
+
+    function buildFindings(data){
+      const today = todayStr();
+      const rawById = {};
+      data.raw.forEach(function(r){ rawById[r.id] = r; });
+      const checks = [];
+      function add(id, sev, icon, title, sub, tab, rows){ checks.push({ id: id, sev: sev, icon: icon, title: title, sub: sub, tab: tab, rows: rows }); }
+
+      // 1) Chuyển nội bộ lệch số nguồn ↔ đích
+      (function(){
+        const rows = [];
+        data.proc.forEach(function(p){
+          if(p.xu_ly_type !== 'reassign' || p.source_type !== 'ton_nl' || !p.target_raw_batch_id) return;
+          const tgt = rawById[p.target_raw_batch_id];
+          const src = p.source_batch || (rawById[p.raw_batch_id] ? rawById[p.raw_batch_id].batch : '—');
+          if(!tgt){
+            rows.push({ lo: src, chiTiet: 'Chuyển ' + fmtT(n(p.qty_trai)) + ' trái sang "' + (p.target_batch || '—') + '" nhưng lượt nhập ở lô đích đã bị xoá.', tab: 'factory' });
+            return;
+          }
+          const diff = n(tgt.soluong) - n(p.qty_trai);
+          if(Math.abs(diff) > 1){
+            rows.push({ lo: src + ' → ' + (tgt.batch || p.target_batch || '—'),
+              chiTiet: 'Lô nguồn ghi chuyển ' + fmtT(n(p.qty_trai)) + ' trái, lô đích đang nhận ' + fmtT(n(tgt.soluong)) + ' trái (lệch ' + fmtT(Math.abs(diff)) + ').', tab: 'factory' });
+          }
+        });
+        add('transfer', 'C', 'ti-arrows-exchange', 'Chuyển nội bộ lệch số nguồn ↔ đích',
+          'Số trái ở lượt "Đưa sang lô khác SX" không khớp lượt nhập tạo ở lô đích.', 'factory', rows);
+      })();
+
+      // 2) Cân đối lô "khai vượt"
+      (function(){
+        const rows = [];
+        data.raw.forEach(function(r){
+          const fb = arr(r.factory_batches)[0];
+          if(!fb || fb.finished_qty == null) return;
+          const input = n(r.soluong);
+          if(input <= 0) return;
+          const dat = arr(fb.factory_batch_waste).reduce(function(s, w){ return s + n(w.so_luong); }, 0);
+          const rot = n(fb.rot_chuan_qty), ton = n(fb.ton_nl_qty), tp = n(fb.finished_qty);
+          const over = (tp + dat + rot + ton) - input;
+          if(over > 1){
+            rows.push({ lo: r.batch,
+              chiTiet: 'TP ' + fmtT(tp) + ' + Dạt bỏ ' + fmtT(dat) + ' + Rớt chuẩn ' + fmtT(rot) + ' + Tồn NL ' + fmtT(ton) + ' = ' + fmtT(tp + dat + rot + ton) + ' trái, vượt Số lượng nhập ' + fmtT(input) + ' (khai vượt ' + fmtT(over) + ').', tab: 'factory' });
+          }
+        });
+        add('balance', 'C', 'ti-scale', 'Cân đối lô "khai vượt"',
+          'Tổng Thành phẩm + Dạt bỏ + Rớt chuẩn + Tồn NL lớn hơn Số lượng nhập.', 'factory', rows);
+      })();
+
+      // 3) Tồn kho thành phẩm: đã xuất > đã đóng
+      (function(){
+        const packedByBatch = {}, expByBatch = {};
+        data.raw.forEach(function(r){
+          const fb = arr(r.factory_batches)[0];
+          if(!fb) return;
+          let packed = arr(fb.factory_batch_boxes).reduce(function(s, b){ return s + n(b.quy_cach) * n(b.so_luong_thung); }, 0);
+          if(packed <= 0 && fb.finished_qty != null) packed = n(fb.finished_qty);
+          packedByBatch[r.batch] = (packedByBatch[r.batch] || 0) + packed;
+        });
+        data.stock.forEach(function(s){
+          if(s.exported_qty == null) return;
+          expByBatch[s.batch] = (expByBatch[s.batch] || 0) + n(s.exported_qty);
+        });
+        const rows = [];
+        Object.keys(expByBatch).forEach(function(b){
+          const exp = expByBatch[b], packed = packedByBatch[b] || 0;
+          if(exp > packed + Math.max(2, packed * 0.02)){
+            rows.push({ lo: b, chiTiet: 'Đã xuất ' + fmtT(exp) + ' trái nhưng chỉ đóng gói ' + fmtT(packed) + ' trái (có thể do gán bù từ lô khác — kiểm tra "Xử lý hàng tồn & rớt").', tab: 'factory' });
+          }
+        });
+        add('exported', 'W', 'ti-package-off', 'Đã xuất nhiều hơn đã đóng gói',
+          'Số trái đã xuất kho vượt số đã đóng thùng của lô.', 'factory', rows);
+      })();
+
+      // 4) factory_finished_stock trùng dòng
+      (function(){
+        const seen = {};
+        data.stock.forEach(function(s){
+          const key = (s.batch || '') + ' | ' + (s.quy_cach == null ? '∅' : s.quy_cach) + ' | ' + (s.san_pham || '∅');
+          seen[key] = (seen[key] || 0) + 1;
+        });
+        const rows = [];
+        Object.keys(seen).forEach(function(k){
+          if(seen[k] > 1){
+            const parts = k.split(' | ');
+            rows.push({ lo: parts[0], chiTiet: 'Có ' + seen[k] + ' dòng tồn kho trùng nhau (quy cách ' + parts[1] + ', sản phẩm ' + parts[2] + ') — cần gộp lại.', tab: 'factory' });
+          }
+        });
+        add('dupstock', 'C', 'ti-copy', 'Tồn kho thành phẩm trùng dòng',
+          'Cùng một (lô, quy cách, sản phẩm) có nhiều dòng trong tồn kho.', 'factory', rows);
+      })();
+
+      // 5) QC: số đạt > số kiểm
+      (function(){
+        const rows = [];
+        data.qc.forEach(function(q){
+          if(q.so_luong_kiem == null || q.so_luong_dat == null) return;
+          if(n(q.so_luong_dat) > n(q.so_luong_kiem) + 0.001){
+            rows.push({ lo: q.batch_code || '—', chiTiet: 'Số lượng đạt ' + fmtT(n(q.so_luong_dat)) + ' lớn hơn số lượng kiểm ' + fmtT(n(q.so_luong_kiem)) + '.', tab: 'qc' });
+          }
+        });
+        add('qcqty', 'C', 'ti-clipboard-x', 'Kết quả QC: số đạt vượt số kiểm',
+          'Một phiếu QC ghi số lượng đạt lớn hơn số lượng đưa vào kiểm.', 'qc', rows);
+      })();
+
+      const qcByBatch = {}; data.qc.forEach(function(q){ if(q.batch_code) qcByBatch[q.batch_code] = true; });
+      const docByBatch = {}; data.docs.forEach(function(x){ if(x.batch_code) docByBatch[x.batch_code] = x; });
+      const saleTypeByBatch = {}; data.bi.forEach(function(x){ if(x.batch) saleTypeByBatch[x.batch] = x.sale_type || null; });
+
+      // 6) Lô đã vận chuyển nhưng chưa từng QC
+      (function(){
+        const rows = [], seen = {};
+        data.ship.forEach(function(s){
+          if(!s.batch_code || LATE_STAGES.indexOf(s.stage) === -1 || qcByBatch[s.batch_code] || seen[s.batch_code]) return;
+          seen[s.batch_code] = true;
+          rows.push({ lo: s.batch_code, chiTiet: 'Đang ở giai đoạn "' + s.stage + '" nhưng chưa có phiếu QC nào.', tab: 'qc' });
+        });
+        add('qcmissing', 'W', 'ti-clipboard-check', 'Lô đã vận chuyển nhưng chưa kiểm QC',
+          'Lô đã qua giai đoạn "Trên biển" trở đi mà không có kết quả QC.', 'qc', rows);
+      })();
+
+      // 7) Lô đã giao xong nhưng chứng từ chưa đủ (bỏ qua lô Nội địa)
+      (function(){
+        const rows = [], seen = {};
+        data.ship.forEach(function(s){
+          if(!s.batch_code || s.stage !== 'Khách đã nhận hàng' || seen[s.batch_code]) return;
+          if(saleTypeByBatch[s.batch_code] === 'Nội địa') return;
+          seen[s.batch_code] = true;
+          const x = docByBatch[s.batch_code];
+          const full = x && x.contract_ok && x.co_ok && x.quarantine_ok && x.bill_of_lading_ok;
+          if(!full){
+            rows.push({ lo: s.batch_code, chiTiet: x ? 'Checklist chứng từ chưa đủ (còn mục chưa tick).' : 'Chưa có checklist chứng từ.', tab: 'docs' });
+          }
+        });
+        add('docsmissing', 'W', 'ti-file-alert', 'Lô đã giao xong nhưng chứng từ chưa đủ',
+          'Lô ở giai đoạn "Khách đã nhận hàng" mà checklist chứng từ chưa hoàn tất.', 'docs', rows);
+      })();
+
+      // 8) Lô đã sản xuất nhưng chưa có Hình thức bán
+      (function(){
+        const rows = [], seen = {};
+        data.raw.forEach(function(r){
+          const fb = arr(r.factory_batches)[0];
+          if(!fb || fb.finished_qty == null || saleTypeByBatch[r.batch] || seen[r.batch]) return;
+          seen[r.batch] = true;
+          rows.push({ lo: r.batch, chiTiet: 'Đã có Thành phẩm nhưng chưa chọn Hình thức bán (Nội địa/Xuất khẩu) — Logistics và Chứng từ sẽ không hiện đúng.', tab: 'qc' });
+        });
+        add('saletype', 'W', 'ti-tag', 'Lô đã sản xuất nhưng chưa có Hình thức bán',
+          'batch_info chưa có sale_type — chặn hiển thị đúng ở Logistics / Chứng từ.', 'qc', rows);
+      })();
+
+      // 9) PO quá hạn hẹn giao chưa nhập
+      (function(){
+        const rows = [];
+        data.po.forEach(function(p){
+          if(!p.ngay_hen_giao || p.ngay_giao_thuc_te) return;
+          if(String(p.ngay_hen_giao).slice(0, 10) < today){
+            rows.push({ lo: p.batch_code || '—', chiTiet: (p.supplier_name || 'NCC') + ' hẹn giao ' + d2(p.ngay_hen_giao) + ' nhưng chưa ghi nhận ngày giao thực tế.', tab: 'ncc' });
+          }
+        });
+        add('polate', 'W', 'ti-truck-loading', 'PO quá hạn hẹn giao chưa nhập',
+          'Đơn đặt hàng NCC đã qua ngày hẹn giao mà chưa có ngày giao thực tế.', 'ncc', rows);
+      })();
+
+      // 10) Container thiếu ngày ETD/ETA
+      (function(){
+        const rows = [];
+        data.ship.forEach(function(s){
+          if(!s.batch_code || s.stage === 'Kho nội địa' || s.stage === 'Khách đã nhận hàng') return;
+          const miss = [];
+          if(!s.etd) miss.push('ETD');
+          if(!s.eta) miss.push('ETA');
+          if(miss.length){
+            rows.push({ lo: s.batch_code, chiTiet: 'Đang ở "' + (s.stage || '—') + '" nhưng thiếu ' + miss.join(' và ') + '.', tab: 'logistics' });
+          }
+        });
+        add('shipdate', 'W', 'ti-calendar-off', 'Container thiếu ngày ETD/ETA',
+          'Lô đã rời kho nội địa nhưng chưa nhập đủ ngày dự kiến đi/đến.', 'logistics', rows);
+      })();
+
+      return checks;
+    }
+
+    function render(checks){
+      lastFindings = checks;
+      const cCount = checks.filter(function(c){ return c.sev === 'C'; }).reduce(function(s, c){ return s + c.rows.length; }, 0);
+      const wCount = checks.filter(function(c){ return c.sev === 'W'; }).reduce(function(s, c){ return s + c.rows.length; }, 0);
+
+      summaryEl.textContent = '';
+      const line = document.createElement('div');
+      line.className = 'doisoat-summary-line';
+      if(!cCount && !wCount){
+        const ok = document.createElement('span');
+        ok.className = 'doisoat-pill sev-ok';
+        ok.innerHTML = '<i class="ti ti-circle-check"></i> Không phát hiện sai lệch nào';
+        line.appendChild(ok);
+      } else {
+        if(cCount){
+          const p = document.createElement('span'); p.className = 'doisoat-pill sev-c';
+          p.innerHTML = '<i class="ti ti-alert-triangle"></i> ' + cCount + ' sai lệch nghiêm trọng';
+          line.appendChild(p);
+        }
+        if(wCount){
+          const p = document.createElement('span'); p.className = 'doisoat-pill sev-w';
+          p.innerHTML = '<i class="ti ti-alert-circle"></i> ' + wCount + ' cảnh báo';
+          line.appendChild(p);
+        }
+      }
+      summaryEl.appendChild(line);
+
+      bodyEl.textContent = '';
+      checks.slice().sort(function(a, b){
+        const ra = a.rows.length ? (a.sev === 'C' ? 0 : 1) : 2;
+        const rb = b.rows.length ? (b.sev === 'C' ? 0 : 1) : 2;
+        return ra - rb;
+      }).forEach(function(c){
+        const wrap = document.createElement('div');
+        wrap.className = 'doisoat-check' + (c.rows.length ? ' open' : '');
+        wrap.dataset.sev = c.rows.length ? c.sev : 'OK';
+
+        const head = document.createElement('div');
+        head.className = 'doisoat-check-head';
+        const chip = document.createElement('span');
+        chip.className = 'icon-chip ' + (c.rows.length ? (c.sev === 'C' ? 'nic-red' : 'nic-amber') : 'nic-green');
+        chip.innerHTML = '<i class="ti ' + c.icon + '"></i>';
+        const tw = document.createElement('div');
+        tw.style.flex = '1'; tw.style.minWidth = '0';
+        const t = document.createElement('div'); t.className = 'chk-title'; t.textContent = c.title;
+        const sub = document.createElement('div'); sub.className = 'chk-sub'; sub.textContent = c.sub;
+        tw.appendChild(t); tw.appendChild(sub);
+        const cnt = document.createElement('div'); cnt.className = 'chk-count';
+        cnt.textContent = c.rows.length ? String(c.rows.length) : '✓';
+        const caret = document.createElement('i'); caret.className = 'ti ti-chevron-right chk-caret';
+        head.appendChild(chip); head.appendChild(tw); head.appendChild(cnt); head.appendChild(caret);
+        wrap.appendChild(head);
+
+        const rowsEl = document.createElement('div');
+        rowsEl.className = 'doisoat-check-rows';
+        rowsEl.hidden = !c.rows.length;
+        if(c.rows.length){
+          const tbl = document.createElement('table');
+          tbl.innerHTML = '<thead><tr><th>Lô hàng</th><th>Chi tiết</th><th></th></tr></thead>';
+          const tb = document.createElement('tbody');
+          c.rows.forEach(function(r){
+            const tr = document.createElement('tr');
+            const td1 = document.createElement('td'); td1.textContent = r.lo || '—';
+            const td2 = document.createElement('td'); td2.textContent = r.chiTiet || '';
+            const td3 = document.createElement('td');
+            const btn = document.createElement('button');
+            btn.type = 'button'; btn.className = 'doisoat-open-btn';
+            btn.textContent = 'Mở ' + (TAB_LABELS[r.tab] || '');
+            btn.addEventListener('click', function(){ goTab(r.tab); });
+            td3.appendChild(btn);
+            tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+            tb.appendChild(tr);
+          });
+          tbl.appendChild(tb);
+          rowsEl.appendChild(tbl);
+        }
+        wrap.appendChild(rowsEl);
+
+        head.addEventListener('click', function(){
+          if(!c.rows.length) return;
+          const open = wrap.classList.toggle('open');
+          rowsEl.hidden = !open;
+        });
+        bodyEl.appendChild(wrap);
+      });
+
+      const now = new Date();
+      updatedEl.textContent = 'Cập nhật lúc ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    }
+
+    async function run(){
+      if(running) return;
+      running = true;
+      btnRefresh.disabled = true;
+      const oldLabel = btnRefresh.innerHTML;
+      btnRefresh.innerHTML = '<i class="ti ti-loader-2"></i>Đang rà soát…';
+      bodyEl.innerHTML = '<div class="muted" style="padding:20px 0;">Đang đọc dữ liệu và đối chiếu…</div>';
+      try{
+        const data = await fetchAll();
+        render(buildFindings(data));
+        loadedOnce = true;
+      } catch(err){
+        bodyEl.textContent = ''; summaryEl.textContent = '';
+        const e = document.createElement('div');
+        e.className = 'muted'; e.style.padding = '20px 0'; e.style.color = 'var(--red)';
+        e.textContent = 'Không rà soát được: ' + (err && (err.message || err));
+        bodyEl.appendChild(e);
+      } finally {
+        running = false;
+        btnRefresh.disabled = false;
+        btnRefresh.innerHTML = oldLabel;
+      }
+    }
+
+    btnRefresh.addEventListener('click', run);
+    if(subtabBtn) subtabBtn.addEventListener('click', function(){ if(!loadedOnce && !running) run(); });
+    const panel = document.getElementById('subtab-doisoat');
+    if(panel && panel.classList.contains('active')) run();
+
+    if(btnExport) btnExport.addEventListener('click', function(){
+      const flat = [];
+      lastFindings.forEach(function(c){
+        c.rows.forEach(function(r){
+          flat.push({ nhom: c.title, muc: c.sev === 'C' ? 'Nghiêm trọng' : 'Cảnh báo', lo: r.lo, chiTiet: r.chiTiet });
+        });
+      });
+      if(!flat.length){ showErrorToast(loadedOnce ? 'Không có sai lệch nào để xuất.' : 'Bấm "Rà soát lại" trước đã.'); return; }
+      const tbl = document.createElement('table');
+      tbl.innerHTML = '<thead><tr><th>Nhóm</th><th>Mức</th><th>Lô hàng</th><th>Chi tiết</th></tr></thead>';
+      const tb = document.createElement('tbody');
+      flat.forEach(function(f){
+        const tr = document.createElement('tr');
+        ['nhom', 'muc', 'lo', 'chiTiet'].forEach(function(k){
+          const td = document.createElement('td'); td.textContent = f[k] || ''; tr.appendChild(td);
+        });
+        tb.appendChild(tr);
+      });
+      tbl.appendChild(tb);
+      exportTableToExcel(tbl, 'doi-soat-du-lieu_' + todayStr() + '.xlsx', 'Đối soát');
+    });
   })();

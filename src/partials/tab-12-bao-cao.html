@@ -2,6 +2,7 @@
     <div class="subtab-bar">
       <button class="subtab-item active" id="subtab-btn-report-ky" data-subtab="report-ky" type="button">Tổng hợp theo kỳ</button>
       <button class="subtab-item" id="subtab-btn-report-lo" data-subtab="report-lo" type="button">Hồ sơ theo lô hàng</button>
+      <button class="subtab-item" id="subtab-btn-doisoat" data-subtab="doisoat" type="button">Đối soát dữ liệu</button>
     </div>
 
     <div class="subtab-panel active" id="subtab-report-ky">
@@ -43,6 +44,22 @@
           <button class="btn-primary" id="btn-report-lo-download" type="button"><i class="ti ti-file-download"></i>Tải PDF</button>
         </div>
         <div class="muted" id="report-lo-status" style="font-size:12px;margin-top:12px;"></div>
+      </div>
+    </div>
+
+    <div class="subtab-panel" id="subtab-doisoat">
+      <div class="muted" style="font-size:11.5px;margin:-4px 0 14px;">Rà soát toàn hệ thống tìm số liệu lệch nhau, quy trình bị kẹt hoặc bỏ bước — dựa trên dữ liệu hiện tại, không sửa gì cả. Bấm vào từng nhóm để xem danh sách lô cần kiểm. Chỉ Admin thấy mục này.</div>
+      <div class="card">
+        <div class="section-header-row" style="margin-bottom:6px;">
+          <div class="section-label" style="margin:0;">Kết quả rà soát</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <span class="muted" id="doisoat-updated" style="font-size:11.5px;"></span>
+            <button class="btn-secondary" id="btn-doisoat-refresh" type="button"><i class="ti ti-refresh"></i>Rà soát lại</button>
+            <button class="btn-secondary" id="btn-doisoat-export" type="button"><i class="ti ti-file-spreadsheet"></i>Xuất Excel</button>
+          </div>
+        </div>
+        <div id="doisoat-summary" style="margin:10px 0 4px;"></div>
+        <div id="doisoat-body"><div class="muted" style="padding:20px 0;">Bấm "Rà soát lại" để bắt đầu.</div></div>
       </div>
     </div>
   </section>
