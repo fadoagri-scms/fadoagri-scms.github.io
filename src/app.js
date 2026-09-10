@@ -6128,6 +6128,7 @@ const titles = {
     // Phần "Tồn NL chưa SX" của lượt đang mở đã bị chuyển/bán/dạt đi ở "Xử lý
     // hàng tồn & rớt" — chặn không cho hạ ô "Tồn NL chưa SX" xuống dưới mức này.
     let editingMovedTonNl = 0;
+    let editingTonNlStored = null;   // ton_nl_qty đang lưu của lượt đang mở
     // raw_batches (kèm factory_batches lồng) của lần render gần nhất, tra theo
     // id — nút Sửa ở bảng chỉ mang data-raw-id, lấy dữ liệu điền form từ đây
     // thay vì nhét hết vào dataset của <tr>.
@@ -6218,13 +6219,14 @@ const titles = {
       const moved = processedTonNlByRawId[r && r.id] || 0;
       return Math.max(0, Number(fb.ton_nl_qty) - moved);
     }
-    // Phần Tồn NL đã xử lý/chuyển đi — nằm TRONG ton_nl_qty đã khai. Tách
-    // riêng để hiện "đã chuyển" mà cân đối lô vẫn khớp (lotTonNl + lotTonNlMoved
-    // luôn = ton_nl_qty), không nhảy thành Thất thoát.
+    // Số trái Tồn NL đã thực chuyển/bán/dạt đi (tổng qty_trai các lượt xử lý)
+    // — KHÔNG cắt theo ton_nl_qty đã khai. Nếu chuyển đi NHIỀU HƠN mức khai
+    // (dữ liệu lệch) thì phần dôi phải chảy vào Thất thoát để lô báo "Khai
+    // vượt", không được giấu đi. Khi dữ liệu khớp thì lotTonNl + lotTonNlMoved
+    // = ton_nl_qty đúng như cũ.
     function lotTonNlMoved(r, fb){
       if(!fb || fb.ton_nl_qty == null) return 0;
-      const moved = processedTonNlByRawId[r && r.id] || 0;
-      return Math.min(Math.max(0, moved), Math.max(0, Number(fb.ton_nl_qty)));
+      return Math.max(0, processedTonNlByRawId[r && r.id] || 0);
     }
     // Lượt nguyên liệu do "Đưa sang lô khác sản xuất" tự tạo (nhận biết qua
     // NCC đặt lúc chuyển). Khi CHƯA khai SX thì chưa nhập vào cân đối lô đích
@@ -6256,8 +6258,10 @@ const titles = {
         if(fb && fb.finished_qty != null){ anyProduced = true; finished = (finished || 0) + Number(fb.finished_qty); }
         else allProduced = false;
       });
-      // tonNl + tonNlMoved luôn = tổng ton_nl_qty đã khai — trừ cả 2 để "phần
-      // đã chuyển đi" không bị tính là Thất thoát ở lô nguồn.
+      // Trừ cả Tồn NL còn lại và phần đã chuyển đi. Khớp dữ liệu thì tổng 2
+      // phần = ton_nl_qty; nếu chuyển đi nhiều hơn mức khai thì phần dôi làm
+      // missing âm → lô báo "Khai vượt" (đúng, vì Thành phẩm + đã chuyển đang
+      // lớn hơn Số lượng nhập).
       const missing = finished != null ? (input - finished - waste - rotChuan - tonNl - tonNlMoved) : null;
       const lossQty = missing != null ? (waste + Math.max(0, missing)) : null;
       const lossPct = (lossQty != null && input > 0) ? (lossQty / input) * 100 : null;
@@ -6997,7 +7001,7 @@ const titles = {
       factoryForm.reset();
       resetBoxRows(); resetWasteRows();
       editingRawBatchId = null; editingBatchLabel = ''; editingInputQty = null;
-      editingMovedTonNl = 0;
+      editingMovedTonNl = 0; editingTonNlStored = null;
       if(balancePanel) balancePanel.textContent = '';
       setSubmitBlocked(false);
     }
@@ -7015,8 +7019,9 @@ const titles = {
       editingBatchLabel = r.batch || '';
       editingInputQty = parseQty(r.soluong);
       // Phần Tồn NL của lượt này đã chuyển/bán/dạt đi ở "Xử lý hàng tồn & rớt"
-      // — không cho hạ ô "Tồn NL chưa SX" xuống dưới mức này (sẽ desync).
+      // — không cho HẠ ô "Tồn NL chưa SX" xuống dưới mức này (sẽ desync).
       editingMovedTonNl = processedTonNlByRawId[r.id] || 0;
+      editingTonNlStored = (fb && fb.ton_nl_qty != null) ? Number(fb.ton_nl_qty) : null;
       if(factoryModalBatchInfo){
         factoryModalBatchInfo.textContent = 'Lô hàng: ' + (r.batch || '—') + ' · NCC: ' + (r.ncc || '—') +
           ' · Số lượng nhập: ' + (editingInputQty != null ? editingInputQty.toLocaleString('vi-VN') + ' trái' : '—');
@@ -7068,10 +7073,15 @@ const titles = {
       const finishedVal = parseQty(fieldVal('fac-finished-qty'));
       const rotVal = parseQty(fieldVal('fac-rot-chuan'));
       const tonVal = parseQty(fieldVal('fac-ton-nl'));
-      // Không cho hạ "Tồn NL chưa SX" xuống dưới phần đã chuyển/bán/dạt đi ở
+      // Không cho HẠ "Tồn NL chưa SX" xuống dưới phần đã chuyển/bán/dạt đi ở
       // "Xử lý hàng tồn & rớt" — nếu không, số đã chuyển thành lượt ở lô đích
-      // sẽ mồ côi, cân đối 2 lô lệch nhau.
-      if((editingMovedTonNl || 0) > 0 && (tonVal || 0) < editingMovedTonNl){
+      // sẽ mồ côi, cân đối 2 lô lệch nhau. Chỉ chặn khi người dùng đang GIẢM
+      // xuống dưới mức đã chuyển; dữ liệu cũ vốn đã lệch (chuyển > khai) thì
+      // vẫn cho lưu để còn sửa Thành phẩm/… từ chính form này.
+      const tonNlWasAlreadyShort = editingTonNlStored != null && editingTonNlStored < editingMovedTonNl;
+      if((editingMovedTonNl || 0) > 0 && (tonVal || 0) < editingMovedTonNl &&
+         (tonVal || 0) < (editingTonNlStored == null ? Infinity : editingTonNlStored) &&
+         !tonNlWasAlreadyShort){
         showErrorToast('Đã chuyển/xử lý ' + editingMovedTonNl.toLocaleString('vi-VN') +
           ' trái Tồn NL sang chỗ khác. Ô "Tồn nguyên liệu chưa SX" không được nhỏ hơn ' +
           editingMovedTonNl.toLocaleString('vi-VN') + ' trái. Muốn giảm thì xoá bớt lượt xử lý ở "Xử lý hàng tồn & rớt" trước.');
@@ -7883,6 +7893,10 @@ const titles = {
       if(!culledOverlay || !culledForm || !culledTbody || !sb) return;
 
       let editingCulledRow = null;
+      // Bản ghi factory_culled_processing đang được SỬA (khác editingCulledRow —
+      // đó là dòng tồn/rớt chọn để TẠO lượt mới). Khi != null, submit đi nhánh
+      // sửa: chỉ đụng qty_trai/ngày/ghi chú + đồng bộ side-effect theo delta.
+      let editingCulledProc = null;
 
       function quyCachKeyOf(quyCach){ return quyCach == null ? '' : String(quyCach); }
 
@@ -7934,7 +7948,14 @@ const titles = {
       if(culledTypeSelect) culledTypeSelect.addEventListener('change', toggleCulledFields);
 
       function openModal(){ culledOverlay.classList.add('active'); }
-      function closeModal(){ culledOverlay.classList.remove('active'); culledForm.reset(); culledTypeSelect.value = 'market'; toggleCulledFields(); editingCulledRow = null; }
+      function closeModal(){
+        culledOverlay.classList.remove('active'); culledForm.reset(); culledTypeSelect.value = 'market';
+        if(culledQtyInput) culledQtyInput.disabled = false;
+        const _tg = document.getElementById('culled-type-group');
+        if(_tg) _tg.style.display = '';
+        toggleCulledFields();
+        editingCulledRow = null; editingCulledProc = null;
+      }
       if(closeCulledBtn) closeCulledBtn.addEventListener('click', closeModal);
       if(cancelCulledBtn) cancelCulledBtn.addEventListener('click', closeModal);
       culledOverlay.addEventListener('click', function(e){ if(e.target === culledOverlay) closeModal(); });
@@ -7989,6 +8010,48 @@ const titles = {
           culledTypeSelect.value = 'market';
           toggleCulledFields();
         }
+        openModal();
+      }
+
+      // Số lượng của lượt xử lý chỉ sửa an toàn khi side-effect đơn giản: bán
+      // chợ / dạt bỏ (chỉ trừ ledger, hoặc 1 dòng "Đã xuất"), hoặc chuyển Tồn NL
+      // sang lô khác SX (đồng bộ thẳng số trái sang lượt nhập ở lô đích). "Xử lý
+      // lại" và "gán bù" từ hàng dạt/tồn dư đụng finished_qty / dòng Quy cách —
+      // sửa số ở đó dễ lệch, bắt xoá-tạo-lại.
+      function procQtyEditable(p){
+        return (p.xu_ly_type === 'market' || p.xu_ly_type === 'discard')
+          || (p.xu_ly_type === 'reassign' && p.source_type === 'ton_nl');
+      }
+
+      function openEditProcModal(p){
+        editingCulledRow = null;
+        editingCulledProc = p;
+        const qtyEditable = procQtyEditable(p);
+        const typeLabel = CULLED_TYPE_LABELS[p.xu_ly_type] || p.xu_ly_type;
+        const srcLabel = p.source_type === 'ton_du'
+          ? ((p.source_batch || '—') + ' [Tồn kho dư]')
+          : ((p.source_batch || ('Lô #' + p.raw_batch_id)) + (p.source_type === 'ton_nl' ? ' [Tồn NL]' : ' [Hàng dạt]'));
+        if(culledModalTitle) culledModalTitle.textContent = 'Sửa lượt xử lý';
+        if(culledModalBatchInfo){
+          culledModalBatchInfo.textContent = 'Nguồn: ' + srcLabel + ' · Loại xử lý: ' + typeLabel
+            + (p.target_batch ? ' · Lô đích: ' + p.target_batch : '')
+            + (qtyEditable ? '' : ' · Chỉ sửa được Ngày và Ghi chú — muốn đổi số lượng thì xoá lượt này rồi tạo lại.');
+        }
+        // Chỉ chừa lại Ngày / Số lượng / Ghi chú.
+        const _tg = document.getElementById('culled-type-group');
+        if(_tg) _tg.style.display = 'none';
+        if(culledReassignFields) culledReassignFields.style.display = 'none';
+        const reworkFields = document.getElementById('culled-rework-fields');
+        if(reworkFields) reworkFields.style.display = 'none';
+        if(culledMarketGroup) culledMarketGroup.style.display = '';
+        const qtyLabel = document.getElementById('culled-qty-trai-label');
+        if(qtyLabel) qtyLabel.textContent = 'Số lượng (trái)';
+        if(culledQtyInput){
+          culledQtyInput.value = p.qty_trai != null ? p.qty_trai : '';
+          culledQtyInput.disabled = !qtyEditable;
+        }
+        document.getElementById('culled-date').value = p.processed_date || todayStr();
+        document.getElementById('culled-note').value = p.note || '';
         openModal();
       }
 
@@ -8219,6 +8282,12 @@ const titles = {
 
           const actionsTd = document.createElement('td');
           actionsTd.className = 'row-actions';
+          const editBtn = document.createElement('button');
+          editBtn.type = 'button';
+          editBtn.className = 'row-edit-btn';
+          editBtn.setAttribute('aria-label', 'Sửa');
+          editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
+          actionsTd.appendChild(editBtn);
           const delBtn = document.createElement('button');
           delBtn.type = 'button';
           delBtn.className = 'row-delete-btn';
@@ -8406,11 +8475,13 @@ const titles = {
 
       if(culledHistoryTbody){
         culledHistoryTbody.addEventListener('click', async function(e){
+          const editBtn = e.target.closest('.row-edit-btn');
           const delBtn = e.target.closest('.row-delete-btn');
-          if(!delBtn) return;
-          const tr = delBtn.closest('tr');
+          if(!editBtn && !delBtn) return;
+          const tr = (editBtn || delBtn).closest('tr');
           let p; try{ p = JSON.parse(tr.dataset.proc || '{}'); } catch(err){ p = {}; }
           if(!p.id) return;
+          if(editBtn){ openEditProcModal(p); return; }
           const willRevertSource = p.source_type === 'ton_du';
           // Gán bù từ nguồn "Tồn dư" thì lùi lại bằng cách trừ khỏi "Đã
           // xuất" của lô đích; từ nguồn "Hàng dạt" thì lùi lại bằng cách
@@ -8471,8 +8542,76 @@ const titles = {
         });
       }
 
+      // Sửa 1 lượt xử lý đã có (factory_culled_processing) — chỉ ngày / ghi chú
+      // / số lượng, kèm đồng bộ side-effect theo phần chênh lệch (delta):
+      //  • reassign Tồn NL: cập nhật thẳng soluong của lượt nhập ở lô đích
+      //    (chặn nếu lô đích đã khai SX — như lúc xoá).
+      //  • bán chợ / dạt bỏ nguồn Tồn kho dư: cộng/trừ chênh lệch số thùng vào
+      //    "Đã xuất" của lô gốc.
+      //  • bán chợ / dạt bỏ nguồn Hàng dạt / Tồn NL: chỉ đổi số, "Còn lại" tự
+      //    tính lại từ ledger.
+      async function submitCulledProcEdit(){
+        const p = editingCulledProc;
+        if(!p || !p.id) return;
+        const newDate = fieldVal('culled-date') || null;
+        const newNote = fieldVal('culled-note') || null;
+        const qtyEditable = procQtyEditable(p);
+        const oldQty = Number(p.qty_trai || 0);
+        let newQty = oldQty;
+        if(qtyEditable){
+          newQty = parseQty(fieldVal('culled-qty-trai'));
+          if(newQty == null || newQty <= 0){ showErrorToast('Nhập số lượng trái hợp lệ (> 0).'); return; }
+        }
+        const qtyChanged = qtyEditable && Math.abs(newQty - oldQty) > 0.0001;
+
+        const originalLabel = culledSubmitBtn.textContent;
+        culledSubmitBtn.disabled = true;
+        culledSubmitBtn.textContent = 'Đang lưu...';
+        try{
+          if(qtyChanged && p.xu_ly_type === 'reassign' && p.source_type === 'ton_nl' && p.target_raw_batch_id){
+            const { data: fbT, error: fbTErr } = await sb.from('factory_batches')
+              .select('id').eq('raw_batch_id', p.target_raw_batch_id).maybeSingle();
+            if(fbTErr) throw fbTErr;
+            if(fbT){
+              showErrorToast('Lô đích "' + (p.target_batch || '') + '" đã bắt đầu sản xuất — sửa số lượng lượt nhập thủ công ở tab Vùng nguyên liệu, hoặc xoá lượt xử lý này rồi tạo lại.');
+              return;
+            }
+            const { error: upRbErr } = await sb.from('raw_batches')
+              .update({ soluong: String(newQty) }).eq('id', p.target_raw_batch_id);
+            if(upRbErr) throw upRbErr;
+          }
+
+          if(qtyChanged && (p.xu_ly_type === 'market' || p.xu_ly_type === 'discard') && p.source_type === 'ton_du'){
+            const qc = Number(p.source_quy_cach || 0);
+            if(qc > 0){
+              const deltaThung = (newQty / qc) - (oldQty / qc);
+              await bumpExportedFor(p.source_batch, p.source_san_pham, qc, deltaThung, null);
+              p.so_luong_thung = newQty / qc;
+            }
+          }
+
+          const patch = { processed_date: newDate, note: newNote };
+          if(qtyEditable) patch.qty_trai = newQty;
+          if(qtyChanged && p.source_type === 'ton_du' && p.so_luong_thung != null) patch.so_luong_thung = p.so_luong_thung;
+          const { error: upErr } = await sb.from('factory_culled_processing').update(patch).eq('id', p.id);
+          if(upErr) throw upErr;
+
+          if(p.target_raw_batch_id) notifyRawBatchesChanged();
+          await refreshCulledRows();
+          await refreshInventoryRows();
+          closeModal();
+          notifyFactoryProductionChanged();
+        } catch(err){
+          showErrorToast('Không thể lưu vào Supabase: ' + err.message);
+        } finally {
+          culledSubmitBtn.disabled = false;
+          culledSubmitBtn.textContent = originalLabel;
+        }
+      }
+
       culledForm.addEventListener('submit', async function(e){
         e.preventDefault();
+        if(editingCulledProc){ await submitCulledProcEdit(); return; }
         if(!editingCulledRow) return;
         const row = editingCulledRow;
         const type = culledTypeSelect.value;
